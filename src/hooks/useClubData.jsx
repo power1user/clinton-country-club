@@ -1,0 +1,483 @@
+import { useEffect, useState } from 'react';
+import { supabase, isConfigured } from '../lib/supabase.js';
+import { useAuth } from './useAuth.jsx';
+import {
+  DATA_STATUS, DATA_NEWS, DATA_WEATHER, DATA_HOLES, DATA_EVENTS, DATA_MENU,
+  DATA_BULLETIN, DATA_PARTNERS, ONBOARDING,
+} from '../data/mock.js';
+
+// ────────────────────────────────────────────────────────────────────────────
+// Status pills (real-time)
+// ────────────────────────────────────────────────────────────────────────────
+export function useClubStatus() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_STATUS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) {
+      setData(DATA_STATUS);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      const { data: rows, error } = await supabase
+        .from('club_status')
+        .select('id, category, label, sort_order, state, hours_note, staff_note')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      if (error) { setLoading(false); return; }
+      // Map DB shape to the shape Home/StatusPill already consumes
+      setData(rows.map(r => ({
+        id: r.category,
+        label: r.label,
+        st: r.state,
+        hrs: r.hours_note || '',
+        note: r.staff_note || '',
+      })));
+      setLoading(false);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`club_status:${club.id}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'club_status', filter: `club_id=eq.${club.id}` },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pace of play (real-time)
+// ────────────────────────────────────────────────────────────────────────────
+export function usePaceOfPlay() {
+  const { club } = useAuth();
+  const [data, setData] = useState({ state: 'open', time_label: '4h 08m', message: 'On pace' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setLoading(false); return; }
+
+    let cancelled = false;
+    const load = async () => {
+      const { data: row } = await supabase
+        .from('pace_of_play')
+        .select('state, time_label, message, updated_at')
+        .eq('club_id', club.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (row) setData(row);
+      setLoading(false);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`pace:${club.id}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'pace_of_play', filter: `club_id=eq.${club.id}` },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// News
+// ────────────────────────────────────────────────────────────────────────────
+export function useNews() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_NEWS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_NEWS); setLoading(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('news')
+        .select('id, category, headline, body, date_label, published_at')
+        .eq('club_id', club.id)
+        .order('published_at', { ascending: false });
+      if (cancelled) return;
+      if (!error && rows) {
+        setData(rows.map(r => ({
+          id: r.id,
+          cat: r.category,
+          head: r.headline,
+          body: r.body,
+          date: r.date_label || new Date(r.published_at).toLocaleDateString(),
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Events
+// ────────────────────────────────────────────────────────────────────────────
+export function useEvents() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_EVENTS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_EVENTS); setLoading(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('events')
+        .select('id, title, description, category, event_date, event_time, date_label, dow, day_num, spots, price')
+        .eq('club_id', club.id)
+        .order('event_date', { ascending: true });
+      if (cancelled) return;
+      if (rows) {
+        setData(rows.map(r => ({
+          id: r.id,
+          date: r.date_label,
+          dow: r.dow,
+          day: r.day_num,
+          title: r.title,
+          time: r.event_time,
+          cat: r.category,
+          spots: r.spots,
+          price: r.price,
+          desc: r.description,
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Menus (grouped by category, same shape as DATA_MENU)
+// ────────────────────────────────────────────────────────────────────────────
+export function useMenu() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_MENU);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_MENU); setLoading(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('menus')
+        .select('id, category, sort_order, item_name, description, price, tag, is_special, available_today')
+        .eq('club_id', club.id)
+        .eq('available_today', true)
+        .order('category', { ascending: true })
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      if (rows) {
+        const grouped = { specials: [], lunch: [], dinner: [], bar: [], desserts: [] };
+        for (const r of rows) {
+          if (!grouped[r.category]) grouped[r.category] = [];
+          grouped[r.category].push({
+            id: r.id,
+            name: r.item_name,
+            desc: r.description,
+            price: r.price,
+            tag: r.tag,
+          });
+        }
+        setData(grouped);
+      }
+      setLoading(false);
+    })();
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pin placements for today (all 18 holes)
+// ────────────────────────────────────────────────────────────────────────────
+export function usePinPlacements() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_HOLES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_HOLES); setLoading(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('pin_placements')
+        .select('hole_number, par, yards, pin_position, green_condition, hazard_note, pace_label, effective_date')
+        .eq('club_id', club.id)
+        .eq('effective_date', new Date().toISOString().slice(0, 10))
+        .order('hole_number', { ascending: true });
+      if (cancelled) return;
+      if (rows && rows.length) {
+        setData(rows.map(r => ({
+          n: r.hole_number,
+          par: r.par,
+          yds: r.yards,
+          pin: r.pin_position,
+          grn: r.green_condition,
+          haz: r.hazard_note,
+          pace: r.pace_label,
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bulletin board posts
+// ────────────────────────────────────────────────────────────────────────────
+export function useBulletinPosts() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_BULLETIN);
+  const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_BULLETIN); setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('bulletin_posts')
+        .select('id, category, title, body, hidden, created_at, member_id, members(name)')
+        .eq('club_id', club.id)
+        .eq('hidden', false)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (rows) {
+        setData(rows.map(r => ({
+          id: r.id,
+          cat: r.category,
+          author: r.members?.name || 'Member',
+          date: relativeDate(r.created_at),
+          title: r.title,
+          body: r.body,
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id, version]);
+
+  return { data, loading, refresh };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Partner board posts
+// ────────────────────────────────────────────────────────────────────────────
+export function usePartnerPosts() {
+  const { club } = useAuth();
+  const [data, setData] = useState(DATA_PARTNERS);
+  const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(DATA_PARTNERS); setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('partner_posts')
+        .select('id, category, title, body, hcp, is_open, created_at, member_id, members(name)')
+        .eq('club_id', club.id)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (rows) {
+        setData(rows.map(r => ({
+          id: r.id,
+          author: r.members?.name || 'Member',
+          hcp: r.hcp,
+          date: relativeDate(r.created_at),
+          title: r.title,
+          body: r.body,
+          cat: r.category,
+          open: r.is_open,
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id, version]);
+
+  return { data, loading, refresh };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Onboarding (club_content with slug pattern)
+// ────────────────────────────────────────────────────────────────────────────
+export function useOnboarding() {
+  const { club } = useAuth();
+  const [data, setData] = useState(ONBOARDING);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData(ONBOARDING); setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: rows } = await supabase
+        .from('club_content')
+        .select('slug, title, icon, body, sort_order')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      if (rows && rows.length) {
+        setData(rows.map(r => ({ id: r.slug, title: r.title, icon: r.icon, body: r.body })));
+      }
+      setLoading(false);
+    })();
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Weather — OpenWeatherMap, always at the CLUB's coordinates (not the user's).
+// Returns both current conditions and a 5-day forecast.
+// ────────────────────────────────────────────────────────────────────────────
+const OPENWEATHER_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
+
+const DEFAULT_FORECAST = [
+  { d: 'Today', t: DATA_WEATHER.temp, c: '⛅' },
+];
+
+export function useWeather() {
+  const { club } = useAuth();
+  const [data, setData] = useState({ ...DATA_WEATHER, forecast: DEFAULT_FORECAST });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!OPENWEATHER_KEY || !club) { setLoading(false); return; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const lat = club.lat ?? 41.6032;
+        const lng = club.lng ?? -73.0877;
+        const base = `https://api.openweathermap.org/data/2.5`;
+        const [curR, fcR] = await Promise.all([
+          fetch(`${base}/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${OPENWEATHER_KEY}`),
+          fetch(`${base}/forecast?lat=${lat}&lon=${lng}&units=imperial&appid=${OPENWEATHER_KEY}`),
+        ]);
+        if (!curR.ok) throw new Error(`weather ${curR.status}`);
+        const cur = await curR.json();
+        const fc  = fcR.ok ? await fcR.json() : null;
+        if (cancelled) return;
+
+        setData({
+          temp:      Math.round(cur.main?.temp ?? DATA_WEATHER.temp),
+          high:      Math.round(cur.main?.temp_max ?? DATA_WEATHER.high),
+          low:       Math.round(cur.main?.temp_min ?? DATA_WEATHER.low),
+          condition: cur.weather?.[0]?.main || DATA_WEATHER.condition,
+          wind:      `${Math.round(cur.wind?.speed ?? 0)} mph ${degToCompass(cur.wind?.deg)}`.trim(),
+          humidity:  cur.main?.humidity ?? DATA_WEATHER.humidity,
+          uv:        DATA_WEATHER.uv, // not on free tier
+          forecast:  fc ? aggregateForecast(fc.list) : DEFAULT_FORECAST,
+        });
+      } catch (e) {
+        if (!cancelled) console.warn('[weather] fetch failed:', e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [club?.id, club?.lat, club?.lng]);
+
+  return { data, loading };
+}
+
+function degToCompass(deg) {
+  if (deg == null) return '';
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+// Group OpenWeather's 3-hour forecast entries into daily max-temp + dominant condition.
+function aggregateForecast(list) {
+  const byDay = new Map();
+  for (const entry of list) {
+    const d = new Date(entry.dt * 1000);
+    const key = d.toISOString().slice(0, 10);
+    if (!byDay.has(key)) byDay.set(key, { date: d, entries: [] });
+    byDay.get(key).entries.push(entry);
+  }
+  const todayKey = new Date().toISOString().slice(0, 10);
+  return Array.from(byDay.values())
+    .slice(0, 5)
+    .map(day => {
+      const temps      = day.entries.map(e => e.main?.temp).filter(t => typeof t === 'number');
+      const conditions = day.entries.map(e => e.weather?.[0]?.main).filter(Boolean);
+      const isToday    = day.date.toISOString().slice(0, 10) === todayKey;
+      return {
+        d: isToday ? 'Today' : day.date.toLocaleDateString(undefined, { weekday: 'short' }),
+        t: temps.length ? Math.round(Math.max(...temps)) : null,
+        c: conditionEmoji(mostCommon(conditions)),
+      };
+    });
+}
+
+function mostCommon(arr) {
+  if (!arr.length) return '';
+  const counts = {};
+  let best = arr[0]; let bestN = 0;
+  for (const v of arr) {
+    counts[v] = (counts[v] || 0) + 1;
+    if (counts[v] > bestN) { best = v; bestN = counts[v]; }
+  }
+  return best;
+}
+
+function conditionEmoji(cond) {
+  switch (cond) {
+    case 'Clear':        return '☀️';
+    case 'Clouds':       return '⛅';
+    case 'Rain':         return '🌧';
+    case 'Drizzle':      return '🌦';
+    case 'Thunderstorm': return '⛈';
+    case 'Snow':         return '❄️';
+    case 'Mist':
+    case 'Fog':
+    case 'Haze':
+    case 'Smoke':        return '🌫';
+    default:             return '⛅';
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────────
+function relativeDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}

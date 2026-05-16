@@ -1,0 +1,95 @@
+/* Windhaven base styles — phone wrapper, transitions, form resets */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  background: #0C100C;
+  overflow: hidden;
+}
+
+#root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Phone-frame on desktop ── */
+.phone-frame {
+  width: 390px;
+  height: 844px;
+  background: #F2EDE0;
+  border-radius: 48px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 0 0 10px #1A1A1A,
+    0 0 0 12px rgba(255,255,255,0.04),
+    0 32px 80px rgba(0,0,0,0.85),
+    0 8px 24px rgba(0,0,0,0.5);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #F2EDE0;
+}
+
+/* On small screens, fill the viewport (mobile-first) */
+@media (max-height: 900px), (max-width: 450px) {
+  .phone-frame {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* ── Screen transitions ── */
+@keyframes slideInRight { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideInLeft  { from { transform: translateX(-28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeIn       { from { opacity: 0; } to { opacity: 1; } }
+
+.screen-forward { animation: slideInRight 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-back    { animation: slideInLeft  0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-tab     { animation: fadeIn       0.18s ease both; }
+
+/* ── Form resets ── */
+input, textarea, select {
+  font-family: 'Lora', serif;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input:focus, textarea:focus, select:focus { outline: none; }
+
+/* ── Hide scrollbars ── */
+::-webkit-scrollbar { width: 0; height: 0; }
+* { scrollbar-width: none; }
+
+/* Tappable active states */
+[data-tap]:active { opacity: 0.75; transform: scale(0.98); }
+
+/* Desktop label */
+.desktop-label {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0.45;
+  pointer-events: none;
+  font-family: 'Lora', serif;
+  font-size: 12px;
+  color: white;
+  letter-spacing: 0.06em;
+}
+@media (max-width: 450px) { .desktop-label { display: none; } }
