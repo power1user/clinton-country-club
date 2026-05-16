@@ -361,7 +361,7 @@ export function useOnboarding() {
 const OPENWEATHER_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
 const DEFAULT_FORECAST = [
-  { d: 'Today', t: DATA_WEATHER.temp, c: '⛅' },
+  { d: 'Now', t: DATA_WEATHER.temp, c: '⛅' },
 ];
 
 export function useWeather() {
@@ -384,6 +384,7 @@ export function useWeather() {
         ]);
         if (!curR.ok) throw new Error(`weather ${curR.status}`);
         const cur = await curR.json();
+        if (!fcR.ok) console.warn('[weather] forecast endpoint returned', fcR.status);
         const fc  = fcR.ok ? await fcR.json() : null;
         if (cancelled) return;
 
@@ -395,7 +396,7 @@ export function useWeather() {
           wind:      `${Math.round(cur.wind?.speed ?? 0)} mph ${degToCompass(cur.wind?.deg)}`.trim(),
           humidity:  cur.main?.humidity ?? DATA_WEATHER.humidity,
           uv:        DATA_WEATHER.uv, // not on free tier
-          forecast:  fc ? aggregateForecast(fc.list) : DEFAULT_FORECAST,
+          forecast:  buildHourly(cur, fc),
         });
       } catch (e) {
         if (!cancelled) console.warn('[weather] fetch failed:', e.message);
@@ -416,39 +417,45 @@ function degToCompass(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-// Group OpenWeather's 3-hour forecast entries into daily max-temp + dominant condition.
-function aggregateForecast(list) {
-  const byDay = new Map();
-  for (const entry of list) {
+// Build an hourly-ish forecast strip from current weather + the 3-hour
+// forecast entries. Returns ["Now" + next 5 buckets] = ~next 15 hours.
+// Way more useful for golf than a daily roll-up.
+function buildHourly(cur, fc) {
+  const now = {
+    d: 'Now',
+    t: Math.round(cur.main?.temp ?? DATA_WEATHER.temp),
+    c: conditionEmoji(cur.weather?.[0]?.main),
+  };
+  if (!fc?.list?.length) return [now];
+
+  // Drop any forecast entry that's already in the past, then take the next 5.
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const future = fc.list.filter(e => e.dt > nowSecs).slice(0, 5);
+
+  return [now, ...future.map(entry => {
     const d = new Date(entry.dt * 1000);
-    const key = d.toISOString().slice(0, 10);
-    if (!byDay.has(key)) byDay.set(key, { date: d, entries: [] });
-    byDay.get(key).entries.push(entry);
-  }
-  const todayKey = new Date().toISOString().slice(0, 10);
-  return Array.from(byDay.values())
-    .slice(0, 5)
-    .map(day => {
-      const temps      = day.entries.map(e => e.main?.temp).filter(t => typeof t === 'number');
-      const conditions = day.entries.map(e => e.weather?.[0]?.main).filter(Boolean);
-      const isToday    = day.date.toISOString().slice(0, 10) === todayKey;
-      return {
-        d: isToday ? 'Today' : day.date.toLocaleDateString(undefined, { weekday: 'short' }),
-        t: temps.length ? Math.round(Math.max(...temps)) : null,
-        c: conditionEmoji(mostCommon(conditions)),
-      };
-    });
+    return {
+      d: formatHour(d),
+      t: Math.round(entry.main?.temp ?? 0),
+      c: conditionEmoji(entry.weather?.[0]?.main),
+    };
+  })];
 }
 
-function mostCommon(arr) {
-  if (!arr.length) return '';
-  const counts = {};
-  let best = arr[0]; let bestN = 0;
-  for (const v of arr) {
-    counts[v] = (counts[v] || 0) + 1;
-    if (counts[v] > bestN) { best = v; bestN = counts[v]; }
-  }
-  return best;
+// "3pm", "12am", or "Tue 9am" when it's a different day from now.
+function formatHour(d) {
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+  const isTomorrow = d.toDateString() === tomorrow.toDateString();
+
+  const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', hour12: true })
+    .replace(/\s+/g, '').toLowerCase();
+
+  if (sameDay) return timeStr;
+  if (isTomorrow) return `Tmr ${timeStr}`;
+  const day = d.toLocaleDateString(undefined, { weekday: 'short' });
+  return `${day} ${timeStr}`;
 }
 
 function conditionEmoji(cond) {
