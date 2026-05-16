@@ -50,8 +50,8 @@ export default function Home() {
       <div style={{ background: G.greenMid, padding: '12px 16px 14px', flexShrink: 0 }}>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#5C9A70', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 9px' }}>Today's Status</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(0, 3).map(s => <StatusPill key={s.id} item={s} />)}</div>
-          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(3, 6).map(s => <StatusPill key={s.id} item={s} />)}</div>
+          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(0, 3).map((s, i) => <StatusPill key={s.id} item={s} column={i} />)}</div>
+          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(3, 6).map((s, i) => <StatusPill key={s.id} item={s} column={i} />)}</div>
         </div>
       </div>
 
