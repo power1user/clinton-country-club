@@ -9,11 +9,12 @@ export default function FoodMenu() {
   const { data: menu } = useMenu();
   const brand = useBrand();
   const [cat, setCat] = useState('specials');
+  // Categories match Clinton CC's clubhouse pub menu. No separate dinner —
+  // the pub menu is the same throughout the day.
   const cats = [
-    { id: 'specials', l: "Today's Specials" },
-    { id: 'lunch',    l: 'Luncheon' },
-    { id: 'dinner',   l: 'Dinner' },
-    { id: 'bar',      l: 'Bar' },
+    { id: 'specials', l: 'Pub Favorites' },
+    { id: 'lunch',    l: 'Sandwiches' },
+    { id: 'bar',      l: 'Wings & Bites' },
     { id: 'desserts', l: 'Desserts' },
   ];
   const items = menu[cat] || [];
@@ -39,11 +40,11 @@ export default function FoodMenu() {
             </div>
           )}
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Chef Marcus Webb · Thursday, May 15</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Clubhouse Pub Menu</p>
       </div>
 
       <div style={{ background: G.greenMid, padding: '8px 20px', flexShrink: 0, display: 'flex', gap: 16 }}>
-        {[['Lunch', '11:30am – 2:30pm'], ['Dinner', '5:30pm – 9:00pm'], ['Bar', '11am – 10pm']].map(([l, h]) => (
+        {[['Kitchen', 'Open during clubhouse hours'], ['Pub', 'See clubhouse for hours'], ['Order to course', 'Available during play']].map(([l, h]) => (
           <div key={l} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: G.openDot, flexShrink: 0 }} />
             <span style={{ fontFamily: '"Lora",serif', fontSize: 10.5, color: '#C0D8C8' }}><strong>{l}</strong> {h}</span>
