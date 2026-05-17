@@ -147,17 +147,20 @@ function StatusAdmin({ club }) {
   );
 }
 
-// One-line summary of the week ("Mon-Fri 11am-9pm · Sat 11am-10pm · Sun closed")
+// One-line summary of the week
+//   "Mon-Fri 11am-9pm · Sat-Sun 8am-Dusk · members"
+// "members" is appended (gold-colored in the rendered version) when that
+// chunk of days has the members_only flag set.
 function summarizeWeek(hoursByDay) {
   if (!hoursByDay || Object.keys(hoursByDay).length === 0) return 'No schedule set';
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  // Group consecutive days with identical hours
+  // Group consecutive days that share an identical signature (hours + flags)
   const groups = [];
   for (let d = 0; d < 7; d++) {
     const h = hoursByDay[d];
     const sig = !h ? 'unset' :
       h.is_closed ? 'closed' :
-      `${h.opens_at || ''}-${h.closes_at_dusk ? 'dusk' : (h.closes_at || '')}`;
+      `${h.opens_at || ''}-${h.closes_at_dusk ? 'dusk' : (h.closes_at || '')}|m=${!!h.members_only}`;
     const last = groups[groups.length - 1];
     if (last && last.sig === sig) last.end = d;
     else groups.push({ sig, start: d, end: d, h });
@@ -168,7 +171,8 @@ function summarizeWeek(hoursByDay) {
     if (g.sig === 'closed') return `${days} closed`;
     const o = fmt12(g.h.opens_at);
     const c = g.h.closes_at_dusk ? 'Dusk' : fmt12(g.h.closes_at);
-    return `${days} ${o}–${c}`;
+    const mem = g.h.members_only ? ' · members' : '';
+    return `${days} ${o}–${c}${mem}`;
   }).join(' · ');
 }
 
@@ -241,9 +245,22 @@ function WeeklyHoursModal({ pill, onClose }) {
         {dayNames.map((name, d) => {
           const v = days[d];
           return (
-            <div key={d} style={{ padding: '10px 12px', background: G.card, borderRadius: 4, marginBottom: 8, border: `1px solid ${G.border}` }}>
+            <div key={d} style={{ padding: '10px 12px', background: G.card, borderRadius: 4, marginBottom: 8, border: `1px solid ${G.border}`, position: 'relative' }}>
+              {/* Brass dot in the corner when this day is members-only */}
+              {v.members_only && !v.is_closed && (
+                <span
+                  title="Members only"
+                  style={{ position: 'absolute', top: 8, right: 10, width: 8, height: 8, borderRadius: '50%', background: G.brassLt, boxShadow: `0 0 0 2px ${G.card}` }}
+                />
+              )}
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, flex: 1 }}>{name}</span>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {name}
+                  {v.members_only && !v.is_closed && (
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#7A5A0A', background: 'rgba(196,160,64,0.25)', padding: '1px 6px', borderRadius: 2, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Members</span>
+                  )}
+                </span>
+                <span style={{ flex: 1 }} />
                 <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginRight: 10 }}>
                   <input type="checkbox" checked={v.is_closed} onChange={e => setDay(d, 'is_closed', e.target.checked)} />
                   Closed all day
