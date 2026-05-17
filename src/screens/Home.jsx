@@ -49,18 +49,29 @@ export default function Home() {
       {/* Status pills */}
       <div style={{ background: G.greenMid, padding: '12px 16px 14px', flexShrink: 0 }}>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#5C9A70', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 9px' }}>Today's Status</p>
+        {/* Both rows use the same 6-column grid so the column boundaries line up
+            and each row has identical total width. Top row: 3 pills × 2 cols.
+            Bottom row: 2 pills × 3 cols. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {(() => {
             const row1 = statusList.slice(0, 3);
             const row2 = statusList.slice(3);
             return (
               <>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  {row1.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row1.length} />)}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
+                  {row1.map((s, i) => (
+                    <div key={s.id} style={{ gridColumn: 'span 2', minWidth: 0 }}>
+                      <StatusPill item={s} column={i} colCount={row1.length} />
+                    </div>
+                  ))}
                 </div>
                 {row2.length > 0 && (
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {row2.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row2.length} large />)}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>
+                    {row2.map((s, i) => (
+                      <div key={s.id} style={{ gridColumn: 'span 3', minWidth: 0 }}>
+                        <StatusPill item={s} column={i} colCount={row2.length} large />
+                      </div>
+                    ))}
                   </div>
                 )}
               </>

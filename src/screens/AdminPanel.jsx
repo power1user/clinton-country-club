@@ -257,13 +257,22 @@ function WeeklyHoursModal({ pill, onClose }) {
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={smLabel}>Closes</label>
-                      <input
-                        type="time"
-                        value={v.closes_at_dusk ? '' : v.closes_at}
-                        disabled={v.closes_at_dusk}
-                        onChange={e => setDay(d, 'closes_at', e.target.value)}
-                        style={{ ...smInput, opacity: v.closes_at_dusk ? 0.4 : 1 }}
-                      />
+                      {v.closes_at_dusk ? (
+                        // Time inputs can't display 'Dusk', so swap in a styled label that matches the input chrome.
+                        <div style={{ ...smInput, display: 'flex', alignItems: 'center', gap: 6, color: G.muted, fontStyle: 'italic', background: '#EFE9DA' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8">
+                            <path d="M12 3v2M5.6 5.6l1.4 1.4M3 12h2M17 12h2M16.4 7L17.8 5.6M12 19a7 7 0 010-14"/>
+                          </svg>
+                          <span>Dusk</span>
+                        </div>
+                      ) : (
+                        <input
+                          type="time"
+                          value={v.closes_at}
+                          onChange={e => setDay(d, 'closes_at', e.target.value)}
+                          style={smInput}
+                        />
+                      )}
                     </div>
                   </div>
                   <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
