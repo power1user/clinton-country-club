@@ -1,7 +1,14 @@
+<!-- Hole 1, Par 5. Long peanut-curved green oriented L→R with bunkers along the front-left and back. -->
 <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
   <rect width="400" height="300" fill="#2D4A24"/>
-  <ellipse cx="200" cy="160" rx="170" ry="100" fill="#3D5E32"/>
-  <ellipse cx="200" cy="160" rx="150" ry="84" fill="#6FBF54"/>
-  <ellipse cx="80"  cy="200" rx="32" ry="18" fill="#D4C878" opacity="0.85"/>
+  <!-- Front-left bunker complex -->
+  <ellipse cx="95"  cy="200" rx="48" ry="22" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="78"  cy="170" rx="22" ry="12" fill="#D4C878" opacity="0.85"/>
+  <!-- Back bunkers -->
+  <ellipse cx="250" cy="80"  rx="36" ry="14" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="320" cy="90"  rx="18" ry="10" fill="#D4C878" opacity="0.85"/>
+  <!-- Green: long curved peanut shape -->
+  <path d="M 100 170 Q 60 130 130 110 Q 200 90 270 110 Q 340 130 330 175 Q 320 220 250 215 Q 175 215 140 195 Q 110 188 100 170 Z" fill="#3D5E32"/>
+  <path d="M 115 165 Q 80 135 135 120 Q 200 102 265 120 Q 320 135 313 172 Q 305 208 250 205 Q 178 205 145 188 Q 122 182 115 165 Z" fill="#6FBF54"/>
   <text x="200" y="288" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.45)" font-family="Lora, serif" letter-spacing="2">FRONT</text>
 </svg>

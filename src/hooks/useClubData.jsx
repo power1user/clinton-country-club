@@ -231,7 +231,7 @@ export function usePinPlacements() {
       // Permanent hole metadata (par, yards, green image)
       const { data: holes } = await supabase
         .from('holes')
-        .select('hole_number, par, yards, name, description, green_image, handicap')
+        .select('hole_number, par, yards, yards_blue, yards_white, yards_red, name, description, green_image, handicap')
         .eq('club_id', club.id)
         .order('hole_number', { ascending: true });
       // Today's pin coordinates
@@ -250,6 +250,9 @@ export function usePinPlacements() {
             n: h.hole_number,
             par: h.par,
             yds: h.yards,
+            yds_blue:  h.yards_blue,
+            yds_white: h.yards_white,
+            yds_red:   h.yards_red,
             name: h.name,
             description: h.description,
             handicap: h.handicap,

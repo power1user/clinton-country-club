@@ -1,8 +1,12 @@
+<!-- Hole 4, Par 3 (152 yds). Smaller kidney-shape green with bunkers around it. -->
 <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
   <rect width="400" height="300" fill="#2D4A24"/>
-  <ellipse cx="200" cy="150" rx="180" ry="110" fill="#3D5E32"/>
-  <ellipse cx="200" cy="150" rx="160" ry="94" fill="#6FBF54"/>
-  <ellipse cx="80"  cy="100" rx="30" ry="20" fill="#D4C878" opacity="0.85"/>
-  <ellipse cx="320" cy="220" rx="32" ry="20" fill="#D4C878" opacity="0.85"/>
+  <!-- Surrounding bunkers -->
+  <ellipse cx="100" cy="160" rx="26" ry="16" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="305" cy="155" rx="30" ry="14" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="200" cy="90"  rx="34" ry="12" fill="#D4C878" opacity="0.85"/>
+  <!-- Green: kidney shape -->
+  <path d="M 135 175 Q 145 110 220 115 Q 285 120 280 165 Q 270 195 215 200 Q 160 205 135 175 Z" fill="#3D5E32"/>
+  <path d="M 148 172 Q 158 122 220 127 Q 275 132 268 162 Q 260 188 215 192 Q 168 197 148 172 Z" fill="#6FBF54"/>
   <text x="200" y="288" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.45)" font-family="Lora, serif" letter-spacing="2">FRONT</text>
 </svg>

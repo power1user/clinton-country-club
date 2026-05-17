@@ -1,7 +1,14 @@
+<!-- Hole 7, Par 4 (378 yds). Long horizontal green with bunkers along the top edge. -->
 <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
   <rect width="400" height="300" fill="#2D4A24"/>
-  <path d="M 60 160 Q 80 75 180 70 Q 310 70 340 140 Q 320 240 200 245 Q 90 245 60 200 Z" fill="#3D5E32"/>
-  <path d="M 75 160 Q 95 85 185 80 Q 300 80 325 145 Q 308 230 200 235 Q 100 235 75 195 Z" fill="#6FBF54"/>
-  <ellipse cx="345" cy="180" rx="28" ry="20" fill="#D4C878" opacity="0.85"/>
+  <!-- Top bunkers -->
+  <ellipse cx="100" cy="100" rx="30" ry="14" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="180" cy="92"  rx="34" ry="13" fill="#D4C878" opacity="0.9"/>
+  <ellipse cx="280" cy="100" rx="38" ry="14" fill="#D4C878" opacity="0.9"/>
+  <!-- Front bunker -->
+  <ellipse cx="320" cy="220" rx="22" ry="12" fill="#D4C878" opacity="0.85"/>
+  <!-- Green: long elongated -->
+  <path d="M 60 165 Q 100 125 200 130 Q 320 135 350 175 Q 345 220 200 215 Q 70 210 60 165 Z" fill="#3D5E32"/>
+  <path d="M 75 165 Q 110 138 200 142 Q 315 146 338 175 Q 332 205 200 202 Q 85 200 75 165 Z" fill="#6FBF54"/>
   <text x="200" y="288" text-anchor="middle" font-size="11" fill="rgba(255,255,255,0.45)" font-family="Lora, serif" letter-spacing="2">FRONT</text>
 </svg>
