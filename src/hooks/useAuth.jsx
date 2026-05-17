@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [member, setMember] = useState(null);
   const [club, setClub] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Load the club row (everyone needs it to scope queries by club_id)
@@ -41,25 +42,41 @@ export function AuthProvider({ children }) {
     if (!isConfigured || !session?.user || !club) {
       setMember(null);
       setIsAdmin(false);
+      setIsSuperAdmin(false);
       return;
     }
     (async () => {
-      const [{ data: m }, { data: a }] = await Promise.all([
-        supabase
-          .from('members')
-          .select('*')
-          .eq('club_id', club.id)
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
-        supabase
-          .from('admin_users')
-          .select('id')
-          .eq('club_id', club.id)
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
-      ]);
+      let { data: m } = await supabase
+        .from('members')
+        .select('*')
+        .eq('club_id', club.id)
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      // If no member row is linked yet, try to claim a pending one with the
+      // matching email (set up by staff via "Add Member" or CSV import).
+      if (!m) {
+        const { data: claimed } = await supabase.rpc('claim_member_by_email', { p_club_id: club.id });
+        if (claimed) {
+          const refetch = await supabase
+            .from('members')
+            .select('*')
+            .eq('id', claimed)
+            .maybeSingle();
+          m = refetch.data;
+        }
+      }
+
+      const { data: a } = await supabase
+        .from('admin_users')
+        .select('id, role')
+        .eq('club_id', club.id)
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
       setMember(m || null);
       setIsAdmin(Boolean(a));
+      setIsSuperAdmin(a?.role === 'admin');
     })();
   }, [session, club]);
 
@@ -85,7 +102,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ session, member, club, isAdmin, loading, signIn, signUp, signOut, isConfigured }}>
+    <AuthCtx.Provider value={{ session, member, club, isAdmin, isSuperAdmin, loading, signIn, signUp, signOut, isConfigured }}>
       {children}
     </AuthCtx.Provider>
   );
