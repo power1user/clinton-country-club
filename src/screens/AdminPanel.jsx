@@ -186,8 +186,9 @@ function WeeklyHoursModal({ pill, onClose }) {
             closes_at: trim5(existing.closes_at) || '',
             closes_at_dusk: !!existing.closes_at_dusk,
             is_closed: !!existing.is_closed,
+            members_only: !!existing.members_only,
           }
-        : { opens_at: '', closes_at: '', closes_at_dusk: false, is_closed: true };
+        : { opens_at: '', closes_at: '', closes_at_dusk: false, is_closed: true, members_only: false };
     }
     return init;
   });
@@ -216,6 +217,7 @@ function WeeklyHoursModal({ pill, onClose }) {
         closes_at: v.closes_at_dusk ? null : blankToNull(v.closes_at),
         closes_at_dusk: v.closes_at_dusk,
         is_closed: v.is_closed,
+        members_only: !!v.members_only,
       });
     }
     const { error } = await supabase
@@ -278,6 +280,10 @@ function WeeklyHoursModal({ pill, onClose }) {
                   <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
                     <input type="checkbox" checked={v.closes_at_dusk} onChange={e => setDay(d, 'closes_at_dusk', e.target.checked)} />
                     Closes at dusk (auto-computed from the club's coordinates)
+                  </label>
+                  <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginTop: 4 }}>
+                    <input type="checkbox" checked={!!v.members_only} onChange={e => setDay(d, 'members_only', e.target.checked)} />
+                    Members only (shows "MEMBERS" badge in brass instead of "OPEN")
                   </label>
                 </>
               )}

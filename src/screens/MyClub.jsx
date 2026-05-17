@@ -3,12 +3,14 @@ import { useNav } from '../hooks/useNav.jsx';
 import { SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { DATA_MEMBER } from '../data/mock.js';
 
 export default function MyClub() {
   const { push } = useNav();
   const { member, isAdmin, signOut } = useAuth();
   const brand = useBrand();
+  const now = useNow();
   // Map DB member shape to the design's prop names (or fall back to mock for prototype mode)
   const m = member ? {
     name: member.name,
@@ -32,7 +34,7 @@ export default function MyClub() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>9:41 AM</span>
+        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
       <div style={{ background: G.green, padding: '6px 20px 20px', flexShrink: 0 }}>

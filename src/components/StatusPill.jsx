@@ -103,24 +103,25 @@ export default function StatusPill({ item, column = 0, colCount = 3, large = fal
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', flex: 1 }}>
-      {/* The pill itself */}
+      {/* The pill itself — same height across all rows; the bottom row is wider
+          via the grid span, not taller. */}
       <div
         onClick={handleClick}
         data-tap
         style={{
           background: c.bg,
           borderRadius: 3,
-          padding: large ? '16px 14px' : '10px',
+          padding: '10px',
           cursor: 'pointer',
           outline: open ? `1.5px solid ${c.dot}` : 'none',
           outlineOffset: open ? 1 : 0,
           transition: 'outline-color 0.15s',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: large ? 8 : 6 }}>
-          <span style={{ width: large ? 9 : 6, height: large ? 9 : 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
-          <span style={{ fontFamily: '"Lora",serif', fontSize: large ? 14 : 11, color: '#E8E2D6', fontWeight: large ? 600 : 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: large ? 11 : 9, color: c.txt, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0, fontWeight: large ? 700 : 400 }}>{c.lbl}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#E8E2D6', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: c.txt, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>{c.lbl}</span>
         </div>
       </div>
 

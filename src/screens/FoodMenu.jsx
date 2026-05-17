@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
-import { useMenu } from '../hooks/useClubData.jsx';
+import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function FoodMenu() {
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
   const { data: menu } = useMenu();
   const brand = useBrand();
+  const now = useNow();
   const [cat, setCat] = useState('specials');
   // Categories match Clinton CC's clubhouse pub menu. No separate dinner —
   // the pub menu is the same throughout the day.
@@ -23,7 +24,7 @@ export default function FoodMenu() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>9:41 AM</span>
+        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
 

@@ -17,8 +17,9 @@ export const G = {
 
 export function gCfg(state) {
   return {
-    open:    { bg: G.openBg, dot: G.openDot, txt: G.openTxt, lbl: 'Open' },
-    limited: { bg: G.limBg,  dot: G.limDot,  txt: G.limTxt,  lbl: 'Limited' },
-    closed:  { bg: G.clsBg,  dot: G.clsDot,  txt: G.clsTxt,  lbl: 'Closed' },
-  }[state];
+    open:    { bg: G.openBg, dot: G.openDot,           txt: G.openTxt,           lbl: 'Open' },
+    limited: { bg: G.limBg,  dot: G.limDot,            txt: G.limTxt,            lbl: 'Limited' },
+    closed:  { bg: G.clsBg,  dot: G.clsDot,            txt: G.clsTxt,            lbl: 'Closed' },
+    members: { bg: G.brass,  dot: G.brassLt,           txt: '#F2E5C0',           lbl: 'Members' },
+  }[state] || { bg: G.openBg, dot: G.openDot, txt: G.openTxt, lbl: state || 'Open' };
 }

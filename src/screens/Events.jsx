@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
-import { useEvents } from '../hooks/useClubData.jsx';
+import { useEvents, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Events() {
   const { push } = useNav();
   const { data: events } = useEvents();
   const brand = useBrand();
+  const now = useNow();
   const [filter, setFilter] = useState('all');
   const filters = [{ id: 'all', l: 'All' }, { id: 'Golf', l: 'Golf' }, { id: 'Social', l: 'Social' }, { id: 'Dining', l: 'Dining' }];
   const shown = filter === 'all' ? events : events.filter(e => e.cat === filter);
@@ -16,7 +17,7 @@ export default function Events() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>9:41 AM</span>
+        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
       <div style={{ background: G.green, padding: '4px 20px 14px', flexShrink: 0 }}>

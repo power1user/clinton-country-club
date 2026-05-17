@@ -1,12 +1,13 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import StatusPill from '../components/StatusPill.jsx';
-import { useClubStatus, useNews, usePaceOfPlay, useWeather } from '../hooks/useClubData.jsx';
+import { useClubStatus, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Home() {
   const { push } = useNav();
   const brand = useBrand();
+  const now = useNow();
   const { data: statusList } = useClubStatus();
   const { data: newsList }   = useNews();
   const { data: pace }       = usePaceOfPlay();
@@ -17,7 +18,7 @@ export default function Home() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* iOS-style status bar */}
       <div style={{ height: 44, background: G.green, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px', flexShrink: 0 }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontWeight: 500, fontFamily: '"Lora",serif' }}>9:41 AM</span>
+        <span style={{ color: '#7AAC88', fontSize: 11, fontWeight: 500, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
 
@@ -43,7 +44,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Thursday, May 15, 2026</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>{formatLongDate(now)}</p>
       </div>
 
       {/* Status pills */}

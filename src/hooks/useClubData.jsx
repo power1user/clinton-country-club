@@ -28,7 +28,7 @@ export function useClubStatus() {
         .select(`
           id, category, label, sort_order, state, hours_note, staff_note,
           opens_at, closes_at,
-          hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed)
+          hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed, members_only)
         `)
         .eq('club_id', club.id)
         .order('sort_order', { ascending: true });
@@ -43,6 +43,7 @@ export function useClubStatus() {
             closes_at: h.closes_at,
             closes_at_dusk: h.closes_at_dusk,
             is_closed: h.is_closed,
+            members_only: h.members_only,
           };
         }
         return {
@@ -482,6 +483,8 @@ export function effectiveState(pill, now = new Date(), duskTime = null) {
     if (today.is_closed) return 'closed';
     const within = withinDailyHours(today, now, duskTime);
     if (within === false) return 'closed';
+    // Within hours + members-only flag on → 'members' state
+    if (today.members_only) return pill.st === 'limited' ? 'limited' : 'members';
   }
   return pill.st || 'open';
 }
@@ -524,6 +527,33 @@ export function withinDailyHours(day, now = new Date(), duskTime = null) {
 export function withinHours(opens_at, closes_at, now = new Date()) {
   if (!opens_at || !closes_at) return null;
   return withinDailyHours({ opens_at, closes_at }, now);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// useNow — current Date, refreshed once per minute. Used by status-bar /
+// header components so the time + date stay accurate while the app is open.
+// ────────────────────────────────────────────────────────────────────────────
+export function useNow() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    // Align the first tick to the next minute boundary so the clock advances
+    // visually when the actual minute changes, not on a 60s offset from mount.
+    const secondsUntilMinute = 60 - new Date().getSeconds();
+    let interval;
+    const align = setTimeout(() => {
+      setNow(new Date());
+      interval = setInterval(() => setNow(new Date()), 60_000);
+    }, secondsUntilMinute * 1000);
+    return () => { clearTimeout(align); if (interval) clearInterval(interval); };
+  }, []);
+  return now;
+}
+
+export function formatClockTime(d = new Date()) {
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+export function formatLongDate(d = new Date()) {
+  return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
