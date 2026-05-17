@@ -25,7 +25,7 @@ export function useClubStatus() {
     const load = async () => {
       const { data: rows, error } = await supabase
         .from('club_status')
-        .select('id, category, label, sort_order, state, hours_note, staff_note')
+        .select('id, category, label, sort_order, state, hours_note, staff_note, opens_at, closes_at')
         .eq('club_id', club.id)
         .order('sort_order', { ascending: true });
       if (cancelled) return;
@@ -35,8 +35,10 @@ export function useClubStatus() {
         id: r.category,
         label: r.label,
         st: r.state,
-        hrs: r.hours_note || '',
+        hrs: r.hours_note || formatHours(r.opens_at, r.closes_at),
         note: r.staff_note || '',
+        opens_at:  r.opens_at,
+        closes_at: r.closes_at,
       })));
       setLoading(false);
     };
@@ -435,6 +437,59 @@ export function useWeather() {
   }, [club?.id, club?.lat, club?.lng]);
 
   return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Status helpers — open/closed by current time, formatted hours, etc.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Decides what state to actually show given the admin's stored state + the
+// pill's scheduled hours + the current time.
+//   - admin manually set 'closed' → always closed
+//   - has hours AND we're outside them → closed
+//   - otherwise → admin's state ('open' or 'limited')
+export function effectiveState(pill, now = new Date()) {
+  if (!pill) return 'closed';
+  if (pill.st === 'closed') return 'closed';
+  const within = withinHours(pill.opens_at, pill.closes_at, now);
+  if (within === false) return 'closed';
+  return pill.st || 'open';
+}
+
+// Returns true / false / null (no schedule).
+export function withinHours(opens_at, closes_at, now = new Date()) {
+  if (!opens_at || !closes_at) return null;
+  const open  = toMinutes(opens_at);
+  const close = toMinutes(closes_at);
+  if (open == null || close == null) return null;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  // Handle overnight (e.g., bar 5pm–1am) when close < open
+  if (close < open) return cur >= open || cur < close;
+  return cur >= open && cur < close;
+}
+
+function toMinutes(t) {
+  // Accepts "11:00" or "11:00:00"
+  if (!t) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+export function formatHours(opens_at, closes_at) {
+  if (!opens_at || !closes_at) return 'By appointment';
+  return `${formatTimeAmPm(opens_at)} – ${formatTimeAmPm(closes_at)}`;
+}
+
+function formatTimeAmPm(t) {
+  if (!t) return '';
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  if (!m) return t;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const period = h >= 12 ? 'pm' : 'am';
+  h = ((h + 11) % 12) + 1;
+  return min === 0 ? `${h}${period}` : `${h}:${String(min).padStart(2,'0')}${period}`;
 }
 
 function degToCompass(deg) {

@@ -64,8 +64,8 @@ export default function FoodMenu() {
         <div onClick={() => push('food/order')} data-tap style={{ margin: '12px 16px 4px', padding: '11px 14px', background: G.green, borderRadius: 4, display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 12 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.5"><circle cx="12" cy="10" r="3" /><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" /></svg>
           <div style={{ flex: 1 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: '#F2EDE0', margin: 0 }}>Order to the Course</p>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#7AAC88', margin: 0 }}>Delivered to your hole · 20–30 min</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: '#F2EDE0', margin: 0 }}>Order Ahead</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#7AAC88', margin: 0 }}>Ready when you finish your round</p>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
         </div>

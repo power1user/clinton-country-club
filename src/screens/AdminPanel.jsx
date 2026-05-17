@@ -66,7 +66,12 @@ function StatusAdmin({ club }) {
     if (dirty.current) return;
     const next = {};
     for (const p of pills) {
-      next[p.id] = { state: p.st, hours_note: p.hrs, staff_note: p.note };
+      next[p.id] = {
+        state: p.st,
+        staff_note: p.note,
+        opens_at:  trim5(p.opens_at),
+        closes_at: trim5(p.closes_at),
+      };
     }
     setDraft(next);
   }, [pills]);
@@ -80,15 +85,25 @@ function StatusAdmin({ club }) {
     if (!isConfigured || !club) return;
     setBusy(true);
     const updates = pills.map(p => ({
-      category: p.id,
-      state: draft[p.id]?.state || p.st,
-      hours_note: draft[p.id]?.hours_note ?? p.hrs,
+      category:   p.id,
+      state:      draft[p.id]?.state ?? p.st,
       staff_note: draft[p.id]?.staff_note ?? p.note,
+      opens_at:   blankToNull(draft[p.id]?.opens_at),
+      closes_at:  blankToNull(draft[p.id]?.closes_at),
     }));
     for (const u of updates) {
       await supabase
         .from('club_status')
-        .update({ state: u.state, hours_note: u.hours_note, staff_note: u.staff_note })
+        .update({
+          state: u.state,
+          staff_note: u.staff_note,
+          opens_at:  u.opens_at,
+          closes_at: u.closes_at,
+          // Auto-generate the human-readable hours from the time pickers.
+          hours_note: u.opens_at && u.closes_at
+            ? `${fmt12(u.opens_at)} – ${fmt12(u.closes_at)}`
+            : 'By appointment',
+        })
         .eq('club_id', club.id)
         .eq('category', u.category);
     }
@@ -102,12 +117,17 @@ function StatusAdmin({ club }) {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>Changes publish in real time to every member's home screen.</p>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+        Pills auto-toggle Open ↔ Closed based on the hours below.
+        Leave hours blank for facilities like the Banquet Room that open by appointment.
+        Set state to "Limited" for partial service, or "Closed" to manually close regardless of hours.
+      </p>
       {pills.map(item => {
-        const d = draft[item.id] || { state: item.st, hours_note: item.hrs, staff_note: item.note };
+        const d = draft[item.id] || { state: item.st, staff_note: item.note, opens_at: trim5(item.opens_at), closes_at: trim5(item.closes_at) };
         return (
           <div key={item.id} style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}` }}>
             <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 10px' }}>{item.label}</h4>
+            {/* State buttons */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {['open', 'limited', 'closed'].map(st => (
                 <div key={st} onClick={() => setField(item.id, 'state', st)} data-tap style={{ flex: 1, padding: '6px 0', textAlign: 'center', borderRadius: 3, cursor: 'pointer', background: d.state === st ? gCfg(st).bg : G.bg, border: `1px solid ${d.state === st ? 'transparent' : G.border}`, transition: 'all 0.15s' }}>
@@ -115,16 +135,38 @@ function StatusAdmin({ club }) {
                 </div>
               ))}
             </div>
-            <input
-              value={d.hours_note}
-              onChange={e => setField(item.id, 'hours_note', e.target.value)}
-              placeholder="Hours, e.g. 11:30am – 8:30pm"
-              style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box', marginBottom: 6 }}
-            />
+            {/* Hours pickers */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Opens</label>
+                <input type="time"
+                  value={d.opens_at || ''}
+                  onChange={e => setField(item.id, 'opens_at', e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Closes</label>
+                <input type="time"
+                  value={d.closes_at || ''}
+                  onChange={e => setField(item.id, 'closes_at', e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              {(d.opens_at || d.closes_at) && (
+                <div
+                  onClick={() => { setField(item.id, 'opens_at', ''); setField(item.id, 'closes_at', ''); }}
+                  data-tap
+                  style={{ alignSelf: 'flex-end', padding: '6px 8px', cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}
+                >
+                  Clear
+                </div>
+              )}
+            </div>
             <input
               value={d.staff_note}
               onChange={e => setField(item.id, 'staff_note', e.target.value)}
-              placeholder="Staff note…"
+              placeholder="Staff note (optional) — shown to members in the pill popover"
               style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
@@ -371,6 +413,21 @@ function Loading({ label }) {
       <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted }}>{label}</p>
     </div>
   );
+}
+
+// ─── Time helpers (used by StatusAdmin hours pickers) ─────────────────────
+// Postgres TIME values come back as "HH:MM:SS"; <input type="time"> expects "HH:MM".
+function trim5(t) {
+  if (!t) return '';
+  return typeof t === 'string' ? t.slice(0, 5) : t;
+}
+function blankToNull(v) { return v && v.length ? v : null; }
+function fmt12(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'pm' : 'am';
+  const h12 = ((h + 11) % 12) + 1;
+  return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2,'0')}${period}`;
 }
 
 // ─── Shared form styles ────────────────────────────────────────────────────

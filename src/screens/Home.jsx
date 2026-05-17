@@ -50,8 +50,22 @@ export default function Home() {
       <div style={{ background: G.greenMid, padding: '12px 16px 14px', flexShrink: 0 }}>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#5C9A70', letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 9px' }}>Today's Status</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(0, 3).map((s, i) => <StatusPill key={s.id} item={s} column={i} />)}</div>
-          <div style={{ display: 'flex', gap: 5 }}>{statusList.slice(3, 6).map((s, i) => <StatusPill key={s.id} item={s} column={i} />)}</div>
+          {(() => {
+            const row1 = statusList.slice(0, 3);
+            const row2 = statusList.slice(3);
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {row1.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row1.length} />)}
+                </div>
+                {row2.length > 0 && (
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {row2.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row2.length} />)}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -85,12 +99,21 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Pace of play */}
-        <div style={{ padding: '10px 20px', background: G.card, borderBottom: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: pace?.state === 'closed' ? G.clsDot : pace?.state === 'limited' ? G.limDot : G.openDot, flexShrink: 0 }} />
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, flex: 1 }}>Pace of Play: <strong>{pace?.time_label || '—'}</strong>{pace?.message ? ` — ${pace.message}` : ''}</span>
-          <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted }}>{pace?.updated_at ? `Updated ${new Date(pace.updated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</span>
-        </div>
+        {/* Pace of play — only show if updated today (stale info is worse than no info) */}
+        {(() => {
+          if (!pace?.updated_at) return null;
+          const updated = new Date(pace.updated_at);
+          const today = new Date();
+          const isToday = updated.toDateString() === today.toDateString();
+          if (!isToday) return null;
+          return (
+            <div style={{ padding: '10px 20px', background: G.card, borderBottom: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: pace.state === 'closed' ? G.clsDot : pace.state === 'limited' ? G.limDot : G.openDot, flexShrink: 0 }} />
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, flex: 1 }}>Pace of Play: <strong>{pace.time_label || '—'}</strong>{pace.message ? ` — ${pace.message}` : ''}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted }}>Updated {updated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+            </div>
+          );
+        })()}
 
         {/* News */}
         <div style={{ padding: '14px 20px 20px' }}>
