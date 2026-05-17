@@ -7,18 +7,19 @@ import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClub
 import { GreenWithPin } from './PinMap.jsx';
 
 const SECTIONS = [
-  { id: 'status',  l: 'Club Status' },
-  { id: 'news',    l: 'Post News' },
-  { id: 'pace',    l: 'Pace of Play' },
-  { id: 'pins',    l: 'Pin Positions' },
-  { id: 'members', l: 'Members' },
-  { id: 'staff',   l: 'Staff',  superOnly: true },
+  { id: 'status',  l: 'Club Status',   d: 'Hours, open/closed, member-only days',          icon: IconStatus  },
+  { id: 'news',    l: 'Post News',     d: 'Publish announcements to all members',          icon: IconNews    },
+  { id: 'pace',    l: 'Pace of Play',  d: "Set today's pace indicator",                    icon: IconClock   },
+  { id: 'pins',    l: 'Pin Positions', d: "Place today's pin on each green",               icon: IconFlag    },
+  { id: 'members', l: 'Members',       d: 'Roster, CSV import, invites',                   icon: IconPeople  },
+  { id: 'staff',   l: 'Staff',         d: 'Manage admin & manager access',                 icon: IconShield, superOnly: true },
 ];
 
 export default function AdminPanel() {
   const { club, member, isAdmin, isSuperAdmin } = useAuth();
-  const [sec, setSec] = useState('status');
+  const [sec, setSec] = useState(null);   // null = show hub
   const sectionsToShow = SECTIONS.filter(s => !s.superOnly || isSuperAdmin);
+  const activeSection = SECTIONS.find(s => s.id === sec);
 
   if (!isAdmin) {
     return (
@@ -33,26 +34,122 @@ export default function AdminPanel() {
     );
   }
 
+  // Sub-section view — back arrow returns to the hub
+  if (activeSection) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader
+          title={activeSection.l}
+          onBack={() => setSec(null)}
+          right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
+        />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
+          {sec === 'status'  && <StatusAdmin club={club} />}
+          {sec === 'news'    && <NewsAdmin club={club} />}
+          {sec === 'pace'    && <PaceAdmin club={club} />}
+          {sec === 'pins'    && <PinsAdmin club={club} />}
+          {sec === 'members' && <MembersAdmin club={club} />}
+          {sec === 'staff'   && isSuperAdmin && <StaffAdmin club={club} />}
+        </div>
+      </div>
+    );
+  }
+
+  // Hub — grid of section cards
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Staff Admin" right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>} />
-      <div style={{ display: 'flex', background: G.greenMid, flexShrink: 0, overflowX: 'auto' }}>
-        {sectionsToShow.map(s => (
-          <div key={s.id} onClick={() => setSec(s.id)} data-tap style={{ padding: '10px 14px', cursor: 'pointer', flexShrink: 0, borderBottom: sec === s.id ? `2px solid ${G.brass}` : '2px solid transparent', marginBottom: -1 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: sec === s.id ? '#F2EDE0' : '#7AAC88', fontWeight: sec === s.id ? 600 : 400 }}>{s.l}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-        {sec === 'status'  && <StatusAdmin club={club} />}
-        {sec === 'news'    && <NewsAdmin club={club} />}
-        {sec === 'pace'    && <PaceAdmin club={club} />}
-        {sec === 'pins'    && <PinsAdmin club={club} />}
-        {sec === 'members' && <MembersAdmin club={club} />}
-        {sec === 'staff'   && isSuperAdmin && <StaffAdmin club={club} />}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
+          Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose what you'd like to manage.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {sectionsToShow.map(s => {
+            const Icon = s.icon;
+            return (
+              <div
+                key={s.id}
+                onClick={() => setSec(s.id)}
+                data-tap
+                style={{
+                  padding: '16px 14px 14px',
+                  background: G.card,
+                  border: `1px solid ${G.border}`,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                  minHeight: 124,
+                }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon color={G.brassLt} />
+                </div>
+                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '4px 0 0', lineHeight: 1.1 }}>{s.l}</h3>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, lineHeight: 1.4, margin: 0 }}>{s.d}</p>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
+  );
+}
+
+// ─── Hub card icons ────────────────────────────────────────────────────────
+function IconStatus({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function IconNews({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h13v14H4z" />
+      <path d="M17 8h3v9a2 2 0 01-2 2h-1" />
+      <path d="M7 9h7M7 12h7M7 15h4" />
+    </svg>
+  );
+}
+function IconClock({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+function IconFlag({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 21V4" />
+      <path d="M6 4h11l-3 4 3 4H6" fill={color} fillOpacity="0.25" />
+    </svg>
+  );
+}
+function IconPeople({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
+      <circle cx="17" cy="8" r="2.5" />
+      <path d="M15 14c2.5 0 5 1.5 5 4" />
+    </svg>
+  );
+}
+function IconShield({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l8 3v6c0 4.5-3.5 8.5-8 9-4.5-.5-8-4.5-8-9V6l8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
   );
 }
 

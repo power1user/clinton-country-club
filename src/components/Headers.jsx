@@ -31,11 +31,12 @@ export function ClubHeader({ title, subtitle, right }) {
   );
 }
 
-export function BackHeader({ title, right }) {
+export function BackHeader({ title, right, onBack }) {
   const { pop } = useNav();
+  const handleBack = onBack || pop;
   return (
     <div style={{ height: 50, background: G.green, display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0, gap: 12 }}>
-      <div onClick={pop} data-tap style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 6px 6px 0', flexShrink: 0 }}>
+      <div onClick={handleBack} data-tap style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 6px 6px 0', flexShrink: 0 }}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2">
           <path d="M19 12H5M5 12l7-7M5 12l7 7" />
         </svg>
