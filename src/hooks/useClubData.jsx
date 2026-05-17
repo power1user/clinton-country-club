@@ -132,7 +132,7 @@ export function useNews() {
     if (!isConfigured || !club) { setData(DATA_NEWS); setLoading(false); return; }
 
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       const { data: rows, error } = await supabase
         .from('news')
         .select('id, category, headline, body, date_label, published_at')
@@ -141,15 +141,20 @@ export function useNews() {
       if (cancelled) return;
       if (!error && rows) {
         setData(rows.map(r => ({
-          id: r.id,
-          cat: r.category,
-          head: r.headline,
-          body: r.body,
+          id: r.id, cat: r.category, head: r.headline, body: r.body,
           date: r.date_label || new Date(r.published_at).toLocaleDateString(),
         })));
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    const channel = supabase
+      .channel(`news:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'news', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
   return { data, loading };
@@ -167,7 +172,7 @@ export function useEvents() {
     if (!isConfigured || !club) { setData(DATA_EVENTS); setLoading(false); return; }
 
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       const { data: rows } = await supabase
         .from('events')
         .select('id, title, description, category, event_date, event_time, date_label, dow, day_num, spots, price')
@@ -176,20 +181,20 @@ export function useEvents() {
       if (cancelled) return;
       if (rows) {
         setData(rows.map(r => ({
-          id: r.id,
-          date: r.date_label,
-          dow: r.dow,
-          day: r.day_num,
-          title: r.title,
-          time: r.event_time,
-          cat: r.category,
-          spots: r.spots,
-          price: r.price,
-          desc: r.description,
+          id: r.id, date: r.date_label, dow: r.dow, day: r.day_num, title: r.title,
+          time: r.event_time, cat: r.category, spots: r.spots, price: r.price, desc: r.description,
         })));
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    const channel = supabase
+      .channel(`events:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
   return { data, loading };
@@ -207,7 +212,7 @@ export function useMenu() {
     if (!isConfigured || !club) { setData(DATA_MENU); setLoading(false); return; }
 
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       const { data: rows } = await supabase
         .from('menus')
         .select('id, category, sort_order, item_name, description, price, tag, is_special, available_today')
@@ -220,18 +225,20 @@ export function useMenu() {
         const grouped = { specials: [], lunch: [], dinner: [], bar: [], desserts: [] };
         for (const r of rows) {
           if (!grouped[r.category]) grouped[r.category] = [];
-          grouped[r.category].push({
-            id: r.id,
-            name: r.item_name,
-            desc: r.description,
-            price: r.price,
-            tag: r.tag,
-          });
+          grouped[r.category].push({ id: r.id, name: r.item_name, desc: r.description, price: r.price, tag: r.tag });
         }
         setData(grouped);
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    const channel = supabase
+      .channel(`menus:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menus', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
   return { data, loading };
@@ -239,7 +246,8 @@ export function useMenu() {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Pin placements for today — joins the permanent `holes` table with today's
-// pin_placements row to give the screen everything it needs in one shape.
+// pin_placements row, with realtime subscriptions so member views update
+// live when the greenskeeper publishes changes.
 // ────────────────────────────────────────────────────────────────────────────
 export function usePinPlacements() {
   const { club } = useAuth();
@@ -252,15 +260,13 @@ export function usePinPlacements() {
     if (!isConfigured || !club) { setData(DATA_HOLES); setLoading(false); return; }
 
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       const today = new Date().toISOString().slice(0, 10);
-      // Permanent hole metadata (par, yards, green image)
       const { data: holes } = await supabase
         .from('holes')
         .select('hole_number, par, yards, yards_blue, yards_white, yards_red, name, description, green_image, handicap')
         .eq('club_id', club.id)
         .order('hole_number', { ascending: true });
-      // Today's pin coordinates
       const { data: pins } = await supabase
         .from('pin_placements')
         .select('hole_number, pin_x, pin_y, notes, effective_date')
@@ -286,16 +292,22 @@ export function usePinPlacements() {
             pinX: p?.pin_x != null ? Number(p.pin_x) : 0.5,
             pinY: p?.pin_y != null ? Number(p.pin_y) : 0.5,
             notes: p?.notes || '',
-            // back-compat with components still reading old keys
-            pin: '',
-            grn: '',
-            haz: '',
-            pace: '',
+            pin: '', grn: '', haz: '', pace: '',
           };
         }));
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    // Realtime — reload when the greenskeeper tweaks today's pins or hole metadata
+    const channel = supabase
+      .channel(`pins:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pin_placements', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'holes',          filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id, version]);
 
   return { data, loading, refresh };
