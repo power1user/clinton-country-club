@@ -25,21 +25,39 @@ export function useClubStatus() {
     const load = async () => {
       const { data: rows, error } = await supabase
         .from('club_status')
-        .select('id, category, label, sort_order, state, hours_note, staff_note, opens_at, closes_at')
+        .select(`
+          id, category, label, sort_order, state, hours_note, staff_note,
+          opens_at, closes_at,
+          hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed)
+        `)
         .eq('club_id', club.id)
         .order('sort_order', { ascending: true });
       if (cancelled) return;
       if (error) { setLoading(false); return; }
-      // Map DB shape to the shape Home/StatusPill already consumes
-      setData(rows.map(r => ({
-        id: r.category,
-        label: r.label,
-        st: r.state,
-        hrs: r.hours_note || formatHours(r.opens_at, r.closes_at),
-        note: r.staff_note || '',
-        opens_at:  r.opens_at,
-        closes_at: r.closes_at,
-      })));
+
+      setData(rows.map(r => {
+        const byDay = {};
+        for (const h of (r.hours || [])) {
+          byDay[h.day_of_week] = {
+            opens_at: h.opens_at,
+            closes_at: h.closes_at,
+            closes_at_dusk: h.closes_at_dusk,
+            is_closed: h.is_closed,
+          };
+        }
+        return {
+          id: r.category,
+          statusId: r.id,                          // needed for admin per-day writes
+          label: r.label,
+          st: r.state,
+          note: r.staff_note || '',
+          // legacy single-row fallback (still used by some old screens)
+          opens_at:  r.opens_at,
+          closes_at: r.closes_at,
+          // per-day hours
+          hoursByDay: byDay,
+        };
+      }));
       setLoading(false);
     };
     load();
@@ -48,6 +66,11 @@ export function useClubStatus() {
       .channel(`club_status:${club.id}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'club_status', filter: `club_id=eq.${club.id}` },
+        () => load(),
+      )
+      // also reload when daily hours change
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'club_status_hours' },
         () => load(),
       )
       .subscribe();
@@ -443,29 +466,105 @@ export function useWeather() {
 // Status helpers — open/closed by current time, formatted hours, etc.
 // ────────────────────────────────────────────────────────────────────────────
 
-// Decides what state to actually show given the admin's stored state + the
-// pill's scheduled hours + the current time.
+// Decides what state to actually show given the admin's stored state, the
+// pill's day-of-week hours, dusk time (for "closes at dusk" facilities), and
+// the current time.
+//
 //   - admin manually set 'closed' → always closed
+//   - today is_closed → closed
 //   - has hours AND we're outside them → closed
 //   - otherwise → admin's state ('open' or 'limited')
-export function effectiveState(pill, now = new Date()) {
+export function effectiveState(pill, now = new Date(), duskTime = null) {
   if (!pill) return 'closed';
   if (pill.st === 'closed') return 'closed';
-  const within = withinHours(pill.opens_at, pill.closes_at, now);
-  if (within === false) return 'closed';
+  const today = pickToday(pill, now);
+  if (today) {
+    if (today.is_closed) return 'closed';
+    const within = withinDailyHours(today, now, duskTime);
+    if (within === false) return 'closed';
+  }
   return pill.st || 'open';
 }
 
-// Returns true / false / null (no schedule).
+// Returns today's hours row for a pill, or null if no per-day schedule.
+export function pickToday(pill, now = new Date()) {
+  const day = now.getDay();
+  if (pill?.hoursByDay && pill.hoursByDay[day]) return pill.hoursByDay[day];
+  // Fallback to legacy single-row hours
+  if (pill?.opens_at || pill?.closes_at) {
+    return { opens_at: pill.opens_at, closes_at: pill.closes_at, closes_at_dusk: false, is_closed: false };
+  }
+  return null;
+}
+
+export function withinDailyHours(day, now = new Date(), duskTime = null) {
+  if (!day) return null;
+  if (day.is_closed) return false;
+  if (!day.opens_at) return null;
+  // Close time: either fixed clock time or computed dusk
+  let closeMinutes;
+  if (day.closes_at_dusk && duskTime) {
+    closeMinutes = duskTime.getHours() * 60 + duskTime.getMinutes();
+  } else if (day.closes_at) {
+    closeMinutes = toMinutes(day.closes_at);
+  } else if (day.closes_at_dusk && !duskTime) {
+    // Dusk requested but not yet loaded — say "open" until we know
+    return true;
+  } else {
+    return null;
+  }
+  const openMinutes = toMinutes(day.opens_at);
+  if (openMinutes == null || closeMinutes == null) return null;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  if (closeMinutes < openMinutes) return cur >= openMinutes || cur < closeMinutes;
+  return cur >= openMinutes && cur < closeMinutes;
+}
+
+// Back-compat wrapper used by the old single-row API.
 export function withinHours(opens_at, closes_at, now = new Date()) {
   if (!opens_at || !closes_at) return null;
-  const open  = toMinutes(opens_at);
-  const close = toMinutes(closes_at);
-  if (open == null || close == null) return null;
-  const cur = now.getHours() * 60 + now.getMinutes();
-  // Handle overnight (e.g., bar 5pm–1am) when close < open
-  if (close < open) return cur >= open || cur < close;
-  return cur >= open && cur < close;
+  return withinDailyHours({ opens_at, closes_at }, now);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// useDusk — today's civil twilight end (dusk) at the club's coords.
+// Cached in module-scope per (lat,lng) since we only need this once per day.
+// ────────────────────────────────────────────────────────────────────────────
+const _duskCache = new Map();
+
+export function useDusk() {
+  const { club } = useAuth();
+  const [dusk, setDusk] = useState(null);
+
+  useEffect(() => {
+    if (!club?.lat || !club?.lng) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `${club.lat}:${club.lng}:${today}`;
+    if (_duskCache.has(key)) {
+      setDusk(_duskCache.get(key));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = `https://api.sunrise-sunset.org/json?lat=${club.lat}&lng=${club.lng}&date=today&formatted=0`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`sunrise-sunset ${r.status}`);
+        const j = await r.json();
+        const iso = j.results?.civil_twilight_end || j.results?.sunset;
+        if (!iso) return;
+        const d = new Date(iso);
+        if (cancelled) return;
+        _duskCache.set(key, d);
+        setDusk(d);
+      } catch (e) {
+        if (!cancelled) console.warn('[dusk] failed:', e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [club?.lat, club?.lng]);
+
+  return dusk;
 }
 
 function toMinutes(t) {

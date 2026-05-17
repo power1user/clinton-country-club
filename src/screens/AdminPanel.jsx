@@ -54,24 +54,18 @@ export default function AdminPanel() {
 // ─── Status pills editor ───────────────────────────────────────────────────
 function StatusAdmin({ club }) {
   const { data: pills, loading } = useClubStatus();
-  const [draft, setDraft] = useState({});       // { category: { state, hours_note, staff_note } }
+  const [draft, setDraft] = useState({});       // { category: { state, staff_note } }
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [editingHoursFor, setEditingHoursFor] = useState(null);  // status object or null
   const dirty = useRef(false);
 
-  // Re-sync the draft whenever fresh data arrives — UNLESS the user has
-  // unsaved edits, in which case we leave them alone so realtime doesn't
-  // clobber what they're typing.
+  // Re-sync the draft whenever fresh data arrives — UNLESS the user has unsaved edits.
   useEffect(() => {
     if (dirty.current) return;
     const next = {};
     for (const p of pills) {
-      next[p.id] = {
-        state: p.st,
-        staff_note: p.note,
-        opens_at:  trim5(p.opens_at),
-        closes_at: trim5(p.closes_at),
-      };
+      next[p.id] = { state: p.st, staff_note: p.note };
     }
     setDraft(next);
   }, [pills]);
@@ -84,28 +78,14 @@ function StatusAdmin({ club }) {
   const publish = async () => {
     if (!isConfigured || !club) return;
     setBusy(true);
-    const updates = pills.map(p => ({
-      category:   p.id,
-      state:      draft[p.id]?.state ?? p.st,
-      staff_note: draft[p.id]?.staff_note ?? p.note,
-      opens_at:   blankToNull(draft[p.id]?.opens_at),
-      closes_at:  blankToNull(draft[p.id]?.closes_at),
-    }));
-    for (const u of updates) {
+    for (const p of pills) {
+      const d = draft[p.id];
+      if (!d) continue;
       await supabase
         .from('club_status')
-        .update({
-          state: u.state,
-          staff_note: u.staff_note,
-          opens_at:  u.opens_at,
-          closes_at: u.closes_at,
-          // Auto-generate the human-readable hours from the time pickers.
-          hours_note: u.opens_at && u.closes_at
-            ? `${fmt12(u.opens_at)} – ${fmt12(u.closes_at)}`
-            : 'By appointment',
-        })
+        .update({ state: d.state ?? p.st, staff_note: d.staff_note ?? p.note })
         .eq('club_id', club.id)
-        .eq('category', u.category);
+        .eq('category', p.id);
     }
     dirty.current = false;
     setBusy(false);
@@ -118,12 +98,13 @@ function StatusAdmin({ club }) {
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
-        Pills auto-toggle Open ↔ Closed based on the hours below.
-        Leave hours blank for facilities like the Banquet Room that open by appointment.
-        Set state to "Limited" for partial service, or "Closed" to manually close regardless of hours.
+        Pills auto-toggle Open ↔ Closed based on the weekly hours you set per facility.
+        State buttons override (use "Limited" for partial service or "Closed" to force-close
+        regardless of hours).
       </p>
       {pills.map(item => {
-        const d = draft[item.id] || { state: item.st, staff_note: item.note, opens_at: trim5(item.opens_at), closes_at: trim5(item.closes_at) };
+        const d = draft[item.id] || { state: item.st, staff_note: item.note };
+        const summary = summarizeWeek(item.hoursByDay);
         return (
           <div key={item.id} style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}` }}>
             <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 10px' }}>{item.label}</h4>
@@ -135,33 +116,11 @@ function StatusAdmin({ club }) {
                 </div>
               ))}
             </div>
-            {/* Hours pickers */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Opens</label>
-                <input type="time"
-                  value={d.opens_at || ''}
-                  onChange={e => setField(item.id, 'opens_at', e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>Closes</label>
-                <input type="time"
-                  value={d.closes_at || ''}
-                  onChange={e => setField(item.id, 'closes_at', e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-              {(d.opens_at || d.closes_at) && (
-                <div
-                  onClick={() => { setField(item.id, 'opens_at', ''); setField(item.id, 'closes_at', ''); }}
-                  data-tap
-                  style={{ alignSelf: 'flex-end', padding: '6px 8px', cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}
-                >
-                  Clear
-                </div>
-              )}
+            {/* Weekly hours summary + edit */}
+            <div onClick={() => setEditingHoursFor(item)} data-tap style={{ padding: '8px 10px', background: G.bg, borderRadius: 3, border: `1px solid ${G.border}`, cursor: 'pointer', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, flex: 1 }}>{summary}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Edit hours</span>
             </div>
             <input
               value={d.staff_note}
@@ -174,12 +133,161 @@ function StatusAdmin({ club }) {
       })}
       <div onClick={publish} data-tap style={{ marginTop: 14, padding: 12, background: savedAt ? G.openBg : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer', transition: 'background 0.3s' }}>
         <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>
-          {busy ? 'Publishing…' : savedAt ? '✓ Published to all members' : 'Publish Changes'}
+          {busy ? 'Publishing…' : savedAt ? '✓ State + notes published' : 'Publish State + Notes'}
         </span>
+      </div>
+
+      {editingHoursFor && (
+        <WeeklyHoursModal
+          pill={editingHoursFor}
+          onClose={() => setEditingHoursFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// One-line summary of the week ("Mon-Fri 11am-9pm · Sat 11am-10pm · Sun closed")
+function summarizeWeek(hoursByDay) {
+  if (!hoursByDay || Object.keys(hoursByDay).length === 0) return 'No schedule set';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Group consecutive days with identical hours
+  const groups = [];
+  for (let d = 0; d < 7; d++) {
+    const h = hoursByDay[d];
+    const sig = !h ? 'unset' :
+      h.is_closed ? 'closed' :
+      `${h.opens_at || ''}-${h.closes_at_dusk ? 'dusk' : (h.closes_at || '')}`;
+    const last = groups[groups.length - 1];
+    if (last && last.sig === sig) last.end = d;
+    else groups.push({ sig, start: d, end: d, h });
+  }
+  return groups.map(g => {
+    const days = g.start === g.end ? dayNames[g.start] : `${dayNames[g.start]}–${dayNames[g.end]}`;
+    if (g.sig === 'unset')  return `${days} ?`;
+    if (g.sig === 'closed') return `${days} closed`;
+    const o = fmt12(g.h.opens_at);
+    const c = g.h.closes_at_dusk ? 'Dusk' : fmt12(g.h.closes_at);
+    return `${days} ${o}–${c}`;
+  }).join(' · ');
+}
+
+// ─── Weekly hours modal ───────────────────────────────────────────────────
+function WeeklyHoursModal({ pill, onClose }) {
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  // Initialize 7 days from pill's existing per-day data
+  const [days, setDays] = useState(() => {
+    const init = {};
+    for (let d = 0; d < 7; d++) {
+      const existing = pill.hoursByDay?.[d];
+      init[d] = existing
+        ? {
+            opens_at:  trim5(existing.opens_at) || '',
+            closes_at: trim5(existing.closes_at) || '',
+            closes_at_dusk: !!existing.closes_at_dusk,
+            is_closed: !!existing.is_closed,
+          }
+        : { opens_at: '', closes_at: '', closes_at_dusk: false, is_closed: true };
+    }
+    return init;
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const setDay = (d, k, v) => setDays(p => ({ ...p, [d]: { ...p[d], [k]: v } }));
+
+  const copyToAll = (fromDay) => {
+    const src = days[fromDay];
+    const next = {};
+    for (let d = 0; d < 7; d++) next[d] = { ...src };
+    setDays(next);
+  };
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    // Upsert one row per day
+    const rows = [];
+    for (let d = 0; d < 7; d++) {
+      const v = days[d];
+      rows.push({
+        status_id: pill.statusId,
+        day_of_week: d,
+        opens_at:  blankToNull(v.opens_at),
+        closes_at: v.closes_at_dusk ? null : blankToNull(v.closes_at),
+        closes_at_dusk: v.closes_at_dusk,
+        is_closed: v.is_closed,
+      });
+    }
+    const { error } = await supabase
+      .from('club_status_hours')
+      .upsert(rows, { onConflict: 'status_id,day_of_week' });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{pill.label} — Weekly Hours</h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        {dayNames.map((name, d) => {
+          const v = days[d];
+          return (
+            <div key={d} style={{ padding: '10px 12px', background: G.card, borderRadius: 4, marginBottom: 8, border: `1px solid ${G.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, flex: 1 }}>{name}</span>
+                <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginRight: 10 }}>
+                  <input type="checkbox" checked={v.is_closed} onChange={e => setDay(d, 'is_closed', e.target.checked)} />
+                  Closed all day
+                </label>
+                <span onClick={() => copyToAll(d)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Apply to all</span>
+              </div>
+              {!v.is_closed && (
+                <>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={smLabel}>Opens</label>
+                      <input type="time" value={v.opens_at} onChange={e => setDay(d, 'opens_at', e.target.value)} style={smInput} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={smLabel}>Closes</label>
+                      <input
+                        type="time"
+                        value={v.closes_at_dusk ? '' : v.closes_at}
+                        disabled={v.closes_at_dusk}
+                        onChange={e => setDay(d, 'closes_at', e.target.value)}
+                        style={{ ...smInput, opacity: v.closes_at_dusk ? 0.4 : 1 }}
+                      />
+                    </div>
+                  </div>
+                  <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={v.closes_at_dusk} onChange={e => setDay(d, 'closes_at_dusk', e.target.checked)} />
+                    Closes at dusk (auto-computed from the club's coordinates)
+                  </label>
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+        <div onClick={save} data-tap style={{ padding: '13px', background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : 'Save Weekly Hours'}</span>
+        </div>
       </div>
     </div>
   );
 }
+
+const smLabel = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 };
+const smInput = { width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
 
 // ─── News composer ─────────────────────────────────────────────────────────
 function NewsAdmin({ club }) {

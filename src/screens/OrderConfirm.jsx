@@ -32,7 +32,7 @@ export default function OrderConfirm({ params }) {
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 28px', lineHeight: 1.6 }}>
           The kitchen has your order. Stop by the clubhouse when you walk off the {hole ? `back nine` : 'course'} — it'll be ready.
         </p>
-        <Brass onPress={() => { clearCart(); goTab('food'); }} style={{ width: '100%', padding: '13px' }}>Done</Brass>
+        <Brass onPress={() => { clearCart(); goTab('food', { reset: true }); }} style={{ width: '100%', padding: '13px' }}>Done</Brass>
       </div>
     </div>
   );

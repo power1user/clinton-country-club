@@ -60,7 +60,7 @@ export default function Home() {
                 </div>
                 {row2.length > 0 && (
                   <div style={{ display: 'flex', gap: 5 }}>
-                    {row2.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row2.length} />)}
+                    {row2.map((s, i) => <StatusPill key={s.id} item={s} column={i} colCount={row2.length} large />)}
                   </div>
                 )}
               </>

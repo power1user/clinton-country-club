@@ -25,9 +25,16 @@ export function NavProvider({ children }) {
     setAnimKey(k => k + 1);
     setStacks(p => ({ ...p, [tab]: p[tab].slice(0, -1) }));
   };
-  const goTab = (t) => {
+  // goTab(tab) — switch tabs, keeping each tab's drill-down stack intact
+  //              (standard mobile UX: returning to a tab lands where you left it)
+  // goTab(tab, { reset: true }) — also clear that tab's stack (used after
+  //              transactions complete — e.g. "Done" on order confirmation)
+  const goTab = (t, opts = {}) => {
     setDir('tab');
     setAnimKey(k => k + 1);
+    if (opts.reset) {
+      setStacks(p => ({ ...p, [t]: [] }));
+    }
     setTab(t);
   };
   const canPop = stacks[tab].length > 0;

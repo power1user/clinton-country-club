@@ -1,16 +1,44 @@
 import { useState, useEffect, useRef } from 'react';
 import { G, gCfg } from '../theme.js';
-import { effectiveState, withinHours } from '../hooks/useClubData.jsx';
+import { effectiveState, withinDailyHours, pickToday, useDusk } from '../hooks/useClubData.jsx';
 
 // Coordinated state — opening one pill closes any other that's open.
 const PILL_OPEN_EVT = 'clinton:pill-open';
 
-export default function StatusPill({ item, column = 0, colCount = 3 }) {
+// "11am – 9pm" / "7am – Dusk (8:42pm)" / "Closed today" / "By appointment"
+function formatTodayHours(day, dusk) {
+  if (!day) return 'By appointment';
+  if (day.is_closed) return 'Closed today';
+  if (!day.opens_at) return 'By appointment';
+  const open  = fmt12(day.opens_at);
+  if (day.closes_at_dusk) {
+    return dusk
+      ? `${open} – Dusk (${fmt12HM(dusk.getHours(), dusk.getMinutes())})`
+      : `${open} – Dusk`;
+  }
+  if (day.closes_at) return `${open} – ${fmt12(day.closes_at)}`;
+  return open;
+}
+function fmt12(t) {
+  if (!t) return '';
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  if (!m) return t;
+  return fmt12HM(parseInt(m[1], 10), parseInt(m[2], 10));
+}
+function fmt12HM(h, min) {
+  const period = h >= 12 ? 'pm' : 'am';
+  const h12 = ((h + 11) % 12) + 1;
+  return min === 0 ? `${h12}${period}` : `${h12}:${String(min).padStart(2,'0')}${period}`;
+}
+
+export default function StatusPill({ item, column = 0, colCount = 3, large = false }) {
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);              // re-render once a minute so auto-toggle updates live
   const wrapRef = useRef(null);
-  // Effective (auto-toggled) state based on the current time and the pill's hours.
-  const effSt = effectiveState(item);
+  const dusk = useDusk();
+  const today = pickToday(item);
+  // Effective (auto-toggled) state based on current time, today's hours, dusk.
+  const effSt = effectiveState(item, new Date(), dusk);
   const c = gCfg(effSt);
 
   // Tick every 60 seconds so the time-driven open/closed updates.
@@ -68,9 +96,10 @@ export default function StatusPill({ item, column = 0, colCount = 3 }) {
     isFirst && isLast  ? { left: 18 } :
                           { left: '50%', marginLeft: -6 };
 
-  // Hint that this pill is being auto-toggled vs. manually overridden.
-  const isOutsideSchedule = withinHours(item.opens_at, item.closes_at) === false;
-  const isManualClosure = item.st === 'closed' && (!item.opens_at || withinHours(item.opens_at, item.closes_at) === true);
+  // Hint about WHY it's closed (helps members & gives admin a clue)
+  const isOutsideSchedule = today && withinDailyHours(today, new Date(), dusk) === false;
+  const isManualClosure   = item.st === 'closed' && (!today || withinDailyHours(today, new Date(), dusk) === true);
+  const hoursDisplay      = formatTodayHours(today, dusk);
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', flex: 1 }}>
@@ -81,17 +110,17 @@ export default function StatusPill({ item, column = 0, colCount = 3 }) {
         style={{
           background: c.bg,
           borderRadius: 3,
-          padding: '10px',
+          padding: large ? '16px 14px' : '10px',
           cursor: 'pointer',
           outline: open ? `1.5px solid ${c.dot}` : 'none',
           outlineOffset: open ? 1 : 0,
           transition: 'outline-color 0.15s',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#E8E2D6', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: c.txt, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>{c.lbl}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: large ? 8 : 6 }}>
+          <span style={{ width: large ? 9 : 6, height: large ? 9 : 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
+          <span style={{ fontFamily: '"Lora",serif', fontSize: large ? 14 : 11, color: '#E8E2D6', fontWeight: large ? 600 : 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: large ? 11 : 9, color: c.txt, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0, fontWeight: large ? 700 : 400 }}>{c.lbl}</span>
         </div>
       </div>
 
@@ -134,8 +163,8 @@ export default function StatusPill({ item, column = 0, colCount = 3 }) {
             <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, flex: 1 }}>{item.label}</span>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 9.5, color: c.bg, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>{c.lbl}</span>
           </div>
-          {item.hrs && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.5, margin: '0 0 6px' }}>{item.hrs}</p>
+          {hoursDisplay && (
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.5, margin: '0 0 6px' }}>{hoursDisplay}</p>
           )}
           {/* Helpful context when the closure is time-based */}
           {effSt === 'closed' && isOutsideSchedule && !isManualClosure && (
