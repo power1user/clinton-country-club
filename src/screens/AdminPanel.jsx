@@ -4,6 +4,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
+import { GreenWithPin } from './PinMap.jsx';
 
 const SECTIONS = [
   { id: 'status', l: 'Club Status' },
@@ -260,48 +261,65 @@ function PaceAdmin({ club }) {
   );
 }
 
-// ─── Pin placements editor (per-hole) ──────────────────────────────────────
+// ─── Pin placements editor (tap on the green image to set today's pin) ────
 function PinsAdmin({ club }) {
-  const { data: holes, loading } = usePinPlacements();
+  const { data: holes, loading, refresh } = usePinPlacements();
   const [hole, setHole] = useState(1);
-  const [draft, setDraft] = useState({});
+  const [draft, setDraft] = useState({ pin_x: 0.5, pin_y: 0.5, notes: '' });
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const dirty = useRef(false);
-  const h = holes[hole - 1] || holes[0];
+  const h = holes.find(x => x.n === hole) || holes[0];
 
-  // Re-sync when the selected hole's data arrives or changes — but only when
-  // the user hasn't been editing.
+  // Sync draft with the loaded data — unless the user has unsaved edits.
   useEffect(() => {
     if (dirty.current) return;
-    if (h) setDraft({ pin_position: h.pin, green_condition: h.grn, hazard_note: h.haz });
-  }, [hole, h?.n, h?.pin, h?.grn, h?.haz]);
-
-  const setField = (k, v) => {
-    dirty.current = true;
-    setDraft(d => ({ ...d, [k]: v }));
-  };
+    if (h) setDraft({ pin_x: h.pinX ?? 0.5, pin_y: h.pinY ?? 0.5, notes: h.notes || '' });
+  }, [hole, h?.n, h?.pinX, h?.pinY, h?.notes]);
 
   const selectHole = (n) => { dirty.current = false; setHole(n); };
+
+  const onTap = (x, y) => {
+    dirty.current = true;
+    setDraft(d => ({ ...d, pin_x: x, pin_y: y }));
+  };
+
+  const setNotes = (v) => {
+    dirty.current = true;
+    setDraft(d => ({ ...d, notes: v }));
+  };
+
+  const recenter = () => {
+    dirty.current = true;
+    setDraft(d => ({ ...d, pin_x: 0.5, pin_y: 0.5 }));
+  };
 
   const publish = async () => {
     if (!club || !h) return;
     setBusy(true);
     const today = new Date().toISOString().slice(0, 10);
+    // Upsert in case there's no row for today yet (e.g. greenskeeper opens app
+    // first thing in the morning before the daily-seed cron runs).
     await supabase
       .from('pin_placements')
-      .update({
-        pin_position: draft.pin_position,
-        green_condition: draft.green_condition,
-        hazard_note: draft.hazard_note,
-      })
-      .eq('club_id', club.id)
-      .eq('hole_number', h.n)
-      .eq('effective_date', today);
+      .upsert(
+        {
+          club_id: club.id,
+          hole_number: h.n,
+          par: h.par,
+          yards: h.yds,
+          pin_x: draft.pin_x,
+          pin_y: draft.pin_y,
+          notes: draft.notes,
+          effective_date: today,
+        },
+        { onConflict: 'club_id,hole_number,effective_date' },
+      );
     dirty.current = false;
     setBusy(false);
     setSavedAt(Date.now());
     setTimeout(() => setSavedAt(null), 2500);
+    refresh?.();
   };
 
   if (loading) return <Loading label="Loading pin placements…" />;
@@ -309,29 +327,38 @@ function PinsAdmin({ club }) {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>Update conditions for today's pin placements. Select a hole below.</p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>Select a hole, tap on the green to place today's pin, add any notes, then publish.</p>
+
+      {/* Hole picker */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
         {holes.map(hd => (
           <div key={hd.n} onClick={() => selectHole(hd.n)} data-tap style={{ width: 36, height: 36, borderRadius: 3, background: hole === hd.n ? G.brass : G.card, border: `1px solid ${hole === hd.n ? G.brass : G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 12, fontWeight: hole === hd.n ? 700 : 500, color: hole === hd.n ? '#1B3A2D' : G.text }}>{hd.n}</span>
           </div>
         ))}
       </div>
-      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 12px' }}>Hole {h.n} · Par {h.par} · {h.yds} yards</h4>
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Pin Position</label>
-        <input value={draft.pin_position || ''} onChange={e => setField('pin_position', e.target.value)} style={inputStyle} placeholder="e.g. Front-right, 6 paces from edge" />
+
+      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>Hole {h.n} · Par {h.par} · {h.yds} yards</h4>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 10px' }}>Tap anywhere on the green to drop the pin there.</p>
+
+      {/* Tap-to-place green image */}
+      <div style={{ borderRadius: 6, overflow: 'hidden', border: `1px solid ${G.border}`, marginBottom: 8 }}>
+        <GreenWithPin src={h.greenImage} pinX={draft.pin_x} pinY={draft.pin_y} onTap={onTap} />
       </div>
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Green Condition</label>
-        <input value={draft.green_condition || ''} onChange={e => setField('green_condition', e.target.value)} style={inputStyle} placeholder="e.g. Firm and fast — stimp 11" />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, fontFamily: '"Lora",serif', fontSize: 11, color: G.muted }}>
+        <span>x: {draft.pin_x.toFixed(2)}</span>
+        <span>y: {draft.pin_y.toFixed(2)}</span>
+        <span onClick={recenter} data-tap style={{ marginLeft: 'auto', color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Reset to center</span>
       </div>
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Hazard Note</label>
-        <input value={draft.hazard_note || ''} onChange={e => setField('hazard_note', e.target.value)} style={inputStyle} placeholder="e.g. Cart path only — irrigation" />
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Notes (optional)</label>
+        <input value={draft.notes} onChange={e => setNotes(e.target.value)} style={inputStyle} placeholder="e.g. firm, double cut, slight tier" />
       </div>
-      <div onClick={publish} data-tap style={{ marginTop: 14, padding: 12, background: savedAt ? G.openBg : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
-        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Updating…' : savedAt ? `✓ Hole ${h.n} updated` : `Update Hole ${h.n}`}</span>
+
+      <div onClick={publish} data-tap style={{ marginTop: 8, padding: 12, background: savedAt ? G.openBg : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Updating…' : savedAt ? `✓ Hole ${h.n} updated` : `Publish Hole ${h.n}`}</span>
       </div>
     </div>
   );

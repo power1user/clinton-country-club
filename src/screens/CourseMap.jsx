@@ -1,84 +1,113 @@
-import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { useState } from 'react';
 import { G } from '../theme.js';
-import { BackHeader } from '../components/Headers.jsx';
-import { useAuth } from '../hooks/useAuth.jsx';
+import { BackHeader, SectionHead } from '../components/Headers.jsx';
+import { usePinPlacements } from '../hooks/useClubData.jsx';
+import { useBrand } from '../hooks/useBrand.jsx';
 
-// MapTiler key — set in .env.local as VITE_MAPTILER_KEY
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY;
-// Style options: 'hybrid' (sat + labels), 'satellite' (pure sat), 'outdoor-v2', etc.
-// Hybrid gives nearby road/place labels for orientation around the course.
-const STYLE_URL = MAPTILER_KEY
-  ? `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`
-  : null;
-
+// Placeholder course overview. The intent is to swap this for a custom
+// illustrated/aerial layout of Clinton CC once we have the source artwork.
+// For now: a stylized 9-hole overview that lists hole numbers + pars + yards
+// so members can scan the course at a glance. GPS overlay returns in v2.
 export default function CourseMap() {
-  const { club } = useAuth();
-  const mapEl = useRef(null);
-  const mapRef = useRef(null);
-  const [zoomed, setZoomed] = useState(false);
+  const { data: holes } = usePinPlacements();
+  const brand = useBrand();
 
-  const lat = club?.lat ?? 41.6032;
-  const lng = club?.lng ?? -73.0877;
-
-  useEffect(() => {
-    if (!STYLE_URL || !mapEl.current || mapRef.current) return;
-
-    mapRef.current = new maplibregl.Map({
-      container: mapEl.current,
-      style: STYLE_URL,
-      center: [lng, lat],
-      zoom: 15.5,
-      pitch: 45,
-      bearing: -17,
-      attributionControl: false,
-    });
-    mapRef.current.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
-    mapRef.current.addControl(new maplibregl.AttributionControl({ compact: true }));
-
-    new maplibregl.Marker({ color: '#9B7A1E' })
-      .setLngLat([lng, lat])
-      .setPopup(new maplibregl.Popup({ offset: 24 }).setHTML(`<strong>${club?.name || 'Clubhouse'}</strong>`))
-      .addTo(mapRef.current);
-
-    return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
-  }, [lng, lat]);
-
-  const toggleZoom = () => {
-    if (!mapRef.current) return;
-    if (zoomed) mapRef.current.flyTo({ zoom: 15.5, pitch: 45, duration: 800 });
-    else        mapRef.current.flyTo({ zoom: 17,   pitch: 60, duration: 800 });
-    setZoomed(!zoomed);
-  };
+  const totalYards = holes.reduce((s, h) => s + (h.yds || 0), 0);
+  const totalPar   = holes.reduce((s, h) => s + (h.par || 0), 0);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-      <BackHeader title="Course Map" />
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#2A4020' }}>
-        {STYLE_URL ? (
-          <>
-            <div ref={mapEl} style={{ position: 'absolute', inset: 0 }} onClick={toggleZoom} />
-            <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(27,58,45,0.85)', borderRadius: 3, padding: '6px 10px', pointerEvents: 'none' }}>
-              <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, fontStyle: 'italic', color: '#A8D8B8' }}>
-                {club?.yardage ? `${club.yardage.toLocaleString()} yards` : '6,840 yards'} · Par {club?.par || 72}
-              </span>
+      <BackHeader title="Course Overview" />
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Hero placeholder — replace with custom illustration once provided */}
+        <div style={{ background: 'linear-gradient(180deg, #2A4020 0%, #1B3A2D 100%)', padding: '40px 24px 28px', textAlign: 'center', position: 'relative' }}>
+          <CourseSketch holeCount={holes.length || 9} />
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 12, color: '#7AAC88', margin: '14px 0 0', letterSpacing: '0.05em' }}>
+            {brand.full} · Est. {brand.founded}
+          </p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: 'rgba(168,216,184,0.55)', margin: '4px 0 0' }}>
+            {totalYards ? `${totalYards.toLocaleString()} yards · Par ${totalPar}` : ''}
+          </p>
+        </div>
+
+        {/* Scorecard-style hole list */}
+        <div style={{ padding: '18px 16px 28px' }}>
+          <SectionHead label="9-Hole Scorecard" />
+          <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 50px 60px', padding: '10px 14px', background: G.green, alignItems: 'center', gap: 8 }}>
+              <span style={hdrCellStyle}>Hole</span>
+              <span style={hdrCellStyle}>Name</span>
+              <span style={{ ...hdrCellStyle, textAlign: 'center' }}>Par</span>
+              <span style={{ ...hdrCellStyle, textAlign: 'right' }}>Yards</span>
             </div>
-            <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.55)', borderRadius: 3, padding: '6px 10px', pointerEvents: 'none' }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: 'rgba(255,255,255,0.75)' }}>Tap map to {zoomed ? 'zoom out' : 'zoom in'}</span>
+            {holes.map((h, i) => (
+              <div key={h.n} style={{
+                display: 'grid', gridTemplateColumns: '40px 1fr 50px 60px',
+                padding: '10px 14px', alignItems: 'center', gap: 8,
+                background: i % 2 === 0 ? G.card : G.bg,
+                borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+              }}>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text }}>{h.n}</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, fontStyle: h.name ? 'normal' : 'italic', color: h.name ? G.text : G.muted }}>
+                  {h.name || '— add hole name —'}
+                </span>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.brass, textAlign: 'center' }}>{h.par || '—'}</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, textAlign: 'right' }}>{h.yds || '—'}</span>
+              </div>
+            ))}
+            {/* Footer totals */}
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 50px 60px', padding: '10px 14px', background: G.green, alignItems: 'center', gap: 8, borderTop: `1px solid ${G.green}` }}>
+              <span style={hdrCellStyle}>OUT</span>
+              <span />
+              <span style={{ ...hdrCellStyle, textAlign: 'center' }}>{totalPar || '—'}</span>
+              <span style={{ ...hdrCellStyle, textAlign: 'right' }}>{totalYards ? totalYards.toLocaleString() : '—'}</span>
             </div>
-          </>
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 16, color: '#A8D8B8', margin: '0 0 8px' }}>Satellite map unavailable</p>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#7AAC88', lineHeight: 1.6 }}>Add VITE_MAPTILER_KEY to .env.local and restart the dev server.</p>
           </div>
-        )}
+
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '14px 4px 0', lineHeight: 1.6 }}>
+            A custom illustrated course map is coming. For now, this scorecard view gives you the basics.
+            GPS-enabled satellite imagery returns in v2.
+          </p>
+        </div>
       </div>
     </div>
+  );
+}
+
+const hdrCellStyle = {
+  fontFamily: '"Lora",serif',
+  fontSize: 9,
+  color: '#A8D8B8',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+};
+
+// Simple stylized course sketch — 9 small green dots in a loose layout
+// with the clubhouse in the middle. Decorative only.
+function CourseSketch({ holeCount }) {
+  // Spread holes around a clubhouse in a loose, organic-looking pattern.
+  const positions = [
+    { x: 70,  y: 130 }, { x: 130, y: 90 },  { x: 200, y: 70 },
+    { x: 270, y: 90 }, { x: 320, y: 130 }, { x: 320, y: 200 },
+    { x: 260, y: 240 }, { x: 180, y: 250 }, { x: 100, y: 220 },
+  ];
+  return (
+    <svg viewBox="0 0 390 310" width="100%" style={{ maxWidth: 320, display: 'block', margin: '0 auto' }}>
+      {/* loose fairway shape */}
+      <path d="M 60 140 Q 90 60 200 50 Q 320 65 340 150 Q 330 250 200 260 Q 70 250 60 180 Z"
+        fill="none" stroke="rgba(122,172,136,0.18)" strokeWidth="1.2" strokeDasharray="4 4" />
+      {/* holes */}
+      {positions.slice(0, holeCount).map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="12" fill="#1A5C34" stroke="#7AAC88" strokeWidth="1" opacity="0.9" />
+          <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#F2EDE0" fontFamily="Playfair Display, serif">{i + 1}</text>
+        </g>
+      ))}
+      {/* clubhouse */}
+      <rect x="178" y="158" width="44" height="32" rx="3" fill="#9B7A1E" opacity="0.9" />
+      <text x="200" y="178" textAnchor="middle" fontSize="8" fill="#1A180F" fontWeight="700" fontFamily="Playfair Display, serif">CLUB</text>
+    </svg>
   );
 }

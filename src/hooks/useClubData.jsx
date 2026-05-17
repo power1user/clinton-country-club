@@ -212,41 +212,64 @@ export function useMenu() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Pin placements for today (all 18 holes)
+// Pin placements for today — joins the permanent `holes` table with today's
+// pin_placements row to give the screen everything it needs in one shape.
 // ────────────────────────────────────────────────────────────────────────────
 export function usePinPlacements() {
   const { club } = useAuth();
   const [data, setData] = useState(DATA_HOLES);
   const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
 
   useEffect(() => {
     if (!isConfigured || !club) { setData(DATA_HOLES); setLoading(false); return; }
 
     let cancelled = false;
     (async () => {
-      const { data: rows } = await supabase
-        .from('pin_placements')
-        .select('hole_number, par, yards, pin_position, green_condition, hazard_note, pace_label, effective_date')
+      const today = new Date().toISOString().slice(0, 10);
+      // Permanent hole metadata (par, yards, green image)
+      const { data: holes } = await supabase
+        .from('holes')
+        .select('hole_number, par, yards, name, description, green_image, handicap')
         .eq('club_id', club.id)
-        .eq('effective_date', new Date().toISOString().slice(0, 10))
         .order('hole_number', { ascending: true });
+      // Today's pin coordinates
+      const { data: pins } = await supabase
+        .from('pin_placements')
+        .select('hole_number, pin_x, pin_y, notes, effective_date')
+        .eq('club_id', club.id)
+        .eq('effective_date', today);
+
       if (cancelled) return;
-      if (rows && rows.length) {
-        setData(rows.map(r => ({
-          n: r.hole_number,
-          par: r.par,
-          yds: r.yards,
-          pin: r.pin_position,
-          grn: r.green_condition,
-          haz: r.hazard_note,
-          pace: r.pace_label,
-        })));
+      if (holes && holes.length) {
+        const pinByHole = new Map((pins || []).map(p => [p.hole_number, p]));
+        setData(holes.map(h => {
+          const p = pinByHole.get(h.hole_number);
+          return {
+            n: h.hole_number,
+            par: h.par,
+            yds: h.yards,
+            name: h.name,
+            description: h.description,
+            handicap: h.handicap,
+            greenImage: h.green_image || `/greens/hole-${h.hole_number}.svg`,
+            pinX: p?.pin_x != null ? Number(p.pin_x) : 0.5,
+            pinY: p?.pin_y != null ? Number(p.pin_y) : 0.5,
+            notes: p?.notes || '',
+            // back-compat with components still reading old keys
+            pin: '',
+            grn: '',
+            haz: '',
+            pace: '',
+          };
+        }));
       }
       setLoading(false);
     })();
-  }, [club?.id]);
+  }, [club?.id, version]);
 
-  return { data, loading };
+  return { data, loading, refresh };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
