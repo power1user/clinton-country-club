@@ -8,7 +8,7 @@ import { GreenWithPin } from './PinMap.jsx';
 import {
   MenuCategoriesAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
-  EventRegistrationsAdmin, LessonRequestsAdmin,
+  EventRegistrationsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   SuperAdminsAdmin, AllClubsAdmin, PlatformSettingsAdmin, PlatformMetricsAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
@@ -76,8 +76,9 @@ const AREAS = [
     d: 'Members + staff',
     icon: IconPeople,
     sections: [
-      { id: 'members', permKey: 'can_manage_members', l: 'Members', d: 'Roster, CSV import, invites',         icon: IconPeople },
-      { id: 'staff',   permKey: 'can_manage_staff',   l: 'Staff',   d: 'Manage admins + grant permissions',   icon: IconShield, managerOnly: true },
+      { id: 'members',     permKey: 'can_manage_members', l: 'Members',       d: 'Roster, CSV import, invites',          icon: IconPeople },
+      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',         d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
+      { id: 'clubsettings',                                l: 'Club Settings', d: 'Logo, colors, address, contact info',  icon: IconCog, managerOnly: true },
     ],
   },
   // Super-admin only — platform-wide controls
@@ -159,6 +160,7 @@ export default function AdminPanel() {
           {sec === 'banners'   && <SponsorBannersAdmin />}
           {sec === 'members'    && <MembersAdmin club={club} />}
           {sec === 'staff'      && isManager && <StaffAdmin club={club} />}
+          {sec === 'clubsettings' && isManager && <ClubSettingsAdmin />}
           {sec === 'superadmins'  && isSuperAdmin && <SuperAdminsAdmin />}
           {sec === 'allclubs'     && isSuperAdmin && <AllClubsAdmin />}
           {sec === 'platsettings' && isSuperAdmin && <PlatformSettingsAdmin />}
@@ -359,6 +361,14 @@ function IconPlatform({ color = '#fff' }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
       <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+    </svg>
+  );
+}
+function IconCog({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>
     </svg>
   );
 }

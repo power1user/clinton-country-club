@@ -1,7 +1,7 @@
 // New Phase 1 admin sub-sections. Most use the generic CrudSection scaffold;
 // the queue-style sections (food orders, event registrations, lesson
 // requests) have custom UIs because they're read-mostly with state changes.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { supabase } from '../../lib/supabase.js';
@@ -455,6 +455,211 @@ export function EventRegistrationsAdmin() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ============================================================
+// ClubSettingsAdmin — manager-only editor for branding + contact info
+// (Lives under People area; everything writes to the clubs row, which
+// pushes back via the realtime subscription in useAuth so the visual
+// updates live for everyone.)
+// ============================================================
+export function ClubSettingsAdmin() {
+  const { club } = useAuth();
+  const [form, setForm] = useState({
+    tagline: '',
+    contact_email: '',
+    contact_phone: '',
+    address: '',
+    primary_color: '#1B3A2D',
+    secondary_color: '#234D38',
+    accent_color: '#9B7A1E',
+    logo_url: '',
+    hero_image_url: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [err, setErr] = useState(null);
+  const [uploading, setUploading] = useState(null); // 'logo' | 'hero' | null
+  const dirty = useRef(false);
+
+  // Sync form from club row — unless user has unsaved edits
+  useEffect(() => {
+    if (dirty.current) return;
+    if (!club) return;
+    setForm({
+      tagline:         club.tagline         || '',
+      contact_email:   club.contact_email   || '',
+      contact_phone:   club.contact_phone   || '',
+      address:         club.address         || '',
+      primary_color:   club.primary_color   || '#1B3A2D',
+      secondary_color: club.secondary_color || '#234D38',
+      accent_color:    club.accent_color    || '#9B7A1E',
+      logo_url:        club.logo_url        || '',
+      hero_image_url:  club.hero_image_url  || '',
+    });
+  }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
+      club?.primary_color, club?.secondary_color, club?.accent_color,
+      club?.logo_url, club?.hero_image_url]);
+
+  const set = (k, v) => { dirty.current = true; setForm(p => ({ ...p, [k]: v })); };
+
+  const uploadImage = async (file, kind) => {
+    if (!file || !club) return;
+    setUploading(kind); setErr(null);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `${club.id}/${kind}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('club-assets')
+        .upload(path, file, { upsert: true, cacheControl: '3600' });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
+      // Cache-bust by appending the time of upload so the new image shows
+      // immediately even if a CDN cached the previous version.
+      const url = `${pub.publicUrl}?v=${Date.now()}`;
+      set(kind === 'logo' ? 'logo_url' : 'hero_image_url', url);
+    } catch (e) {
+      setErr(e.message || 'Upload failed');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const save = async () => {
+    if (!club) return;
+    setBusy(true); setErr(null);
+    const { error } = await supabase
+      .from('clubs')
+      .update({
+        tagline:         form.tagline.trim()       || null,
+        contact_email:   form.contact_email.trim() || null,
+        contact_phone:   form.contact_phone.trim() || null,
+        address:         form.address.trim()       || null,
+        primary_color:   form.primary_color,
+        secondary_color: form.secondary_color,
+        accent_color:    form.accent_color,
+        logo_url:        form.logo_url.trim()       || null,
+        hero_image_url:  form.hero_image_url.trim() || null,
+      })
+      .eq('id', club.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    dirty.current = false;
+    setSavedAt(Date.now());
+    setTimeout(() => setSavedAt(null), 2500);
+  };
+
+  const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+        Edit your club's branding + contact info. Changes go live for every member as soon as you Save.
+      </p>
+
+      <SectionHeading>Brand Identity</SectionHeading>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Tagline (shown on sign-in screen)</label>
+        <input value={form.tagline} onChange={e => set('tagline', e.target.value)} placeholder="Country club golf since 1921" style={inputStyle} />
+      </div>
+
+      {/* Logo */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Club Logo</label>
+        {form.logo_url && (
+          <div style={{ background: G.green, padding: 12, borderRadius: 4, marginBottom: 8, textAlign: 'center' }}>
+            <img src={form.logo_url} alt="Logo" style={{ maxHeight: 60, maxWidth: '100%', objectFit: 'contain' }} />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+          <label style={{ flex: 1, padding: '8px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, cursor: 'pointer', textAlign: 'center' }}>
+            {uploading === 'logo' ? 'Uploading…' : 'Upload File'}
+            <input type="file" accept="image/*" onChange={e => uploadImage(e.target.files?.[0], 'logo')} style={{ display: 'none' }} />
+          </label>
+        </div>
+        <input value={form.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="…or paste an image URL" style={inputStyle} />
+      </div>
+
+      {/* Hero image */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Hero Photo (top of Home screen — future Phase 3.5)</label>
+        {form.hero_image_url && (
+          <div style={{ marginBottom: 8 }}>
+            <img src={form.hero_image_url} alt="Hero" style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 4 }} />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+          <label style={{ flex: 1, padding: '8px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, cursor: 'pointer', textAlign: 'center' }}>
+            {uploading === 'hero' ? 'Uploading…' : 'Upload File'}
+            <input type="file" accept="image/*" onChange={e => uploadImage(e.target.files?.[0], 'hero')} style={{ display: 'none' }} />
+          </label>
+        </div>
+        <input value={form.hero_image_url} onChange={e => set('hero_image_url', e.target.value)} placeholder="…or paste an image URL" style={inputStyle} />
+      </div>
+
+      <SectionHeading>Colors</SectionHeading>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 10px' }}>
+        Primary fills headers + main buttons. Secondary handles muted variants. Accent is for badges, brand chips, member-only highlights.
+      </p>
+      <ColorRow label="Primary"   value={form.primary_color}   onChange={v => set('primary_color', v)} />
+      <ColorRow label="Secondary" value={form.secondary_color} onChange={v => set('secondary_color', v)} />
+      <ColorRow label="Accent"    value={form.accent_color}    onChange={v => set('accent_color', v)} />
+
+      <SectionHeading>Contact + Location</SectionHeading>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Address</label>
+        <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="1126 N Center St, Clinton, IL 61727" style={inputStyle} />
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Phone</label>
+          <input value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="(217) 935-3441" style={inputStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Email</label>
+          <input value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="office@yourclub.com" style={inputStyle} />
+        </div>
+      </div>
+
+      {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+      <div onClick={save} data-tap style={{ padding: 12, background: savedAt ? G.openBg : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer', transition: 'background 0.3s' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>
+          {busy ? 'Saving…' : savedAt ? '✓ Saved — live on every device' : 'Save Changes'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeading({ children }) {
+  return (
+    <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '14px 0 8px' }}>{children}</h4>
+  );
+}
+
+function ColorRow({ label, value, onChange }) {
+  const hex = /^#[0-9A-Fa-f]{6}$/.test(value) ? value : '#000000';
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+      <input
+        type="color"
+        value={hex}
+        onChange={e => onChange(e.target.value.toUpperCase())}
+        style={{ width: 48, height: 36, border: `1px solid ${G.border}`, borderRadius: 3, padding: 2, background: '#F8F4EC', cursor: 'pointer', flexShrink: 0 }}
+      />
+      <div style={{ flex: 1 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{label}</p>
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value.toUpperCase())}
+          placeholder="#1B3A2D"
+          style={{ width: '100%', padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+        />
+      </div>
     </div>
   );
 }
