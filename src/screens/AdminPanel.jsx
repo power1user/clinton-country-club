@@ -11,30 +11,84 @@ import {
   EventRegistrationsAdmin, LessonRequestsAdmin,
 } from './admin/sections.jsx';
 
-const SECTIONS = [
-  // existing
-  { id: 'status',    l: 'Club Status',     d: 'Hours, open/closed, member-only days',          icon: IconStatus   },
-  { id: 'overrides', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',   icon: IconCalendar },
-  { id: 'news',      l: 'Post News',       d: 'Publish announcements to all members',          icon: IconNews     },
-  { id: 'notifs',    l: 'Notifications',   d: 'Push alerts to all members',                    icon: IconBell     },
-  { id: 'pace',      l: 'Pace of Play',    d: "Set today's pace indicator",                    icon: IconClock    },
-  { id: 'pins',      l: 'Pin Positions',   d: "Place today's pin on each green",               icon: IconFlag     },
-  { id: 'menucats',  l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags',      icon: IconList     },
-  { id: 'foodord',   l: 'Food Orders',     d: 'Queue + status updates',                        icon: IconList     },
-  { id: 'events',    l: 'Event RSVPs',     d: 'View + manage registrations',                   icon: IconList     },
-  { id: 'proitems',  l: 'Pro Shop Items',  d: 'Catalog of items for sale',                     icon: IconBag      },
-  { id: 'lessons',   l: 'Lesson Requests', d: 'Pro shop inquiries queue',                      icon: IconList     },
-  { id: 'holespons', l: 'Hole Sponsors',   d: 'Local sponsor per hole',                        icon: IconHandshake},
-  { id: 'banners',   l: 'Sponsor Banners', d: 'Rotating sponsor banners',                      icon: IconBanner   },
-  { id: 'members',   l: 'Members',         d: 'Roster, CSV import, invites',                   icon: IconPeople   },
-  { id: 'staff',     l: 'Staff',           d: 'Manage admin & manager access',                 icon: IconShield, superOnly: true },
+// Two-level admin hub: 6 area cards at the top, each opens a sub-hub of
+// its sections. Section IDs are unique across the whole tree so the
+// section-content router can stay flat.
+const AREAS = [
+  {
+    id: 'course',
+    l: 'Course',
+    d: 'Status, hours, pins, pace, sponsors',
+    icon: IconFlag,
+    sections: [
+      { id: 'status',    l: 'Club Status',        d: 'Hours, open/closed, member-only days',          icon: IconStatus    },
+      { id: 'overrides', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',      icon: IconCalendar  },
+      { id: 'pace',      l: 'Pace of Play',       d: "Set today's pace indicator",                    icon: IconClock     },
+      { id: 'pins',      l: 'Pin Positions',      d: "Place today's pin on each green",               icon: IconFlag      },
+      { id: 'holespons', l: 'Hole Sponsors',      d: 'Local sponsor per hole',                        icon: IconHandshake },
+    ],
+  },
+  {
+    id: 'dining',
+    l: 'Dining',
+    d: 'Menu categories, daily orders',
+    icon: IconUtensils,
+    sections: [
+      { id: 'menucats', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
+      { id: 'foodord',  l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
+    ],
+  },
+  {
+    id: 'events',
+    l: 'Events',
+    d: 'RSVPs + event ops',
+    icon: IconCalendar,
+    sections: [
+      { id: 'events', l: 'Event RSVPs', d: 'View + manage registrations', icon: IconList },
+    ],
+  },
+  {
+    id: 'marketing',
+    l: 'Marketing',
+    d: 'News, notifications, banners',
+    icon: IconNews,
+    sections: [
+      { id: 'news',    l: 'Post News',       d: 'Publish announcements to all members', icon: IconNews   },
+      { id: 'notifs',  l: 'Notifications',   d: 'Push alerts to all members',           icon: IconBell   },
+      { id: 'banners', l: 'Sponsor Banners', d: 'Rotating sponsor banners',             icon: IconBanner },
+    ],
+  },
+  {
+    id: 'proshop',
+    l: 'Pro Shop',
+    d: 'Catalog + lesson queue',
+    icon: IconBag,
+    sections: [
+      { id: 'proitems', l: 'Pro Shop Items',  d: 'Catalog of items for sale', icon: IconBag  },
+      { id: 'lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',  icon: IconList },
+    ],
+  },
+  {
+    id: 'people',
+    l: 'People',
+    d: 'Members + staff',
+    icon: IconPeople,
+    sections: [
+      { id: 'members', l: 'Members', d: 'Roster, CSV import, invites',    icon: IconPeople },
+      { id: 'staff',   l: 'Staff',   d: 'Manage admin & manager access',  icon: IconShield, superOnly: true },
+    ],
+  },
 ];
+
+// Flat lookup for the section content router
+const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id })));
 
 export default function AdminPanel() {
   const { club, member, isAdmin, isSuperAdmin } = useAuth();
-  const [sec, setSec] = useState(null);   // null = show hub
-  const sectionsToShow = SECTIONS.filter(s => !s.superOnly || isSuperAdmin);
-  const activeSection = SECTIONS.find(s => s.id === sec);
+  const [area, setArea] = useState(null);   // top-level area, null = main hub
+  const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
+  const activeArea    = AREAS.find(a => a.id === area);
+  const activeSection = ALL_SECTIONS.find(s => s.id === sec);
 
   if (!isAdmin) {
     return (
@@ -49,7 +103,7 @@ export default function AdminPanel() {
     );
   }
 
-  // Sub-section view — back arrow returns to the hub
+  // Level 3 — section content view, back returns to its area sub-hub
   if (activeSection) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -80,46 +134,74 @@ export default function AdminPanel() {
     );
   }
 
-  // Hub — grid of section cards
+  // Level 2 — area sub-hub showing that area's sections
+  if (activeArea) {
+    const sectionsToShow = activeArea.sections.filter(s => !s.superOnly || isSuperAdmin);
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader
+          title={activeArea.l}
+          onBack={() => setArea(null)}
+          right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
+        />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
+            {activeArea.d}
+          </p>
+          <CardGrid items={sectionsToShow} onSelect={setSec} />
+        </div>
+      </div>
+    );
+  }
+
+  // Level 1 — main hub with 6 area cards
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Staff Admin" right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
-          Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose what you'd like to manage.
+          Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose an area to manage.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {sectionsToShow.map(s => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.id}
-                onClick={() => setSec(s.id)}
-                data-tap
-                style={{
-                  padding: '16px 14px 14px',
-                  background: G.card,
-                  border: `1px solid ${G.border}`,
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: 8,
-                  minHeight: 124,
-                }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon color={G.brassLt} />
-                </div>
-                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '4px 0 0', lineHeight: 1.1 }}>{s.l}</h3>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, lineHeight: 1.4, margin: 0 }}>{s.d}</p>
-              </div>
-            );
-          })}
-        </div>
+        <CardGrid items={AREAS} onSelect={setArea} />
       </div>
+    </div>
+  );
+}
+
+// Shared 2-column card grid used by both hub levels
+function CardGrid({ items, onSelect }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {items.map(s => {
+        const Icon = s.icon;
+        return (
+          <div
+            key={s.id}
+            onClick={() => onSelect(s.id)}
+            data-tap
+            style={{
+              padding: '16px 14px 14px',
+              background: G.card,
+              border: `1px solid ${G.border}`,
+              borderRadius: 6,
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 8,
+              minHeight: 124,
+            }}
+          >
+            <div style={{ width: 36, height: 36, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon color={G.brassLt} />
+            </div>
+            <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '4px 0 0', lineHeight: 1.1 }}>{s.l}</h3>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, lineHeight: 1.4, margin: 0 }}>{s.d}</p>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -220,6 +302,14 @@ function IconBanner({ color = '#fff' }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16v8L12 16 4 12z" />
       <path d="M12 16v6" />
+    </svg>
+  );
+}
+function IconUtensils({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2v8a2 2 0 002 2v10M10 2v6a2 2 0 01-2 2" />
+      <path d="M16 2c-2 0-3 2-3 5s1 5 3 5v10" />
     </svg>
   );
 }
