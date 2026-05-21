@@ -460,6 +460,141 @@ export function EventRegistrationsAdmin() {
 }
 
 // ============================================================
+// SuperAdminsAdmin — manage platform-wide super_admins
+// (Platform area card → super_admin only)
+// ============================================================
+export function SuperAdminsAdmin() {
+  const { session, club } = useAuth();
+  const [admins, setAdmins] = useState([]);
+  const [memberPool, setMemberPool] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const [{ data: sa }, { data: members }] = await Promise.all([
+        supabase
+          .from('user_roles')
+          .select('id, user_id, display_name, created_at')
+          .eq('role', 'super_admin')
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('members')
+          .select('id, user_id, name, email, membership_number')
+          .eq('club_id', club.id)
+          .not('user_id', 'is', null),
+      ]);
+      if (cancelled) return;
+      setAdmins(sa || []);
+      const saIds = new Set((sa || []).map(r => r.user_id));
+      setMemberPool((members || []).filter(m => !saIds.has(m.user_id)));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [club?.id, version]);
+
+  const promote = async (m) => {
+    const { error } = await supabase.from('user_roles').insert({
+      user_id: m.user_id,
+      club_id: null,
+      role: 'super_admin',
+      display_name: m.name,
+      created_by: session?.user?.id,
+      permissions: {},
+    });
+    if (error) { alert(error.message); return; }
+    setAdding(false);
+    refresh();
+  };
+
+  const demote = async (row) => {
+    const isSelf = row.user_id === session?.user?.id;
+    const msg = isSelf
+      ? "You're removing your own super_admin status. You'll immediately lose platform access. Continue?"
+      : `Remove ${row.display_name || 'this user'}'s super_admin status?`;
+    if (!confirm(msg)) return;
+    const { error } = await supabase.from('user_roles').delete().eq('id', row.id);
+    if (error) { alert(error.message); return; }
+    refresh();
+  };
+
+  if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading super admins…</p>;
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Super admins have full platform access. They can promote/demote other super admins, manage every club, and bypass all permission checks. {admins.length === 1 ? 'You are the only super admin — promote at least one other before demoting yourself.' : ''}
+      </p>
+
+      <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden', marginBottom: 12 }}>
+        {admins.map((a, i) => {
+          const isSelf = a.user_id === session?.user?.id;
+          return (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>
+                  {a.display_name || '(unnamed)'}{isSelf && ' · You'}
+                </p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Added {new Date(a.created_at).toLocaleDateString()}</p>
+              </div>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Super</span>
+              <div onClick={() => demote(a)} data-tap style={{ padding: '4px 8px', cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div onClick={() => setAdding(!adding)} data-tap style={{ padding: 12, background: adding ? G.card : G.green, border: `1px solid ${adding ? G.border : G.green}`, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: adding ? G.text : '#F2EDE0', fontWeight: 500 }}>{adding ? 'Cancel' : '+ Promote a member to Super Admin'}</span>
+      </div>
+
+      {adding && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>
+            Pick a Clinton CC member with an account to promote. They'll gain platform-wide super_admin access immediately.
+          </p>
+          {memberPool.length === 0 && (
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, padding: 12, textAlign: 'center', background: G.card, borderRadius: 4 }}>No eligible members. They need a signed-in account first.</p>
+          )}
+          {memberPool.map(m => (
+            <div key={m.id} onClick={() => promote(m)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, cursor: 'pointer' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>{m.name}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>#{m.membership_number} · {m.email || 'no email'}</p>
+              </div>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Promote →</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Placeholders — wired up in Phase 3 (multi-tenant)
+// ============================================================
+function ComingSoonSection({ title, desc, phase = 'Phase 3' }) {
+  return (
+    <div style={{ padding: '40px 24px', textAlign: 'center', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6 }}>
+      <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>{title}</h3>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px', lineHeight: 1.5 }}>{desc}</p>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, background: 'rgba(155,122,30,0.12)', padding: '4px 10px', borderRadius: 12, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Coming in {phase}</span>
+    </div>
+  );
+}
+export function AllClubsAdmin()         { return <ComingSoonSection title="All Clubs" desc="Browse every club on the platform, jump in as any club's super-admin, onboard a new club." />; }
+export function PlatformSettingsAdmin() { return <ComingSoonSection title="Platform Settings" desc="The Grounds branding, billing, support contact, default templates for new clubs." />; }
+export function PlatformMetricsAdmin()  { return <ComingSoonSection title="Cross-Club Metrics" desc="Aggregate stats — active members, content updates, revenue, support tickets — across every club." />; }
+
+// ============================================================
 // lesson_requests (pro_shop_inquiries) — queue
 // ============================================================
 export function LessonRequestsAdmin() {

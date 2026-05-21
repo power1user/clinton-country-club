@@ -9,6 +9,7 @@ import {
   MenuCategoriesAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, LessonRequestsAdmin,
+  SuperAdminsAdmin, AllClubsAdmin, PlatformSettingsAdmin, PlatformMetricsAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -79,6 +80,20 @@ const AREAS = [
       { id: 'staff',   permKey: 'can_manage_staff',   l: 'Staff',   d: 'Manage admins + grant permissions',   icon: IconShield, managerOnly: true },
     ],
   },
+  // Super-admin only — platform-wide controls
+  {
+    id: 'platform',
+    l: 'Platform',
+    d: 'Super admins, clubs, platform settings',
+    icon: IconPlatform,
+    superOnly: true,
+    sections: [
+      { id: 'superadmins', l: 'Super Admins',       d: 'Promote / demote platform admins',         icon: IconShield  },
+      { id: 'allclubs',    l: 'All Clubs',          d: 'Manage every club on the platform',        icon: IconFlag    },
+      { id: 'platsettings',l: 'Platform Settings',  d: "The Grounds branding, billing, defaults",  icon: IconList    },
+      { id: 'platmetrics', l: 'Cross-Club Metrics', d: 'Aggregate platform stats',                 icon: IconClock   },
+    ],
+  },
 ];
 
 // Flat lookup for the section content router
@@ -91,13 +106,19 @@ export default function AdminPanel() {
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);
 
-  // Visibility filter — a section is visible if user has its perm
-  // (manager+ has all perms). managerOnly sections require isManager.
+  // Visibility filter — a section is visible if:
+  //   - not superOnly (or user is super_admin)
+  //   - not managerOnly (or user is manager+)
+  //   - user has the section's permKey (manager+ has all perms implicitly)
   const sectionVisible = (s) =>
-    (!s.managerOnly || isManager) && (!s.permKey || hasPerm(s.permKey));
+    (!s.superOnly   || isSuperAdmin) &&
+    (!s.managerOnly || isManager)    &&
+    (!s.permKey     || hasPerm(s.permKey));
 
-  // An area is visible if at least one of its sections is visible
-  const areaVisible = (a) => a.sections.some(sectionVisible);
+  // An area is visible if it's not super-only (or user is super) AND has any
+  // visible sections. Platform area is super-only entirely.
+  const areaVisible = (a) =>
+    (!a.superOnly || isSuperAdmin) && a.sections.some(sectionVisible);
 
   if (!isAdmin) {
     return (
@@ -136,8 +157,12 @@ export default function AdminPanel() {
           {sec === 'lessons'   && <LessonRequestsAdmin />}
           {sec === 'holespons' && <HoleSponsorsAdmin />}
           {sec === 'banners'   && <SponsorBannersAdmin />}
-          {sec === 'members'   && <MembersAdmin club={club} />}
-          {sec === 'staff'     && isManager && <StaffAdmin club={club} />}
+          {sec === 'members'    && <MembersAdmin club={club} />}
+          {sec === 'staff'      && isManager && <StaffAdmin club={club} />}
+          {sec === 'superadmins'  && isSuperAdmin && <SuperAdminsAdmin />}
+          {sec === 'allclubs'     && isSuperAdmin && <AllClubsAdmin />}
+          {sec === 'platsettings' && isSuperAdmin && <PlatformSettingsAdmin />}
+          {sec === 'platmetrics'  && isSuperAdmin && <PlatformMetricsAdmin />}
         </div>
       </div>
     );
@@ -326,6 +351,14 @@ function IconUtensils({ color = '#fff' }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 2v8a2 2 0 002 2v10M10 2v6a2 2 0 01-2 2" />
       <path d="M16 2c-2 0-3 2-3 5s1 5 3 5v10" />
+    </svg>
+  );
+}
+function IconPlatform({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   );
 }
