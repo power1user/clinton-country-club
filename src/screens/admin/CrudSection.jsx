@@ -34,6 +34,7 @@ export default function CrudSection({
   fields,
   beforeSave,
   realtime = true,
+  canEdit = true,    // when false, hides Add and disables Save/Delete in the modal
 }) {
   const { club } = useAuth();
   const [rows, setRows] = useState([]);
@@ -70,10 +71,13 @@ export default function CrudSection({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
           {rows.length} {rows.length === 1 ? 'item' : 'items'}
+          {!canEdit && ' · view only'}
         </p>
-        <div onClick={() => setEditing('new')} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add</span>
-        </div>
+        {canEdit && (
+          <div onClick={() => setEditing('new')} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add</span>
+          </div>
+        )}
       </div>
 
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
@@ -108,6 +112,7 @@ export default function CrudSection({
           row={editing === 'new' ? defaultRow : editing}
           fields={fields}
           beforeSave={beforeSave}
+          canEdit={canEdit}
           onClose={() => setEditing(null)}
           onSaved={refresh}
         />
@@ -116,7 +121,7 @@ export default function CrudSection({
   );
 }
 
-function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, onClose, onSaved }) {
+function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canEdit = true, onClose, onSaved }) {
   const isAdd = mode === 'add';
   const [form, setForm] = useState(() => ({ ...row }));
   const [busy, setBusy] = useState(false);
@@ -165,13 +170,21 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, onCl
 
         {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
-        <div onClick={save} data-tap style={{ marginTop: 8, padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : (isAdd ? 'Save' : 'Save Changes')}</span>
-        </div>
-        {!isAdd && (
-          <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
-          </div>
+        {canEdit ? (
+          <>
+            <div onClick={save} data-tap style={{ marginTop: 8, padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : (isAdd ? 'Save' : 'Save Changes')}</span>
+            </div>
+            {!isAdd && (
+              <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, textAlign: 'center', margin: '12px 0 0' }}>
+            View only. Ask your club manager to grant edit permission.
+          </p>
         )}
       </div>
     </div>

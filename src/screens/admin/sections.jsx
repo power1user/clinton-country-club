@@ -13,8 +13,10 @@ import CrudSection from './CrudSection.jsx';
 // ============================================================
 
 export function MenuCategoriesAdmin() {
+  const { hasPerm } = useAuth();
   return (
     <CrudSection
+      canEdit={hasPerm('can_manage_menu')}
       table="menu_categories"
       title="Menu Category"
       emptyMsg="No menu categories yet. Add Lunch, Dinner, Bar, etc."
@@ -33,8 +35,10 @@ export function MenuCategoriesAdmin() {
 }
 
 export function ProShopItemsAdmin() {
+  const { hasPerm } = useAuth();
   return (
     <CrudSection
+      canEdit={hasPerm('can_manage_proshop')}
       table="pro_shop_items"
       title="Pro Shop Item"
       emptyMsg="No items yet."
@@ -57,8 +61,10 @@ export function ProShopItemsAdmin() {
 }
 
 export function HoleSponsorsAdmin() {
+  const { hasPerm } = useAuth();
   return (
     <CrudSection
+      canEdit={hasPerm('can_manage_sponsors')}
       table="hole_sponsors"
       title="Hole Sponsor"
       emptyMsg="No hole sponsors yet."
@@ -80,8 +86,10 @@ export function HoleSponsorsAdmin() {
 }
 
 export function SponsorBannersAdmin() {
+  const { hasPerm } = useAuth();
   return (
     <CrudSection
+      canEdit={hasPerm('can_manage_sponsors')}
       table="sponsor_banners"
       title="Sponsor Banner"
       emptyMsg="No banner placements yet."
@@ -108,10 +116,12 @@ export function SponsorBannersAdmin() {
 // schedule_overrides — needs facility picker
 // ============================================================
 export function ScheduleOverridesAdmin() {
+  const { hasPerm } = useAuth();
   const { data: facilities } = useClubStatus();
   const facilityOptions = facilities.map(f => ({ value: f.statusId, label: f.label }));
   return (
     <CrudSection
+      canEdit={hasPerm('can_edit_course_status')}
       table="schedule_overrides"
       title="Schedule Override"
       emptyMsg="No date overrides set."
@@ -141,7 +151,8 @@ export function ScheduleOverridesAdmin() {
 // notification_messages — admin composer + history
 // ============================================================
 export function NotificationsAdmin() {
-  const { club, session } = useAuth();
+  const { club, session, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_send_notifications');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState(false);
@@ -168,11 +179,13 @@ export function NotificationsAdmin() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
-          {rows.length} message{rows.length === 1 ? '' : 's'}
+          {rows.length} message{rows.length === 1 ? '' : 's'}{!canEdit && ' · view only'}
         </p>
-        <div onClick={() => setComposing(true)} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Compose</span>
-        </div>
+        {canEdit && (
+          <div onClick={() => setComposing(true)} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Compose</span>
+          </div>
+        )}
       </div>
 
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
@@ -284,7 +297,8 @@ function ComposeNotificationModal({ club, authorId, onClose, onSaved }) {
 // food_orders — queue with status transitions
 // ============================================================
 export function FoodOrdersAdmin() {
-  const { club } = useAuth();
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_edit_orders');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -353,7 +367,8 @@ export function FoodOrdersAdmin() {
           <select
             value={r.status}
             onChange={e => setStatus(r.id, e.target.value)}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}
+            disabled={!canEdit}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
           >
             {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
@@ -367,7 +382,8 @@ export function FoodOrdersAdmin() {
 // event_registrations — list grouped by event
 // ============================================================
 export function EventRegistrationsAdmin() {
-  const { club } = useAuth();
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_manage_events');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -429,7 +445,8 @@ export function EventRegistrationsAdmin() {
                 <select
                   value={r.status}
                   onChange={e => setStatus(r.id, e.target.value)}
-                  style={{ padding: '4px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC' }}
+                  disabled={!canEdit}
+                  style={{ padding: '4px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
                 >
                   {['registered', 'waitlist', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -446,7 +463,8 @@ export function EventRegistrationsAdmin() {
 // lesson_requests (pro_shop_inquiries) — queue
 // ============================================================
 export function LessonRequestsAdmin() {
-  const { club } = useAuth();
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_manage_lessons');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -504,7 +522,8 @@ export function LessonRequestsAdmin() {
           <select
             value={r.status}
             onChange={e => setStatus(r.id, e.target.value)}
-            style={{ padding: '4px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}
+            disabled={!canEdit}
+            style={{ padding: '4px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
           >
             {['pending', 'contacted', 'scheduled', 'done', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
           </select>

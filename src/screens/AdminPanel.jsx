@@ -22,11 +22,11 @@ const AREAS = [
     d: 'Status, hours, pins, pace, sponsors',
     icon: IconFlag,
     sections: [
-      { id: 'status',    l: 'Club Status',        d: 'Hours, open/closed, member-only days',          icon: IconStatus    },
-      { id: 'overrides', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',      icon: IconCalendar  },
-      { id: 'pace',      l: 'Pace of Play',       d: "Set today's pace indicator",                    icon: IconClock     },
-      { id: 'pins',      l: 'Pin Positions',      d: "Place today's pin on each green",               icon: IconFlag      },
-      { id: 'holespons', l: 'Hole Sponsors',      d: 'Local sponsor per hole',                        icon: IconHandshake },
+      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',        d: 'Hours, open/closed, member-only days',     icon: IconStatus    },
+      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours', icon: IconCalendar  },
+      { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace of Play',       d: "Set today's pace indicator",               icon: IconClock     },
+      { id: 'pins',      permKey: 'can_edit_pins',          l: 'Pin Positions',      d: "Place today's pin on each green",          icon: IconFlag      },
+      { id: 'holespons', permKey: 'can_manage_sponsors',    l: 'Hole Sponsors',      d: 'Local sponsor per hole',                   icon: IconHandshake },
     ],
   },
   {
@@ -35,8 +35,8 @@ const AREAS = [
     d: 'Menu categories, daily orders',
     icon: IconUtensils,
     sections: [
-      { id: 'menucats', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
-      { id: 'foodord',  l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
+      { id: 'menucats', permKey: 'can_manage_menu', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
+      { id: 'foodord',  permKey: 'can_view_orders', l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
     ],
   },
   {
@@ -45,7 +45,7 @@ const AREAS = [
     d: 'RSVPs + event ops',
     icon: IconCalendar,
     sections: [
-      { id: 'events', l: 'Event RSVPs', d: 'View + manage registrations', icon: IconList },
+      { id: 'events', permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations', icon: IconList },
     ],
   },
   {
@@ -54,9 +54,9 @@ const AREAS = [
     d: 'News, notifications, banners',
     icon: IconNews,
     sections: [
-      { id: 'news',    l: 'Post News',       d: 'Publish announcements to all members', icon: IconNews   },
-      { id: 'notifs',  l: 'Notifications',   d: 'Push alerts to all members',           icon: IconBell   },
-      { id: 'banners', l: 'Sponsor Banners', d: 'Rotating sponsor banners',             icon: IconBanner },
+      { id: 'news',    permKey: 'can_post_news',          l: 'Post News',       d: 'Publish announcements to all members', icon: IconNews   },
+      { id: 'notifs',  permKey: 'can_send_notifications', l: 'Notifications',   d: 'Push alerts to all members',           icon: IconBell   },
+      { id: 'banners', permKey: 'can_manage_sponsors',    l: 'Sponsor Banners', d: 'Rotating sponsor banners',             icon: IconBanner },
     ],
   },
   {
@@ -65,8 +65,8 @@ const AREAS = [
     d: 'Catalog + lesson queue',
     icon: IconBag,
     sections: [
-      { id: 'proitems', l: 'Pro Shop Items',  d: 'Catalog of items for sale', icon: IconBag  },
-      { id: 'lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',  icon: IconList },
+      { id: 'proitems', permKey: 'can_manage_proshop',  l: 'Pro Shop Items',  d: 'Catalog of items for sale', icon: IconBag  },
+      { id: 'lessons',  permKey: 'can_manage_lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',  icon: IconList },
     ],
   },
   {
@@ -75,8 +75,8 @@ const AREAS = [
     d: 'Members + staff',
     icon: IconPeople,
     sections: [
-      { id: 'members', l: 'Members', d: 'Roster, CSV import, invites',         icon: IconPeople },
-      { id: 'staff',   l: 'Staff',   d: 'Manage admins + grant permissions',   icon: IconShield, managerOnly: true },
+      { id: 'members', permKey: 'can_manage_members', l: 'Members', d: 'Roster, CSV import, invites',         icon: IconPeople },
+      { id: 'staff',   permKey: 'can_manage_staff',   l: 'Staff',   d: 'Manage admins + grant permissions',   icon: IconShield, managerOnly: true },
     ],
   },
 ];
@@ -85,11 +85,19 @@ const AREAS = [
 const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id })));
 
 export default function AdminPanel() {
-  const { club, member, isAdmin, isSuperAdmin, isManager } = useAuth();
+  const { club, member, isAdmin, isSuperAdmin, isManager, hasPerm } = useAuth();
   const [area, setArea] = useState(null);   // top-level area, null = main hub
   const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);
+
+  // Visibility filter — a section is visible if user has its perm
+  // (manager+ has all perms). managerOnly sections require isManager.
+  const sectionVisible = (s) =>
+    (!s.managerOnly || isManager) && (!s.permKey || hasPerm(s.permKey));
+
+  // An area is visible if at least one of its sections is visible
+  const areaVisible = (a) => a.sections.some(sectionVisible);
 
   if (!isAdmin) {
     return (
@@ -137,7 +145,7 @@ export default function AdminPanel() {
 
   // Level 2 — area sub-hub showing that area's sections
   if (activeArea) {
-    const sectionsToShow = activeArea.sections.filter(s => !s.managerOnly || isManager);
+    const sectionsToShow = activeArea.sections.filter(sectionVisible);
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
@@ -165,7 +173,14 @@ export default function AdminPanel() {
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
           Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose an area to manage.
         </p>
-        <CardGrid items={AREAS} onSelect={setArea} />
+        <CardGrid items={AREAS.filter(areaVisible)} onSelect={setArea} />
+        {AREAS.filter(areaVisible).length === 0 && (
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: 0 }}>
+              You don't have any admin permissions yet. Ask your club manager to grant access.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
