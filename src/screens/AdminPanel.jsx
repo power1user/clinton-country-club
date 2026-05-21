@@ -5,14 +5,29 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
 import { GreenWithPin } from './PinMap.jsx';
+import {
+  MenuCategoriesAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
+  ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
+  EventRegistrationsAdmin, LessonRequestsAdmin,
+} from './admin/sections.jsx';
 
 const SECTIONS = [
-  { id: 'status',  l: 'Club Status',   d: 'Hours, open/closed, member-only days',          icon: IconStatus  },
-  { id: 'news',    l: 'Post News',     d: 'Publish announcements to all members',          icon: IconNews    },
-  { id: 'pace',    l: 'Pace of Play',  d: "Set today's pace indicator",                    icon: IconClock   },
-  { id: 'pins',    l: 'Pin Positions', d: "Place today's pin on each green",               icon: IconFlag    },
-  { id: 'members', l: 'Members',       d: 'Roster, CSV import, invites',                   icon: IconPeople  },
-  { id: 'staff',   l: 'Staff',         d: 'Manage admin & manager access',                 icon: IconShield, superOnly: true },
+  // existing
+  { id: 'status',    l: 'Club Status',     d: 'Hours, open/closed, member-only days',          icon: IconStatus   },
+  { id: 'overrides', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',   icon: IconCalendar },
+  { id: 'news',      l: 'Post News',       d: 'Publish announcements to all members',          icon: IconNews     },
+  { id: 'notifs',    l: 'Notifications',   d: 'Push alerts to all members',                    icon: IconBell     },
+  { id: 'pace',      l: 'Pace of Play',    d: "Set today's pace indicator",                    icon: IconClock    },
+  { id: 'pins',      l: 'Pin Positions',   d: "Place today's pin on each green",               icon: IconFlag     },
+  { id: 'menucats',  l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags',      icon: IconList     },
+  { id: 'foodord',   l: 'Food Orders',     d: 'Queue + status updates',                        icon: IconList     },
+  { id: 'events',    l: 'Event RSVPs',     d: 'View + manage registrations',                   icon: IconList     },
+  { id: 'proitems',  l: 'Pro Shop Items',  d: 'Catalog of items for sale',                     icon: IconBag      },
+  { id: 'lessons',   l: 'Lesson Requests', d: 'Pro shop inquiries queue',                      icon: IconList     },
+  { id: 'holespons', l: 'Hole Sponsors',   d: 'Local sponsor per hole',                        icon: IconHandshake},
+  { id: 'banners',   l: 'Sponsor Banners', d: 'Rotating sponsor banners',                      icon: IconBanner   },
+  { id: 'members',   l: 'Members',         d: 'Roster, CSV import, invites',                   icon: IconPeople   },
+  { id: 'staff',     l: 'Staff',           d: 'Manage admin & manager access',                 icon: IconShield, superOnly: true },
 ];
 
 export default function AdminPanel() {
@@ -45,12 +60,21 @@ export default function AdminPanel() {
           right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
         />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-          {sec === 'status'  && <StatusAdmin club={club} />}
-          {sec === 'news'    && <NewsAdmin club={club} />}
-          {sec === 'pace'    && <PaceAdmin club={club} />}
-          {sec === 'pins'    && <PinsAdmin club={club} />}
-          {sec === 'members' && <MembersAdmin club={club} />}
-          {sec === 'staff'   && isSuperAdmin && <StaffAdmin club={club} />}
+          {sec === 'status'    && <StatusAdmin club={club} />}
+          {sec === 'overrides' && <ScheduleOverridesAdmin />}
+          {sec === 'news'      && <NewsAdmin club={club} />}
+          {sec === 'notifs'    && <NotificationsAdmin />}
+          {sec === 'pace'      && <PaceAdmin club={club} />}
+          {sec === 'pins'      && <PinsAdmin club={club} />}
+          {sec === 'menucats'  && <MenuCategoriesAdmin />}
+          {sec === 'foodord'   && <FoodOrdersAdmin />}
+          {sec === 'events'    && <EventRegistrationsAdmin />}
+          {sec === 'proitems'  && <ProShopItemsAdmin />}
+          {sec === 'lessons'   && <LessonRequestsAdmin />}
+          {sec === 'holespons' && <HoleSponsorsAdmin />}
+          {sec === 'banners'   && <SponsorBannersAdmin />}
+          {sec === 'members'   && <MembersAdmin club={club} />}
+          {sec === 'staff'     && isSuperAdmin && <StaffAdmin club={club} />}
         </div>
       </div>
     );
@@ -149,6 +173,53 @@ function IconShield({ color = '#fff' }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3l8 3v6c0 4.5-3.5 8.5-8 9-4.5-.5-8-4.5-8-9V6l8-3z" />
       <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+function IconCalendar({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="1.5" />
+      <path d="M3 9h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+function IconBell({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9a6 6 0 0112 0c0 7 3 7 3 9H3c0-2 3-2 3-9z" />
+      <path d="M10 21h4" />
+    </svg>
+  );
+}
+function IconList({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  );
+}
+function IconBag({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 8h14l-1 12H6L5 8z" />
+      <path d="M9 8a3 3 0 016 0" />
+    </svg>
+  );
+}
+function IconHandshake({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12l4-4 5 5 4-4 5 5" />
+      <path d="M12 13l2 2-3 3-2-2" />
+    </svg>
+  );
+}
+function IconBanner({ color = '#fff' }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v8L12 16 4 12z" />
+      <path d="M12 16v6" />
     </svg>
   );
 }
