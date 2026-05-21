@@ -15,4 +15,7 @@ export const supabase = isConfigured
   ? createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
 
-export const CLUB_SLUG = import.meta.env.VITE_DEFAULT_CLUB_SLUG || 'windhaven';
+// Club slug resolution. Phase 3 will swap this to read the subdomain in
+// production (e.g. clintoncc.groundslive.com -> 'clintoncc'). For now we
+// use VITE_DEFAULT_CLUB_SLUG with 'clintoncc' as the fallback.
+export const CLUB_SLUG = import.meta.env.VITE_DEFAULT_CLUB_SLUG || 'clintoncc';
