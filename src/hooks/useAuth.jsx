@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isConfigured, CLUB_SLUG } from '../lib/supabase.js';
 import { highestRole, userHasPerm } from '../lib/permissions.js';
+import { applyClubPalette } from '../theme.js';
 
 const AuthCtx = createContext(null);
 
@@ -12,17 +13,29 @@ export function AuthProvider({ children }) {
   const [permissions, setPermissions] = useState({}); // jsonb perm flags (club_admin only)
   const [loading, setLoading] = useState(true);
 
-  // Load the club row (everyone needs it to scope queries by club_id)
+  // Load the club row (everyone needs it to scope queries by club_id).
+  // Subscribed in realtime so branding edits from Club Settings push
+  // immediately to every open session — including the manager editing.
   useEffect(() => {
     if (!isConfigured) { setLoading(false); return; }
-    (async () => {
+    let cancelled = false;
+    const load = async () => {
       const { data, error } = await supabase
         .from('clubs')
         .select('*')
         .eq('slug', CLUB_SLUG)
         .single();
-      if (!error) setClub(data);
-    })();
+      if (cancelled || error) return;
+      setClub(data);
+      applyClubPalette(data);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`clubs:${CLUB_SLUG}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clubs', filter: `slug=eq.${CLUB_SLUG}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, []);
 
   // Listen for auth state changes
