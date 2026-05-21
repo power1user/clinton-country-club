@@ -1,9 +1,19 @@
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
-import { DATA_NEWS } from '../data/mock.js';
 
 export default function NewsDetail({ params }) {
-  const news = params?.news || DATA_NEWS[0];
+  const news = params?.news;
+  if (!news) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Club News" />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted }}>Article not found.</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />

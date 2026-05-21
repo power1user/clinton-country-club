@@ -4,14 +4,14 @@ import { SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
-import { DATA_MEMBER } from '../data/mock.js';
 
 export default function MyClub() {
   const { push } = useNav();
   const { member, isAdmin, signOut } = useAuth();
   const brand = useBrand();
   const now = useNow();
-  // Map DB member shape to the design's prop names (or fall back to mock for prototype mode)
+  // Map DB member shape to the design's prop names. Empty placeholders if
+  // there's no member record yet (e.g. signed in but pending claim).
   const m = member ? {
     name: member.name,
     number: member.membership_number,
@@ -22,7 +22,7 @@ export default function MyClub() {
     locker: member.locker || '—',
     cart: member.cart || '—',
     parking: member.parking || '—',
-  } : DATA_MEMBER;
+  } : { name: '—', number: '—', type: 'Member', since: '—', hcp: '—', email: '', locker: '—', cart: '—', parking: '—' };
 
   const actions = [
     { id: 'myclub/card',       label: 'Membership Card', sub: 'Digital · QR code',         icon: <><rect x="3" y="5" width="14" height="10" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M6 10h6M6 8h6" strokeWidth="1.3" fill="none"/></> },

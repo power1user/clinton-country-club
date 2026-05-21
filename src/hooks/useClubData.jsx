@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAuth } from './useAuth.jsx';
-import {
-  DATA_STATUS, DATA_NEWS, DATA_WEATHER, DATA_HOLES, DATA_EVENTS, DATA_MENU,
-  DATA_BULLETIN, DATA_PARTNERS, ONBOARDING,
-} from '../data/mock.js';
+
+// All content is database-driven. Hooks return empty defaults until rows
+// arrive from Supabase. Consuming screens must render a loading or empty
+// state when the data array is empty.
+const EMPTY_MENU = { specials: [], lunch: [], dinner: [], bar: [], desserts: [] };
+const EMPTY_WEATHER = { temp: null, high: null, low: null, condition: '', wind: '', humidity: null, uv: null };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Status pills (real-time)
 // ────────────────────────────────────────────────────────────────────────────
 export function useClubStatus() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_STATUS);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isConfigured || !club) {
-      setData(DATA_STATUS);
+      setData([]);
       setLoading(false);
       return;
     }
@@ -125,11 +127,11 @@ export function usePaceOfPlay() {
 // ────────────────────────────────────────────────────────────────────────────
 export function useNews() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_NEWS);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_NEWS); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
 
     let cancelled = false;
     const load = async () => {
@@ -165,11 +167,11 @@ export function useNews() {
 // ────────────────────────────────────────────────────────────────────────────
 export function useEvents() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_EVENTS);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_EVENTS); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
 
     let cancelled = false;
     const load = async () => {
@@ -205,11 +207,11 @@ export function useEvents() {
 // ────────────────────────────────────────────────────────────────────────────
 export function useMenu() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_MENU);
+  const [data, setData] = useState(EMPTY_MENU);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_MENU); setLoading(false); return; }
+    if (!isConfigured || !club) { setData(EMPTY_MENU); setLoading(false); return; }
 
     let cancelled = false;
     const load = async () => {
@@ -251,13 +253,13 @@ export function useMenu() {
 // ────────────────────────────────────────────────────────────────────────────
 export function usePinPlacements() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_HOLES);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion(v => v + 1);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_HOLES); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
 
     let cancelled = false;
     const load = async () => {
@@ -318,13 +320,13 @@ export function usePinPlacements() {
 // ────────────────────────────────────────────────────────────────────────────
 export function useBulletinPosts() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_BULLETIN);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion(v => v + 1);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_BULLETIN); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
     (async () => {
       const { data: rows } = await supabase
@@ -356,13 +358,13 @@ export function useBulletinPosts() {
 // ────────────────────────────────────────────────────────────────────────────
 export function usePartnerPosts() {
   const { club } = useAuth();
-  const [data, setData] = useState(DATA_PARTNERS);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion(v => v + 1);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(DATA_PARTNERS); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
     (async () => {
       const { data: rows } = await supabase
@@ -395,11 +397,11 @@ export function usePartnerPosts() {
 // ────────────────────────────────────────────────────────────────────────────
 export function useOnboarding() {
   const { club } = useAuth();
-  const [data, setData] = useState(ONBOARDING);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(ONBOARDING); setLoading(false); return; }
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
     (async () => {
       const { data: rows } = await supabase
@@ -419,18 +421,51 @@ export function useOnboarding() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Pro shop items (catalog) — realtime
+// ────────────────────────────────────────────────────────────────────────────
+export function useProShopItems() {
+  const { club } = useAuth();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setData([]); setLoading(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data: rows } = await supabase
+        .from('pro_shop_items')
+        .select('id, name, description, category, price, image_url, in_stock, sort_order')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true });
+      if (cancelled) return;
+      if (rows) setData(rows);
+      setLoading(false);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`pro_shop_items:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pro_shop_items', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  return { data, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Weather — OpenWeatherMap, always at the CLUB's coordinates (not the user's).
 // Returns both current conditions and a 5-day forecast.
 // ────────────────────────────────────────────────────────────────────────────
 const OPENWEATHER_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
-const DEFAULT_FORECAST = [
-  { d: 'Now', t: DATA_WEATHER.temp, c: '⛅' },
-];
+const DEFAULT_FORECAST = [];
 
 export function useWeather() {
   const { club } = useAuth();
-  const [data, setData] = useState({ ...DATA_WEATHER, forecast: DEFAULT_FORECAST });
+  const [data, setData] = useState({ ...EMPTY_WEATHER, forecast: DEFAULT_FORECAST });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -453,13 +488,13 @@ export function useWeather() {
         if (cancelled) return;
 
         setData({
-          temp:      Math.round(cur.main?.temp ?? DATA_WEATHER.temp),
-          high:      Math.round(cur.main?.temp_max ?? DATA_WEATHER.high),
-          low:       Math.round(cur.main?.temp_min ?? DATA_WEATHER.low),
-          condition: cur.weather?.[0]?.main || DATA_WEATHER.condition,
+          temp:      cur.main?.temp != null ? Math.round(cur.main.temp) : null,
+          high:      cur.main?.temp_max != null ? Math.round(cur.main.temp_max) : null,
+          low:       cur.main?.temp_min != null ? Math.round(cur.main.temp_min) : null,
+          condition: cur.weather?.[0]?.main || '',
           wind:      `${Math.round(cur.wind?.speed ?? 0)} mph ${degToCompass(cur.wind?.deg)}`.trim(),
-          humidity:  cur.main?.humidity ?? DATA_WEATHER.humidity,
-          uv:        DATA_WEATHER.uv, // not on free tier
+          humidity:  cur.main?.humidity ?? null,
+          uv:        null, // not on free tier
           forecast:  buildHourly(cur, fc),
         });
       } catch (e) {
@@ -645,7 +680,7 @@ function degToCompass(deg) {
 function buildHourly(cur, fc) {
   const now = {
     d: 'Now',
-    t: Math.round(cur.main?.temp ?? DATA_WEATHER.temp),
+    t: cur.main?.temp != null ? Math.round(cur.main.temp) : null,
     c: conditionEmoji(cur.weather?.[0]?.main),
   };
   if (!fc?.list?.length) return [now];

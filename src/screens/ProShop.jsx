@@ -1,24 +1,42 @@
 import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
-import { DATA_PROSHOP } from '../data/mock.js';
+import { useProShopItems } from '../hooks/useClubData.jsx';
 
 export default function ProShop() {
+  const { data: items, loading } = useProShopItems();
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Pro Shop" />
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
-        <SectionHead label="Current Specials" />
-        {DATA_PROSHOP.map(item => (
+        <SectionHead label="Current Catalog" />
+        {loading && (
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0' }}>Loading the catalog…</p>
+        )}
+        {!loading && items.length === 0 && (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '16px 0' }}>
+            Nothing in the pro shop right now. Check back soon, or visit us in person.
+          </p>
+        )}
+        {items.map(item => (
           <div key={item.id} style={{ padding: '14px 14px', background: G.card, borderRadius: 4, marginBottom: 10, border: `1px solid ${G.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-              <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: 0, flex: 1, paddingRight: 10, lineHeight: 1.25 }}>{item.name}</h3>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, textTransform: 'uppercase', letterSpacing: '0.07em', background: 'rgba(155,122,30,0.1)', padding: '2px 7px', borderRadius: 2, flexShrink: 0 }}>{item.tag}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 10 }}>
+              <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: 0, flex: 1, lineHeight: 1.25 }}>{item.name}</h3>
+              {item.category && (
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, textTransform: 'uppercase', letterSpacing: '0.07em', background: 'rgba(155,122,30,0.1)', padding: '2px 7px', borderRadius: 2, flexShrink: 0 }}>{item.category}</span>
+              )}
             </div>
-            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>{item.desc}</p>
+            {item.description && (
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>{item.description}</p>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text }}>{item.now}</span>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, textDecoration: 'line-through' }}>{item.was}</span>
+              {item.price != null && (
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text }}>${Number(item.price).toFixed(2)}</span>
+              )}
+              {!item.in_stock && (
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, fontStyle: 'italic' }}>Out of stock</span>
+              )}
             </div>
           </div>
         ))}

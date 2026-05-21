@@ -3,7 +3,6 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { Brass, GhostBtn } from '../components/Buttons.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { DATA_MEMBER } from '../data/mock.js';
 
 const STATE_NAMES = {
   AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
@@ -26,9 +25,9 @@ export default function MemberCard() {
     number: member.membership_number,
     type: member.tier || 'Member',
     since: member.member_since || '—',
-  } : DATA_MEMBER;
-  const cityState = club ? `${club.city}, ${STATE_NAMES[club.state] || club.state}` : 'Clinton, Illinois';
-  const founded = club?.founded || 1921;
+  } : { name: '—', number: '—', type: 'Member', since: '—' };
+  const cityState = club ? `${club.city || ''}, ${STATE_NAMES[club.state] || club.state || ''}`.replace(/^, |, $/g, '') : '';
+  const founded = club?.founded || null;
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
@@ -72,7 +71,9 @@ export default function MemberCard() {
           <GhostBtn onPress={() => setShowQR(!showQR)} style={{ flex: 1 }}>{showQR ? 'Show Card' : 'QR Code'}</GhostBtn>
           <Brass style={{ flex: 1 }}>Add to Wallet</Brass>
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, marginTop: 16, textAlign: 'center' }}>Est. {founded} · {cityState}</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, marginTop: 16, textAlign: 'center' }}>
+          {[founded && `Est. ${founded}`, cityState].filter(Boolean).join(' · ')}
+        </p>
       </div>
     </div>
   );

@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
-import { DATA_EVENTS } from '../data/mock.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 
 export default function EventDetail({ params }) {
-  const ev = params?.event || DATA_EVENTS[0];
+  const ev = params?.event;
+  if (!ev) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Event" />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted }}>Event not found.</p>
+        </div>
+      </div>
+    );
+  }
   const { member } = useAuth();
   const [registered, setRegistered] = useState(false);
   const [busy, setBusy] = useState(false);
