@@ -10,6 +10,7 @@ import {
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, LessonRequestsAdmin,
 } from './admin/sections.jsx';
+import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
 // Two-level admin hub: 6 area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -74,8 +75,8 @@ const AREAS = [
     d: 'Members + staff',
     icon: IconPeople,
     sections: [
-      { id: 'members', l: 'Members', d: 'Roster, CSV import, invites',    icon: IconPeople },
-      { id: 'staff',   l: 'Staff',   d: 'Manage admin & manager access',  icon: IconShield, superOnly: true },
+      { id: 'members', l: 'Members', d: 'Roster, CSV import, invites',         icon: IconPeople },
+      { id: 'staff',   l: 'Staff',   d: 'Manage admins + grant permissions',   icon: IconShield, managerOnly: true },
     ],
   },
 ];
@@ -84,7 +85,7 @@ const AREAS = [
 const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id })));
 
 export default function AdminPanel() {
-  const { club, member, isAdmin, isSuperAdmin } = useAuth();
+  const { club, member, isAdmin, isSuperAdmin, isManager } = useAuth();
   const [area, setArea] = useState(null);   // top-level area, null = main hub
   const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
   const activeArea    = AREAS.find(a => a.id === area);
@@ -128,7 +129,7 @@ export default function AdminPanel() {
           {sec === 'holespons' && <HoleSponsorsAdmin />}
           {sec === 'banners'   && <SponsorBannersAdmin />}
           {sec === 'members'   && <MembersAdmin club={club} />}
-          {sec === 'staff'     && isSuperAdmin && <StaffAdmin club={club} />}
+          {sec === 'staff'     && isManager && <StaffAdmin club={club} />}
         </div>
       </div>
     );
@@ -136,7 +137,7 @@ export default function AdminPanel() {
 
   // Level 2 — area sub-hub showing that area's sections
   if (activeArea) {
-    const sectionsToShow = activeArea.sections.filter(s => !s.superOnly || isSuperAdmin);
+    const sectionsToShow = activeArea.sections.filter(s => !s.managerOnly || isManager);
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
@@ -1134,13 +1135,14 @@ function parseCsvLine(line) {
   return out;
 }
 
-// ─── Staff admin (manage admins/managers) ─────────────────────────────────
+// ─── Staff admin — user_roles editor with per-staff permission modal ──────
 function StaffAdmin({ club }) {
-  const { session } = useAuth();
+  const { session, isSuperAdmin } = useAuth();
   const [staff, setStaff] = useState([]);
   const [memberPool, setMemberPool] = useState([]);  // members not yet on staff
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);      // user_roles row being edited
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion(v => v + 1);
 
@@ -1149,11 +1151,12 @@ function StaffAdmin({ club }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ data: au }, { data: m }] = await Promise.all([
+      const [{ data: roles }, { data: m }] = await Promise.all([
         supabase
-          .from('admin_users')
-          .select('id, user_id, role, display_name, created_at')
+          .from('user_roles')
+          .select('id, user_id, role, permissions, display_name, created_at')
           .eq('club_id', club.id)
+          .in('role', ['club_manager', 'club_admin'])
           .order('created_at', { ascending: true }),
         supabase
           .from('members')
@@ -1162,27 +1165,30 @@ function StaffAdmin({ club }) {
           .not('user_id', 'is', null),
       ]);
       if (cancelled) return;
-      setStaff(au || []);
-      // Pool = members with accounts who aren't yet on staff
-      const staffUserIds = new Set((au || []).map(a => a.user_id));
+      setStaff(roles || []);
+      const staffUserIds = new Set((roles || []).map(r => r.user_id));
       setMemberPool((m || []).filter(x => !staffUserIds.has(x.user_id)));
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [club?.id, version]);
 
-  const setRole = async (id, role) => {
-    await supabase.from('admin_users').update({ role }).eq('id', id);
-    refresh();
-  };
   const remove = async (id) => {
     if (!confirm('Remove this person from staff?')) return;
-    await supabase.from('admin_users').delete().eq('id', id);
+    await supabase.from('user_roles').delete().eq('id', id);
     refresh();
   };
+
   const addMember = async (m) => {
-    await supabase.from('admin_users').insert({
-      club_id: club.id, user_id: m.user_id, display_name: m.name, role: 'manager',
+    // Everyone starts as club_admin with no permissions. Super_admin can
+    // promote to club_manager from the edit modal afterwards.
+    await supabase.from('user_roles').insert({
+      club_id: club.id,
+      user_id: m.user_id,
+      display_name: m.name,
+      role: 'club_admin',
+      permissions: {},
+      created_by: session?.user?.id,
     });
     setAdding(false);
     refresh();
@@ -1193,32 +1199,24 @@ function StaffAdmin({ club }) {
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-        Admins can manage everything including other staff. Managers can run day-to-day ops (status, news, orders) but cannot add or remove staff.
+        Club managers can do anything in this club. Club admins only have the specific permissions you grant them.
+        {isSuperAdmin ? ' As super_admin, you can also promote anyone to manager.' : ' Only the super_admin can promote a club admin to manager.'}
       </p>
 
       <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden', marginBottom: 12 }}>
         {staff.map((s, i) => (
-          <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+          <div key={s.id} onClick={() => setEditing(s)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8, cursor: 'pointer' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>{s.display_name || '(unnamed)'}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Added {new Date(s.created_at).toLocaleDateString()}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                {s.role === 'club_manager' ? 'Manager · all permissions' :
+                  `Admin · ${countPerms(s.permissions)} permission${countPerms(s.permissions) === 1 ? '' : 's'}`}
+                {s.user_id === session?.user?.id && ' · You'}
+              </p>
             </div>
-            <select
-              value={s.role}
-              onChange={e => setRole(s.id, e.target.value)}
-              style={{ padding: '4px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC' }}
-            >
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-            </select>
-            {s.user_id !== session?.user?.id && (
-              <div onClick={() => remove(s.id)} data-tap style={{ padding: '4px 8px', cursor: 'pointer' }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove</span>
-              </div>
-            )}
-            {s.user_id === session?.user?.id && (
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, fontStyle: 'italic', padding: '4px 8px' }}>You</span>
-            )}
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: s.role === 'club_manager' ? G.brass : G.greenMid, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+              {s.role === 'club_manager' ? 'Manager' : 'Admin'}
+            </span>
           </div>
         ))}
       </div>
@@ -1229,7 +1227,9 @@ function StaffAdmin({ club }) {
 
       {adding && (
         <div style={{ marginTop: 12 }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>Pick a member to promote to staff (defaults to Manager — you can change to Admin after).</p>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>
+            Pick a member to add as a club admin. They'll start with no permissions — tap their row after adding to grant access.
+          </p>
           {memberPool.length === 0 && (
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, padding: 12, textAlign: 'center', background: G.card, borderRadius: 4 }}>No eligible members. They need a signed-in account first.</p>
           )}
@@ -1239,11 +1239,115 @@ function StaffAdmin({ club }) {
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>{m.name}</p>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>#{m.membership_number} · {m.email || 'no email'}</p>
               </div>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Add as Manager →</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Add as Admin →</span>
             </div>
           ))}
         </div>
       )}
+
+      {editing && (
+        <StaffEditModal
+          staff={editing}
+          canPromoteToManager={isSuperAdmin}
+          isSelf={editing.user_id === session?.user?.id}
+          onClose={() => setEditing(null)}
+          onSaved={refresh}
+          onRemove={() => { remove(editing.id); setEditing(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function countPerms(perms) {
+  if (!perms) return 0;
+  return Object.values(perms).filter(Boolean).length;
+}
+
+// Staff role + permissions editor modal
+function StaffEditModal({ staff, canPromoteToManager, isSelf, onClose, onSaved, onRemove }) {
+  const [role, setRole] = useState(staff.role);
+  const [perms, setPerms] = useState(staff.permissions || {});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const togglePerm = (key) => setPerms(p => ({ ...p, [key]: !p[key] }));
+  const allOn  = () => setPerms(Object.fromEntries(PERMISSION_KEYS.map(k => [k, true])));
+  const allOff = () => setPerms({});
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    // Manager has all perms implicitly; clear the jsonb to avoid stale flags
+    const payload = role === 'club_manager' ? { role, permissions: {} } : { role, permissions: perms };
+    const { error } = await supabase.from('user_roles').update(payload).eq('id', staff.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onSaved?.();
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{staff.display_name || 'Staff'}</h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        <Field label="Role">
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            disabled={!canPromoteToManager}
+            style={{ ...selectStyle, opacity: canPromoteToManager ? 1 : 0.6 }}
+          >
+            <option value="club_admin">Admin (specific permissions)</option>
+            <option value="club_manager">Manager (all permissions)</option>
+          </select>
+          {!canPromoteToManager && (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted, margin: '4px 0 0' }}>Only super_admin can change between Manager and Admin.</p>
+          )}
+        </Field>
+
+        {role === 'club_admin' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '14px 0 8px' }}>
+              <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>Permissions</h4>
+              <span onClick={allOn}  data-tap style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, marginRight: 12 }}>All on</span>
+              <span onClick={allOff} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>All off</span>
+            </div>
+            {PERMISSION_GROUPS.map(group => (
+              <div key={group.area} style={{ marginBottom: 12 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '0 0 4px' }}>{group.area}</p>
+                <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                  {group.keys.map((p, i) => (
+                    <label key={p.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!perms[p.key]} onChange={() => togglePerm(p.key)} style={{ marginTop: 2, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 500, margin: 0 }}>{p.label}</p>
+                        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>{p.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+        <div onClick={save} data-tap style={{ marginTop: 8, padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : 'Save Changes'}</span>
+        </div>
+        {!isSelf && (
+          <div onClick={onRemove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove from staff</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

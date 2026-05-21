@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isConfigured, CLUB_SLUG } from '../lib/supabase.js';
+import { highestRole, userHasPerm } from '../lib/permissions.js';
 
 const AuthCtx = createContext(null);
 
@@ -7,8 +8,8 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [member, setMember] = useState(null);
   const [club, setClub] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [role, setRole] = useState(null);            // 'super_admin' | 'club_manager' | 'club_admin' | null
+  const [permissions, setPermissions] = useState({}); // jsonb perm flags (club_admin only)
   const [loading, setLoading] = useState(true);
 
   // Load the club row (everyone needs it to scope queries by club_id)
@@ -37,12 +38,12 @@ export function AuthProvider({ children }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Hydrate member + admin flags whenever session changes
+  // Hydrate member + role + permissions whenever session changes
   useEffect(() => {
     if (!isConfigured || !session?.user || !club) {
       setMember(null);
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
+      setRole(null);
+      setPermissions({});
       return;
     }
     (async () => {
@@ -67,16 +68,20 @@ export function AuthProvider({ children }) {
         }
       }
 
-      const { data: a } = await supabase
-        .from('admin_users')
-        .select('id, role')
-        .eq('club_id', club.id)
+      // user_roles: match this club OR platform-wide (null club_id) for super_admin.
+      // A user can hold up to two rows here (e.g. super_admin + a club-scoped admin role).
+      const { data: roleRows } = await supabase
+        .from('user_roles')
+        .select('role, permissions')
         .eq('user_id', session.user.id)
-        .maybeSingle();
+        .or(`club_id.eq.${club.id},club_id.is.null`);
 
+      const top = highestRole(roleRows);
+      // Use club_admin perms if present; manager/super_admin have all perms implicitly.
+      const adminRow = (roleRows || []).find(r => r.role === 'club_admin');
       setMember(m || null);
-      setIsAdmin(Boolean(a));
-      setIsSuperAdmin(a?.role === 'admin');
+      setRole(top);
+      setPermissions(adminRow?.permissions || {});
     })();
   }, [session, club]);
 
@@ -101,8 +106,20 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   };
 
+  // Derived flags for convenience
+  const isSuperAdmin = role === 'super_admin';
+  const isManager    = isSuperAdmin || role === 'club_manager';
+  const isClubAdmin  = isManager || role === 'club_admin';
+  const isAdmin      = isClubAdmin; // back-compat alias — any elevated role
+  const hasPerm      = (key) => userHasPerm(role, permissions, key);
+
   return (
-    <AuthCtx.Provider value={{ session, member, club, isAdmin, isSuperAdmin, loading, signIn, signUp, signOut, isConfigured }}>
+    <AuthCtx.Provider value={{
+      session, member, club, role, permissions,
+      isSuperAdmin, isManager, isClubAdmin, isAdmin,
+      hasPerm,
+      loading, signIn, signUp, signOut, isConfigured,
+    }}>
       {children}
     </AuthCtx.Provider>
   );
