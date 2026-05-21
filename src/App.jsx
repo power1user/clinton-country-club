@@ -2,6 +2,7 @@ import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import { G } from './theme.js';
+import { PLATFORM_NAME, PLATFORM_TAGLINE } from './lib/version.js';
 
 import Login from './screens/Login.jsx';
 import Home from './screens/Home.jsx';
@@ -75,9 +76,16 @@ function Gate() {
   const { session, loading, isConfigured } = useAuth();
 
   if (loading) {
+    // First-open splash with parent-brand attribution. Briefly visible
+    // before the club row resolves; if that goes well users won't even
+    // notice it.
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: G.green }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: '#7AAC88' }}>Loading…</p>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: G.green, padding: 32 }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#7AAC88', letterSpacing: '0.3em', textTransform: 'uppercase', margin: 0 }}>{PLATFORM_NAME}</p>
+        <h1 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 28, fontWeight: 700, color: '#F2EDE0', margin: '8px 0 6px', textAlign: 'center', lineHeight: 1.2 }}>
+          {PLATFORM_TAGLINE}
+        </h1>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: '#7AAC88', margin: 0 }}>Loading your club…</p>
       </div>
     );
   }

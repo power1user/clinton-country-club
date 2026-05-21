@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { G } from '../theme.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { PLATFORM_NAME } from '../lib/version.js';
 
 export default function Login() {
   const { signIn, signUp, isConfigured } = useAuth();
@@ -129,6 +130,13 @@ export default function Login() {
           >
             {mode === 'signin' ? 'Create an account' : 'Sign in'}
           </span>
+        </div>
+
+        {/* Parent-brand attribution — pre-auth footer */}
+        <div style={{ marginTop: 32, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
+            Powered by {PLATFORM_NAME}
+          </p>
         </div>
       </div>
     </div>

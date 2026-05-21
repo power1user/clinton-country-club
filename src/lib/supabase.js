@@ -15,7 +15,25 @@ export const supabase = isConfigured
   ? createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
 
-// Club slug resolution. Phase 3 will swap this to read the subdomain in
-// production (e.g. clintoncc.groundslive.com -> 'clintoncc'). For now we
-// use VITE_DEFAULT_CLUB_SLUG with 'clintoncc' as the fallback.
-export const CLUB_SLUG = import.meta.env.VITE_DEFAULT_CLUB_SLUG || 'clintoncc';
+// Club slug resolution order:
+//   1. ?club=slug query param        (dev / preview overrides)
+//   2. <subdomain>.groundslive.com   (production)
+//   3. VITE_DEFAULT_CLUB_SLUG env    (dev local builds)
+//   4. 'clintoncc' hardcoded fallback (so the app never boots blank)
+function resolveClubSlug() {
+  if (typeof window === 'undefined') {
+    return import.meta.env.VITE_DEFAULT_CLUB_SLUG || 'clintoncc';
+  }
+  // 1. query param override
+  const qp = new URLSearchParams(window.location.search).get('club');
+  if (qp) return qp;
+  // 2. subdomain on groundslive.com (skip 'www' — that's the marketing host)
+  const m = window.location.hostname.match(/^([a-z0-9-]+)\.groundslive\.com$/i);
+  if (m && m[1] !== 'www') return m[1].toLowerCase();
+  // 3. env var fallback
+  if (import.meta.env.VITE_DEFAULT_CLUB_SLUG) return import.meta.env.VITE_DEFAULT_CLUB_SLUG;
+  // 4. last resort — avoid blank-club boot
+  return 'clintoncc';
+}
+
+export const CLUB_SLUG = resolveClubSlug();

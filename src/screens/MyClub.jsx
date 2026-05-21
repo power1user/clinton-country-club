@@ -4,6 +4,7 @@ import { SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
+import { PLATFORM_NAME, VERSION } from '../lib/version.js';
 
 export default function MyClub() {
   const { push } = useNav();
@@ -101,10 +102,20 @@ export default function MyClub() {
           </div>
         )}
 
-        <div style={{ padding: '8px 20px 28px' }}>
+        <div style={{ padding: '8px 20px 4px' }}>
           <div onClick={signOut} data-tap style={{ padding: '11px 16px', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign out</span>
           </div>
+        </div>
+
+        {/* About — parent-brand attribution + version */}
+        <div style={{ padding: '4px 20px 28px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 3px' }}>
+            Powered by {PLATFORM_NAME}
+          </p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0, opacity: 0.7 }}>
+            v{VERSION}
+          </p>
         </div>
       </div>
     </div>
