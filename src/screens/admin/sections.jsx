@@ -467,6 +467,18 @@ export function EventRegistrationsAdmin() {
 // ============================================================
 export function ClubSettingsAdmin() {
   const { club } = useAuth();
+  return (
+    <ClubSettingsForm
+      club={club}
+      headerNote="Edit your club's branding + contact info. Changes go live for every member as soon as you Save."
+    />
+  );
+}
+
+// Reusable branding/contact editor. Drives the clubs row directly.
+// Used by ClubSettingsAdmin (manager editing their own club) AND by
+// AllClubsAdmin (super_admin editing any club).
+export function ClubSettingsForm({ club, headerNote }) {
   const [form, setForm] = useState({
     tagline: '',
     contact_email: '',
@@ -483,11 +495,16 @@ export function ClubSettingsAdmin() {
   const [err, setErr] = useState(null);
   const [uploading, setUploading] = useState(null); // 'logo' | 'hero' | null
   const dirty = useRef(false);
+  const lastClubId = useRef(null);
 
-  // Sync form from club row — unless user has unsaved edits
+  // Sync form from club row — unless user has unsaved edits.
+  // Force-reset when the club id changes (super_admin switching clubs).
   useEffect(() => {
-    if (dirty.current) return;
     if (!club) return;
+    const isNewClub = lastClubId.current !== club.id;
+    if (!isNewClub && dirty.current) return;
+    lastClubId.current = club.id;
+    dirty.current = false;
     setForm({
       tagline:         club.tagline         || '',
       contact_email:   club.contact_email   || '',
@@ -516,8 +533,6 @@ export function ClubSettingsAdmin() {
         .upload(path, file, { upsert: true, cacheControl: '3600' });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
-      // Cache-bust by appending the time of upload so the new image shows
-      // immediately even if a CDN cached the previous version.
       const url = `${pub.publicUrl}?v=${Date.now()}`;
       set(kind === 'logo' ? 'logo_url' : 'hero_image_url', url);
     } catch (e) {
@@ -554,11 +569,17 @@ export function ClubSettingsAdmin() {
   const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
   const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
 
+  if (!club) {
+    return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading club…</p>;
+  }
+
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
-        Edit your club's branding + contact info. Changes go live for every member as soon as you Save.
-      </p>
+      {headerNote && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+          {headerNote}
+        </p>
+      )}
 
       <SectionHeading>Brand Identity</SectionHeading>
       <div style={{ marginBottom: 12 }}>
@@ -795,7 +816,231 @@ function ComingSoonSection({ title, desc, phase = 'Phase 3' }) {
     </div>
   );
 }
-export function AllClubsAdmin()         { return <ComingSoonSection title="All Clubs" desc="Browse every club on the platform, jump in as any club's super-admin, onboard a new club." />; }
+// ============================================================
+// AllClubsAdmin — super_admin cross-club browser + onboarding
+// (Platform area → super_admin only)
+// ============================================================
+export function AllClubsAdmin() {
+  const [clubs, setClubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);     // club row being edited
+  const [creating, setCreating] = useState(false);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('id, slug, name, city, state, primary_color, logo_url, tagline, created_at')
+        .order('created_at', { ascending: true });
+      if (cancelled) return;
+      if (!error) setClubs(data || []);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [version]);
+
+  // When editing, re-fetch the full club row (the list only carries summary cols)
+  const [fullClub, setFullClub] = useState(null);
+  useEffect(() => {
+    if (!selected) { setFullClub(null); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase.from('clubs').select('*').eq('id', selected.id).single();
+      if (!cancelled) setFullClub(data);
+    };
+    load();
+    // Subscribe to UPDATEs on this specific club so the form preview stays current
+    const channel = supabase
+      .channel(`clubs_edit:${selected.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clubs', filter: `id=eq.${selected.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [selected?.id]);
+
+  if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading clubs…</p>;
+
+  // ── Edit panel for one club
+  if (selected && fullClub) {
+    return (
+      <div>
+        <div onClick={() => setSelected(null)} data-tap style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 0', marginBottom: 14, cursor: 'pointer' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M19 12H5M5 12l7-7M5 12l7 7" /></svg>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass }}>All Clubs</span>
+        </div>
+        <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{fullClub.name}</h3>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 16px' }}>
+          {fullClub.slug}.groundslive.com · {fullClub.city || '?'}, {fullClub.state || '?'}
+        </p>
+        <ClubSettingsForm
+          club={fullClub}
+          headerNote="Edit any club on the platform. Changes are saved straight to that club's row and pushed live to its members."
+        />
+      </div>
+    );
+  }
+
+  // ── List view
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Every club on the platform. Tap a row to edit branding + contact info. Add a new club to onboard.
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+          {clubs.length} {clubs.length === 1 ? 'club' : 'clubs'}
+        </p>
+        <div onClick={() => setCreating(true)} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ New Club</span>
+        </div>
+      </div>
+
+      <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden' }}>
+        {clubs.map((c, i) => (
+          <div key={c.id} onClick={() => setSelected(c)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
+            {/* Color swatch from primary_color */}
+            <div style={{ width: 36, height: 36, borderRadius: 4, background: c.primary_color || '#1B3A2D', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {c.logo_url ? (
+                <img src={c.logo_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              ) : (
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: '#F2E5C0' }}>{(c.name || '?').charAt(0)}</span>
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {c.slug}.groundslive.com{c.city ? ` · ${c.city}${c.state ? `, ${c.state}` : ''}` : ''}
+              </p>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+          </div>
+        ))}
+      </div>
+
+      {creating && (
+        <CreateClubModal
+          onClose={() => setCreating(false)}
+          onCreated={(newClub) => { setCreating(false); refresh(); setSelected(newClub); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateClubModal({ onClose, onCreated }) {
+  const [form, setForm] = useState({ name: '', slug: '', city: '', state: '', founded: '', par: '', yardage: '', holes: '18', lat: '', lng: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const autoSlugFromName = (name) => {
+    const s = name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20);
+    set('slug', s);
+  };
+
+  const create = async () => {
+    setBusy(true); setErr(null);
+    const slug = form.slug.trim().toLowerCase();
+    if (!/^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$/.test(slug)) {
+      setBusy(false);
+      setErr('Slug must be 2–30 chars, lowercase letters/digits/hyphens, and start+end alphanumeric.');
+      return;
+    }
+    const { data, error } = await supabase.from('clubs').insert({
+      name: form.name.trim(),
+      slug,
+      city: form.city.trim() || null,
+      state: form.state.trim() || null,
+      founded: form.founded ? Number(form.founded) : null,
+      par: form.par ? Number(form.par) : null,
+      yardage: form.yardage ? Number(form.yardage) : null,
+      holes: form.holes ? Number(form.holes) : 18,
+      lat: form.lat ? Number(form.lat) : null,
+      lng: form.lng ? Number(form.lng) : null,
+    }).select().single();
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onCreated?.(data);
+  };
+
+  const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>Onboard New Club</h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+          Creates a new club row. The slug becomes the subdomain
+          (e.g. <code>oakgrove</code> → <code>oakgrove.groundslive.com</code>). You'll get dropped into Club Settings to finish branding.
+        </p>
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={labelStyle}>Club Name *</label>
+          <input value={form.name} onChange={e => { set('name', e.target.value); if (!form.slug) autoSlugFromName(e.target.value); }} placeholder="Oakgrove Country Club" style={inputStyle} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={labelStyle}>Slug * (subdomain — lowercase, 2–30 chars)</label>
+          <input value={form.slug} onChange={e => set('slug', e.target.value.toLowerCase())} placeholder="oakgrove" style={{ ...inputStyle, fontFamily: 'monospace' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+          <div style={{ flex: 2 }}>
+            <label style={labelStyle}>City</label>
+            <input value={form.city} onChange={e => set('city', e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>State</label>
+            <input value={form.state} onChange={e => set('state', e.target.value.toUpperCase().slice(0, 2))} placeholder="IL" style={inputStyle} maxLength={2} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Founded</label>
+            <input type="number" value={form.founded} onChange={e => set('founded', e.target.value)} placeholder="1921" style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Holes</label>
+            <input type="number" value={form.holes} onChange={e => set('holes', e.target.value)} placeholder="18" style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Par</label>
+            <input type="number" value={form.par} onChange={e => set('par', e.target.value)} placeholder="72" style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Yards</label>
+            <input type="number" value={form.yardage} onChange={e => set('yardage', e.target.value)} placeholder="6200" style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Latitude</label>
+            <input value={form.lat} onChange={e => set('lat', e.target.value)} placeholder="40.1010" style={{ ...inputStyle, fontFamily: 'monospace' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Longitude</label>
+            <input value={form.lng} onChange={e => set('lng', e.target.value)} placeholder="-88.9630" style={{ ...inputStyle, fontFamily: 'monospace' }} />
+          </div>
+        </div>
+
+        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+        <div onClick={create} data-tap style={{ padding: 12, background: form.name && form.slug && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: form.name && form.slug && !busy ? 'pointer' : 'not-allowed' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: form.name && form.slug && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Creating…' : 'Create Club'}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 export function PlatformSettingsAdmin() { return <ComingSoonSection title="Platform Settings" desc="The Grounds branding, billing, support contact, default templates for new clubs." />; }
 export function PlatformMetricsAdmin()  { return <ComingSoonSection title="Cross-Club Metrics" desc="Aggregate stats — active members, content updates, revenue, support tickets — across every club." />; }
 
