@@ -12,6 +12,7 @@ import NewsDetail from './screens/NewsDetail.jsx';
 import Inbox from './screens/Inbox.jsx';
 import Thread from './screens/Thread.jsx';
 import MessageClubhouse from './screens/MessageClubhouse.jsx';
+import MemberDirectory from './screens/MemberDirectory.jsx';
 import GolfHub from './screens/GolfHub.jsx';
 import PinMap from './screens/PinMap.jsx';
 import CourseMap from './screens/CourseMap.jsx';
@@ -36,6 +37,7 @@ const SCREENS = {
   inbox: Inbox,
   thread: Thread,
   'message-clubhouse': MessageClubhouse,
+  'member-directory': MemberDirectory,
   golf: GolfHub,
   'golf/pin': PinMap,
   'golf/map': CourseMap,

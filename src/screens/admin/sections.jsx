@@ -490,6 +490,7 @@ export function ClubSettingsForm({ club, headerNote }) {
     accent_color: '#9B7A1E',
     logo_url: '',
     hero_image_url: '',
+    enable_member_dms: false,
   });
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -507,19 +508,20 @@ export function ClubSettingsForm({ club, headerNote }) {
     lastClubId.current = club.id;
     dirty.current = false;
     setForm({
-      tagline:         club.tagline         || '',
-      contact_email:   club.contact_email   || '',
-      contact_phone:   club.contact_phone   || '',
-      address:         club.address         || '',
-      primary_color:   club.primary_color   || '#1B3A2D',
-      secondary_color: club.secondary_color || '#234D38',
-      accent_color:    club.accent_color    || '#9B7A1E',
-      logo_url:        club.logo_url        || '',
-      hero_image_url:  club.hero_image_url  || '',
+      tagline:         club.tagline           || '',
+      contact_email:   club.contact_email     || '',
+      contact_phone:   club.contact_phone     || '',
+      address:         club.address           || '',
+      primary_color:   club.primary_color     || '#1B3A2D',
+      secondary_color: club.secondary_color   || '#234D38',
+      accent_color:    club.accent_color      || '#9B7A1E',
+      logo_url:        club.logo_url          || '',
+      hero_image_url:  club.hero_image_url    || '',
+      enable_member_dms: !!club.enable_member_dms,
     });
   }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
       club?.primary_color, club?.secondary_color, club?.accent_color,
-      club?.logo_url, club?.hero_image_url]);
+      club?.logo_url, club?.hero_image_url, club?.enable_member_dms]);
 
   const set = (k, v) => { dirty.current = true; setForm(p => ({ ...p, [k]: v })); };
 
@@ -549,15 +551,16 @@ export function ClubSettingsForm({ club, headerNote }) {
     const { error } = await supabase
       .from('clubs')
       .update({
-        tagline:         form.tagline.trim()       || null,
-        contact_email:   form.contact_email.trim() || null,
-        contact_phone:   form.contact_phone.trim() || null,
-        address:         form.address.trim()       || null,
-        primary_color:   form.primary_color,
-        secondary_color: form.secondary_color,
-        accent_color:    form.accent_color,
-        logo_url:        form.logo_url.trim()       || null,
-        hero_image_url:  form.hero_image_url.trim() || null,
+        tagline:           form.tagline.trim()       || null,
+        contact_email:     form.contact_email.trim() || null,
+        contact_phone:     form.contact_phone.trim() || null,
+        address:           form.address.trim()       || null,
+        primary_color:     form.primary_color,
+        secondary_color:   form.secondary_color,
+        accent_color:      form.accent_color,
+        logo_url:          form.logo_url.trim()       || null,
+        hero_image_url:    form.hero_image_url.trim() || null,
+        enable_member_dms: !!form.enable_member_dms,
       })
       .eq('id', club.id);
     setBusy(false);
@@ -645,6 +648,25 @@ export function ClubSettingsForm({ club, headerNote }) {
           <input value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="office@yourclub.com" style={inputStyle} />
         </div>
       </div>
+
+      <SectionHeading>Member Features</SectionHeading>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 8px' }}>
+        Optional features that change what members can do inside the app.
+      </p>
+      <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer', marginBottom: 14 }}>
+        <input
+          type="checkbox"
+          checked={!!form.enable_member_dms}
+          onChange={e => set('enable_member_dms', e.target.checked)}
+          style={{ marginTop: 2, flexShrink: 0 }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Enable member-to-member DMs</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
+            When on, members see a Member Directory and can DM each other. When off, the directory is hidden and no member can start a DM. Turn off if you're worried about member-to-member liability.
+          </p>
+        </div>
+      </label>
 
       {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
