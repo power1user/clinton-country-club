@@ -7,7 +7,9 @@ import { useAuth } from '../../hooks/useAuth.jsx';
 import { useNav } from '../../hooks/useNav.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
+import { COMMON_TIMEZONES } from '../../lib/timezone.js';
 import CrudSection from './CrudSection.jsx';
+import Toggle from '../../components/Toggle.jsx';
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
@@ -471,20 +473,35 @@ export function ClubSettingsAdmin() {
   return (
     <ClubSettingsForm
       club={club}
-      headerNote="Edit your club's branding + contact info. Changes go live for every member as soon as you Save."
+      mode="manager"
+      headerNote="Edit your club's branding + contact info. Changes go live for every member as soon as you Save. Address and other location facts are managed by the platform — contact your platform admin to change them."
     />
   );
 }
 
 // Reusable branding/contact editor. Drives the clubs row directly.
-// Used by ClubSettingsAdmin (manager editing their own club) AND by
-// AllClubsAdmin (super_admin editing any club).
-export function ClubSettingsForm({ club, headerNote }) {
+//   mode='manager'  — club_manager editing their own club. Hides
+//                     immutable-ish facts (address, lat/lng, founded,
+//                     par, yardage, holes, timezone) so day-to-day
+//                     managers don't accidentally touch them.
+//   mode='platform' — super_admin editing any club from
+//                     Platform → All Clubs. Shows everything.
+export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
+  const isPlatform = mode === 'platform';
   const [form, setForm] = useState({
     tagline: '',
     contact_email: '',
     contact_phone: '',
     address: '',
+    city: '',
+    state: '',
+    founded: '',
+    par: '',
+    yardage: '',
+    holes: 18,
+    lat: '',
+    lng: '',
+    timezone: 'America/Chicago',
     primary_color: '#1B3A2D',
     secondary_color: '#234D38',
     accent_color: '#9B7A1E',
@@ -508,18 +525,29 @@ export function ClubSettingsForm({ club, headerNote }) {
     lastClubId.current = club.id;
     dirty.current = false;
     setForm({
-      tagline:         club.tagline           || '',
-      contact_email:   club.contact_email     || '',
-      contact_phone:   club.contact_phone     || '',
-      address:         club.address           || '',
-      primary_color:   club.primary_color     || '#1B3A2D',
-      secondary_color: club.secondary_color   || '#234D38',
-      accent_color:    club.accent_color      || '#9B7A1E',
-      logo_url:        club.logo_url          || '',
-      hero_image_url:  club.hero_image_url    || '',
+      tagline:           club.tagline           || '',
+      contact_email:     club.contact_email     || '',
+      contact_phone:     club.contact_phone     || '',
+      address:           club.address           || '',
+      city:              club.city              || '',
+      state:             club.state             || '',
+      founded:           club.founded           ?? '',
+      par:               club.par               ?? '',
+      yardage:           club.yardage           ?? '',
+      holes:             club.holes             ?? 18,
+      lat:               club.lat               ?? '',
+      lng:               club.lng               ?? '',
+      timezone:          club.timezone          || 'America/Chicago',
+      primary_color:     club.primary_color     || '#1B3A2D',
+      secondary_color:   club.secondary_color   || '#234D38',
+      accent_color:      club.accent_color      || '#9B7A1E',
+      logo_url:          club.logo_url          || '',
+      hero_image_url:    club.hero_image_url    || '',
       enable_member_dms: !!club.enable_member_dms,
     });
   }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
+      club?.city, club?.state, club?.founded, club?.par, club?.yardage, club?.holes,
+      club?.lat, club?.lng, club?.timezone,
       club?.primary_color, club?.secondary_color, club?.accent_color,
       club?.logo_url, club?.hero_image_url, club?.enable_member_dms]);
 
@@ -548,21 +576,35 @@ export function ClubSettingsForm({ club, headerNote }) {
   const save = async () => {
     if (!club) return;
     setBusy(true); setErr(null);
-    const { error } = await supabase
-      .from('clubs')
-      .update({
-        tagline:           form.tagline.trim()       || null,
-        contact_email:     form.contact_email.trim() || null,
-        contact_phone:     form.contact_phone.trim() || null,
-        address:           form.address.trim()       || null,
-        primary_color:     form.primary_color,
-        secondary_color:   form.secondary_color,
-        accent_color:      form.accent_color,
-        logo_url:          form.logo_url.trim()       || null,
-        hero_image_url:    form.hero_image_url.trim() || null,
-        enable_member_dms: !!form.enable_member_dms,
-      })
-      .eq('id', club.id);
+    // Manager-editable fields always go through. Platform-only fields
+    // only get included when mode === 'platform' so a manager's save
+    // never overwrites an address or coordinates.
+    const payload = {
+      tagline:           form.tagline.trim()       || null,
+      contact_email:     form.contact_email.trim() || null,
+      contact_phone:     form.contact_phone.trim() || null,
+      primary_color:     form.primary_color,
+      secondary_color:   form.secondary_color,
+      accent_color:      form.accent_color,
+      logo_url:          form.logo_url.trim()       || null,
+      hero_image_url:    form.hero_image_url.trim() || null,
+      enable_member_dms: !!form.enable_member_dms,
+    };
+    if (isPlatform) {
+      Object.assign(payload, {
+        address:  form.address.trim() || null,
+        city:     form.city.trim()    || null,
+        state:    form.state.trim()   || null,
+        founded:  form.founded === '' ? null : Number(form.founded),
+        par:      form.par     === '' ? null : Number(form.par),
+        yardage:  form.yardage === '' ? null : Number(form.yardage),
+        holes:    form.holes   === '' ? 18   : Number(form.holes),
+        lat:      form.lat     === '' ? null : Number(form.lat),
+        lng:      form.lng     === '' ? null : Number(form.lng),
+        timezone: form.timezone || 'America/Chicago',
+      });
+    }
+    const { error } = await supabase.from('clubs').update(payload).eq('id', club.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     dirty.current = false;
@@ -633,11 +675,7 @@ export function ClubSettingsForm({ club, headerNote }) {
       <ColorRow label="Secondary" value={form.secondary_color} onChange={v => set('secondary_color', v)} />
       <ColorRow label="Accent"    value={form.accent_color}    onChange={v => set('accent_color', v)} />
 
-      <SectionHeading>Contact + Location</SectionHeading>
-      <div style={{ marginBottom: 10 }}>
-        <label style={labelStyle}>Address</label>
-        <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="1126 N Center St, Clinton, IL 61727" style={inputStyle} />
-      </div>
+      <SectionHeading>Contact</SectionHeading>
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Phone</label>
@@ -649,24 +687,80 @@ export function ClubSettingsForm({ club, headerNote }) {
         </div>
       </div>
 
+      {/* Platform-only: location facts that don't change day-to-day */}
+      {isPlatform && (
+        <>
+          <SectionHeading>Location (platform-managed)</SectionHeading>
+          <div style={{ marginBottom: 10 }}>
+            <label style={labelStyle}>Address</label>
+            <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="1126 N Center St, Clinton, IL 61727" style={inputStyle} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 2 }}>
+              <label style={labelStyle}>City</label>
+              <input value={form.city} onChange={e => set('city', e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>State</label>
+              <input value={form.state} onChange={e => set('state', e.target.value.toUpperCase().slice(0, 2))} maxLength={2} style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={labelStyle}>Timezone</label>
+            <select value={form.timezone} onChange={e => set('timezone', e.target.value)} style={inputStyle}>
+              {COMMON_TIMEZONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Latitude</label>
+              <input value={form.lat} onChange={e => set('lat', e.target.value)} style={{ ...inputStyle, fontFamily: 'monospace' }} placeholder="40.1010" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Longitude</label>
+              <input value={form.lng} onChange={e => set('lng', e.target.value)} style={{ ...inputStyle, fontFamily: 'monospace' }} placeholder="-88.9630" />
+            </div>
+          </div>
+
+          <SectionHeading>Course Facts (platform-managed)</SectionHeading>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Founded</label>
+              <input type="number" value={form.founded} onChange={e => set('founded', e.target.value)} placeholder="1921" style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Holes</label>
+              <input type="number" value={form.holes} onChange={e => set('holes', e.target.value)} placeholder="9" style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Par</label>
+              <input type="number" value={form.par} onChange={e => set('par', e.target.value)} placeholder="35" style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Yards</label>
+              <input type="number" value={form.yardage} onChange={e => set('yardage', e.target.value)} placeholder="2784" style={inputStyle} />
+            </div>
+          </div>
+        </>
+      )}
+
       <SectionHeading>Member Features</SectionHeading>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 8px' }}>
         Optional features that change what members can do inside the app.
       </p>
-      <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer', marginBottom: 14 }}>
-        <input
-          type="checkbox"
-          checked={!!form.enable_member_dms}
-          onChange={e => set('enable_member_dms', e.target.checked)}
-          style={{ marginTop: 2, flexShrink: 0 }}
-        />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 14 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Enable member-to-member DMs</p>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
             When on, members see a Member Directory and can DM each other. When off, the directory is hidden and no member can start a DM. Turn off if you're worried about member-to-member liability.
           </p>
         </div>
-      </label>
+        <Toggle
+          checked={!!form.enable_member_dms}
+          onChange={v => set('enable_member_dms', v)}
+          ariaLabel="Enable member-to-member DMs"
+        />
+      </div>
 
       {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
@@ -1023,7 +1117,8 @@ export function AllClubsAdmin() {
         </p>
         <ClubSettingsForm
           club={fullClub}
-          headerNote="Edit any club on the platform. Changes are saved straight to that club's row and pushed live to its members."
+          mode="platform"
+          headerNote="Edit any club on the platform. As super_admin you also control the location facts + course meta + timezone that managers can't touch."
         />
       </div>
     );
@@ -1078,7 +1173,7 @@ export function AllClubsAdmin() {
 }
 
 function CreateClubModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ name: '', slug: '', city: '', state: '', founded: '', par: '', yardage: '', holes: '18', lat: '', lng: '' });
+  const [form, setForm] = useState({ name: '', slug: '', address: '', city: '', state: '', founded: '', par: '', yardage: '', holes: '18', lat: '', lng: '', timezone: 'America/Chicago' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -1099,6 +1194,7 @@ function CreateClubModal({ onClose, onCreated }) {
     const { data, error } = await supabase.from('clubs').insert({
       name: form.name.trim(),
       slug,
+      address: form.address.trim() || null,
       city: form.city.trim() || null,
       state: form.state.trim() || null,
       founded: form.founded ? Number(form.founded) : null,
@@ -1107,6 +1203,7 @@ function CreateClubModal({ onClose, onCreated }) {
       holes: form.holes ? Number(form.holes) : 18,
       lat: form.lat ? Number(form.lat) : null,
       lng: form.lng ? Number(form.lng) : null,
+      timezone: form.timezone || 'America/Chicago',
     }).select().single();
     setBusy(false);
     if (error) { setErr(error.message); return; }
@@ -1139,6 +1236,10 @@ function CreateClubModal({ onClose, onCreated }) {
           <label style={labelStyle}>Slug * (subdomain — lowercase, 2–30 chars)</label>
           <input value={form.slug} onChange={e => set('slug', e.target.value.toLowerCase())} placeholder="oakgrove" style={{ ...inputStyle, fontFamily: 'monospace' }} />
         </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={labelStyle}>Street Address</label>
+          <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="123 Country Club Rd" style={inputStyle} />
+        </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           <div style={{ flex: 2 }}>
             <label style={labelStyle}>City</label>
@@ -1148,6 +1249,12 @@ function CreateClubModal({ onClose, onCreated }) {
             <label style={labelStyle}>State</label>
             <input value={form.state} onChange={e => set('state', e.target.value.toUpperCase().slice(0, 2))} placeholder="IL" style={inputStyle} maxLength={2} />
           </div>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={labelStyle}>Timezone</label>
+          <select value={form.timezone} onChange={e => set('timezone', e.target.value)} style={inputStyle}>
+            {COMMON_TIMEZONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           <div style={{ flex: 1 }}>

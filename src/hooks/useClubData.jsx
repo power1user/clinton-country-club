@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAuth } from './useAuth.jsx';
+import { clubLocalParts, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 // All content is database-driven. Hooks return empty defaults until rows
 // arrive from Supabase. Consuming screens must render a loading or empty
@@ -516,19 +517,20 @@ export function useWeather() {
 
 // Decides what state to actually show given the admin's stored state, the
 // pill's day-of-week hours, dusk time (for "closes at dusk" facilities), and
-// the current time.
+// the current time. Times are evaluated in the club's local timezone (IANA),
+// passed in via the `timezone` arg — e.g. 'America/Chicago' for Clinton.
 //
 //   - admin manually set 'closed' → always closed
 //   - today is_closed → closed
 //   - has hours AND we're outside them → closed
 //   - otherwise → admin's state ('open' or 'limited')
-export function effectiveState(pill, now = new Date(), duskTime = null) {
+export function effectiveState(pill, now = new Date(), duskTime = null, timezone = DEFAULT_TIMEZONE) {
   if (!pill) return 'closed';
   if (pill.st === 'closed') return 'closed';
-  const today = pickToday(pill, now);
+  const today = pickToday(pill, now, timezone);
   if (today) {
     if (today.is_closed) return 'closed';
-    const within = withinDailyHours(today, now, duskTime);
+    const within = withinDailyHours(today, now, duskTime, timezone);
     if (within === false) return 'closed';
     // Within hours + members-only flag on → 'members' state
     if (today.members_only) return pill.st === 'limited' ? 'limited' : 'members';
@@ -537,9 +539,10 @@ export function effectiveState(pill, now = new Date(), duskTime = null) {
 }
 
 // Returns today's hours row for a pill, or null if no per-day schedule.
-export function pickToday(pill, now = new Date()) {
-  const day = now.getDay();
-  if (pill?.hoursByDay && pill.hoursByDay[day]) return pill.hoursByDay[day];
+// `today` is decided by the club's local day-of-week, not the browser's.
+export function pickToday(pill, now = new Date(), timezone = DEFAULT_TIMEZONE) {
+  const { dayOfWeek } = clubLocalParts(now, timezone);
+  if (pill?.hoursByDay && pill.hoursByDay[dayOfWeek]) return pill.hoursByDay[dayOfWeek];
   // Fallback to legacy single-row hours
   if (pill?.opens_at || pill?.closes_at) {
     return { opens_at: pill.opens_at, closes_at: pill.closes_at, closes_at_dusk: false, is_closed: false };
@@ -547,14 +550,15 @@ export function pickToday(pill, now = new Date()) {
   return null;
 }
 
-export function withinDailyHours(day, now = new Date(), duskTime = null) {
+export function withinDailyHours(day, now = new Date(), duskTime = null, timezone = DEFAULT_TIMEZONE) {
   if (!day) return null;
   if (day.is_closed) return false;
   if (!day.opens_at) return null;
-  // Close time: either fixed clock time or computed dusk
+  // Close time: either fixed clock time or computed dusk (converted to club tz)
   let closeMinutes;
   if (day.closes_at_dusk && duskTime) {
-    closeMinutes = duskTime.getHours() * 60 + duskTime.getMinutes();
+    const duskParts = clubLocalParts(duskTime, timezone);
+    closeMinutes = duskParts.minutesOfDay;
   } else if (day.closes_at) {
     closeMinutes = toMinutes(day.closes_at);
   } else if (day.closes_at_dusk && !duskTime) {
@@ -565,7 +569,7 @@ export function withinDailyHours(day, now = new Date(), duskTime = null) {
   }
   const openMinutes = toMinutes(day.opens_at);
   if (openMinutes == null || closeMinutes == null) return null;
-  const cur = now.getHours() * 60 + now.getMinutes();
+  const cur = clubLocalParts(now, timezone).minutesOfDay;
   if (closeMinutes < openMinutes) return cur >= openMinutes || cur < closeMinutes;
   return cur >= openMinutes && cur < closeMinutes;
 }

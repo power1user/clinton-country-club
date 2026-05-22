@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { G, gCfg } from '../theme.js';
 import { effectiveState, withinDailyHours, pickToday, useDusk } from '../hooks/useClubData.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { clubLocalParts, DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 // Coordinated state — opening one pill closes any other that's open.
 const PILL_OPEN_EVT = 'clinton:pill-open';
 
 // "11am – 9pm" / "7am – Dusk (8:42pm)" / "Closed today" / "By appointment"
-function formatTodayHours(day, dusk) {
+// Dusk is formatted in the club's local timezone so members in other tz
+// still see "Dusk (8:42pm) at the club" rather than their own local time.
+function formatTodayHours(day, dusk, timezone) {
   if (!day) return 'By appointment';
   if (day.is_closed) return 'Closed today';
   if (!day.opens_at) return 'By appointment';
   const open  = fmt12(day.opens_at);
   if (day.closes_at_dusk) {
-    return dusk
-      ? `${open} – Dusk (${fmt12HM(dusk.getHours(), dusk.getMinutes())})`
-      : `${open} – Dusk`;
+    if (!dusk) return `${open} – Dusk`;
+    const { minutesOfDay } = clubLocalParts(dusk, timezone);
+    return `${open} – Dusk (${fmt12HM(Math.floor(minutesOfDay / 60), minutesOfDay % 60)})`;
   }
   if (day.closes_at) return `${open} – ${fmt12(day.closes_at)}`;
   return open;
@@ -36,9 +40,12 @@ export default function StatusPill({ item, column = 0, colCount = 3, large = fal
   const [, setTick] = useState(0);              // re-render once a minute so auto-toggle updates live
   const wrapRef = useRef(null);
   const dusk = useDusk();
-  const today = pickToday(item);
-  // Effective (auto-toggled) state based on current time, today's hours, dusk.
-  const effSt = effectiveState(item, new Date(), dusk);
+  const { club } = useAuth();
+  const tz = club?.timezone || DEFAULT_TIMEZONE;
+  const today = pickToday(item, new Date(), tz);
+  // Effective (auto-toggled) state based on current time in the CLUB's
+  // local timezone (not the browsing member's), today's hours, dusk.
+  const effSt = effectiveState(item, new Date(), dusk, tz);
   const c = gCfg(effSt);
 
   // Tick every 60 seconds so the time-driven open/closed updates.
@@ -97,9 +104,9 @@ export default function StatusPill({ item, column = 0, colCount = 3, large = fal
                           { left: '50%', marginLeft: -6 };
 
   // Hint about WHY it's closed (helps members & gives admin a clue)
-  const isOutsideSchedule = today && withinDailyHours(today, new Date(), dusk) === false;
-  const isManualClosure   = item.st === 'closed' && (!today || withinDailyHours(today, new Date(), dusk) === true);
-  const hoursDisplay      = formatTodayHours(today, dusk);
+  const isOutsideSchedule = today && withinDailyHours(today, new Date(), dusk, tz) === false;
+  const isManualClosure   = item.st === 'closed' && (!today || withinDailyHours(today, new Date(), dusk, tz) === true);
+  const hoursDisplay      = formatTodayHours(today, dusk, tz);
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', flex: 1 }}>
