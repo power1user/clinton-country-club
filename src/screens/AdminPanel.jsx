@@ -9,6 +9,7 @@ import {
   MenuCategoriesAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
+  ClubhouseInboxAdmin,
   SuperAdminsAdmin, AllClubsAdmin, PlatformSettingsAdmin, PlatformMetricsAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
@@ -76,9 +77,10 @@ const AREAS = [
     d: 'Members + staff',
     icon: IconPeople,
     sections: [
-      { id: 'members',     permKey: 'can_manage_members', l: 'Members',       d: 'Roster, CSV import, invites',          icon: IconPeople },
-      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',         d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
-      { id: 'clubsettings',                                l: 'Club Settings', d: 'Logo, colors, address, contact info',  icon: IconCog, managerOnly: true },
+      { id: 'members',         permKey: 'can_manage_members',       l: 'Members',          d: 'Roster, CSV import, invites',          icon: IconPeople },
+      { id: 'staff',           permKey: 'can_manage_staff',         l: 'Staff',            d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
+      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox',  d: 'Member messages routed to staff',      icon: IconBell },
+      { id: 'clubsettings',                                          l: 'Club Settings',    d: 'Logo, colors, address, contact info',  icon: IconCog, managerOnly: true },
     ],
   },
   // Super-admin only — platform-wide controls
@@ -158,9 +160,10 @@ export default function AdminPanel() {
           {sec === 'lessons'   && <LessonRequestsAdmin />}
           {sec === 'holespons' && <HoleSponsorsAdmin />}
           {sec === 'banners'   && <SponsorBannersAdmin />}
-          {sec === 'members'    && <MembersAdmin club={club} />}
-          {sec === 'staff'      && isManager && <StaffAdmin club={club} />}
-          {sec === 'clubsettings' && isManager && <ClubSettingsAdmin />}
+          {sec === 'members'        && <MembersAdmin club={club} />}
+          {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
+          {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
+          {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
           {sec === 'superadmins'  && isSuperAdmin && <SuperAdminsAdmin />}
           {sec === 'allclubs'     && isSuperAdmin && <AllClubsAdmin />}
           {sec === 'platsettings' && isSuperAdmin && <PlatformSettingsAdmin />}

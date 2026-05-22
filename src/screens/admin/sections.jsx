@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
+import { useNav } from '../../hooks/useNav.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import CrudSection from './CrudSection.jsx';
@@ -683,6 +684,129 @@ function ColorRow({ label, value, onChange }) {
       </div>
     </div>
   );
+}
+
+// ============================================================
+// ClubhouseInboxAdmin — staff sees member-initiated clubhouse threads,
+// grouped by topic. Tap a thread -> opens Thread view to reply.
+// (Push for new clubhouse messages fires via the same trigger as
+// every other message.)
+// ============================================================
+export function ClubhouseInboxAdmin() {
+  const { club, hasPerm } = useAuth();
+  const { push } = useNav();
+  const canReply = hasPerm('can_view_clubhouse_inbox');
+  const [threads, setThreads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    const load = async () => {
+      // RLS already restricts to staff of this club seeing all clubhouse threads
+      const { data: rows } = await supabase
+        .from('threads')
+        .select('id, subject, last_message_at, created_at, created_by, members:created_by(name)')
+        .eq('club_id', club.id)
+        .eq('kind', 'clubhouse')
+        .order('last_message_at', { ascending: false })
+        .limit(200);
+
+      if (cancelled) return;
+
+      // Pull each thread's last message body for preview + the
+      // first participant (the member who started it) so we can show
+      // who sent it.
+      const enriched = await Promise.all((rows || []).map(async (t) => {
+        const [{ data: lastMsg }, { data: parts }] = await Promise.all([
+          supabase.from('messages')
+            .select('body, sender_user_id, is_system, created_at')
+            .eq('thread_id', t.id)
+            .order('created_at', { ascending: false })
+            .limit(1).maybeSingle(),
+          supabase.from('thread_participants')
+            .select('user_id, role, members(name, membership_number)')
+            .eq('thread_id', t.id)
+            .eq('role', 'member')
+            .limit(1).maybeSingle(),
+        ]);
+        return { ...t, preview: lastMsg, starter: parts };
+      }));
+
+      setThreads(enriched);
+      setLoading(false);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`clubhouse_inbox:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'threads', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  // Group by topic
+  const grouped = threads.reduce((acc, t) => {
+    const topic = t.subject || 'General';
+    if (!acc[topic]) acc[topic] = [];
+    acc[topic].push(t);
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Member-initiated conversations routed to the clubhouse, grouped by topic. {canReply ? 'Tap a thread to reply.' : 'You can read but not reply — ask your manager for write permission.'}
+      </p>
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</p>}
+      {!loading && threads.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No member messages yet.</p>
+        </div>
+      )}
+
+      {Object.entries(grouped).map(([topic, list]) => (
+        <div key={topic} style={{ marginBottom: 14 }}>
+          <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>{topic}</h4>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px' }}>{list.length} thread{list.length === 1 ? '' : 's'}</p>
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            {list.map((t, i) => {
+              const starterName = t.starter?.members?.name || 'Member';
+              const starterNum = t.starter?.members?.membership_number;
+              const preview = t.preview?.is_system ? `(${t.preview.body})` : (t.preview?.body || 'No messages yet');
+              return (
+                <div key={t.id} onClick={() => push('thread', { threadId: t.id })} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8, cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {starterName}{starterNum ? ` · #${starterNum}` : ''}
+                      </p>
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{relativeTime(t.last_message_at)}</span>
+                    </div>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</p>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d`;
+  return d.toLocaleDateString();
 }
 
 // ============================================================

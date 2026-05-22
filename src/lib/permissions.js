@@ -28,6 +28,7 @@ export const PERMISSION_KEYS = [
   'can_manage_sponsors',
   'can_manage_members',
   'can_manage_staff',
+  'can_view_clubhouse_inbox',
 ];
 
 // Grouped for display in the permission editor modal.
@@ -71,8 +72,9 @@ export const PERMISSION_GROUPS = [
   {
     area: 'People',
     keys: [
-      { key: 'can_manage_members', label: 'Members', desc: 'Roster, CSV import, invites' },
-      { key: 'can_manage_staff',   label: 'Staff',   desc: "Edit other club admins' permissions" },
+      { key: 'can_manage_members',       label: 'Members',          desc: 'Roster, CSV import, invites' },
+      { key: 'can_manage_staff',         label: 'Staff',            desc: "Edit other club admins' permissions" },
+      { key: 'can_view_clubhouse_inbox', label: 'Clubhouse Inbox',  desc: 'See + reply to member messages routed to the clubhouse' },
     ],
   },
 ];
