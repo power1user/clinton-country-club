@@ -1,11 +1,12 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import StatusPill from '../components/StatusPill.jsx';
+import BellChip from '../components/BellChip.jsx';
 import { useClubStatus, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Home() {
-  const { push } = useNav();
+  const { push, goTab } = useNav();
   const brand = useBrand();
   const now = useNow();
   const { data: statusList } = useClubStatus();
@@ -30,13 +31,8 @@ export default function Home() {
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>{brand.tagline || 'Country Club'}</h1>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
-            <div onClick={() => push('home/notifications')} data-tap style={{ position: 'relative', cursor: 'pointer', width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.5">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-              </svg>
-              <span style={{ position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: '50%', background: G.brass, border: '1.5px solid #1B3A2D' }} />
-            </div>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <BellChip />
+            <div onClick={() => goTab('myclub')} data-tap style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.5">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />

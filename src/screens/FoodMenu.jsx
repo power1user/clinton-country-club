@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import BellChip from '../components/BellChip.jsx';
 import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
@@ -34,12 +35,15 @@ export default function FoodMenu() {
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Dining</h1>
           </div>
-          {cartCount > 0 && (
-            <div onClick={() => push('food/order')} data-tap style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: G.brass, borderRadius: 3, cursor: 'pointer' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 001.99 1.61h9.72a2 2 0 001.98-1.69L23 6H6" /></svg>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: 'white', fontWeight: 600 }}>{cartCount} · ${cartTotal}</span>
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {cartCount > 0 && (
+              <div onClick={() => push('food/order')} data-tap style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: G.brass, borderRadius: 3, cursor: 'pointer' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 001.99 1.61h9.72a2 2 0 001.98-1.69L23 6H6" /></svg>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: 'white', fontWeight: 600 }}>{cartCount} · ${cartTotal}</span>
+              </div>
+            )}
+            <BellChip />
+          </div>
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Clubhouse Pub Menu</p>
       </div>

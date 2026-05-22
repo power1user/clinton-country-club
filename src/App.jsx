@@ -1,13 +1,16 @@
+import { useEffect } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import { G } from './theme.js';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from './lib/version.js';
+import { registerServiceWorker, isPushSupported } from './lib/push.js';
 
 import Login from './screens/Login.jsx';
 import Home from './screens/Home.jsx';
 import NewsDetail from './screens/NewsDetail.jsx';
-import Notifications from './screens/Notifications.jsx';
+import Inbox from './screens/Inbox.jsx';
+import Thread from './screens/Thread.jsx';
 import GolfHub from './screens/GolfHub.jsx';
 import PinMap from './screens/PinMap.jsx';
 import CourseMap from './screens/CourseMap.jsx';
@@ -29,7 +32,8 @@ import AdminPanel from './screens/AdminPanel.jsx';
 const SCREENS = {
   home: Home,
   'home/news': NewsDetail,
-  'home/notifications': Notifications,
+  inbox: Inbox,
+  thread: Thread,
   golf: GolfHub,
   'golf/pin': PinMap,
   'golf/map': CourseMap,
@@ -111,6 +115,15 @@ function Gate() {
 }
 
 export default function App() {
+  // Register the service worker once on first mount. Push subscription
+  // itself is opt-in (via the banner on the Inbox screen) — this just
+  // makes the SW available so the subscribe() call works later.
+  useEffect(() => {
+    if (isPushSupported()) {
+      registerServiceWorker().catch(() => { /* logged inside */ });
+    }
+  }, []);
+
   return (
     <div className="phone-frame">
       <div className="app-root">

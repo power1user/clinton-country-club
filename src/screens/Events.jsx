@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import BellChip from '../components/BellChip.jsx';
 import { useEvents, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
@@ -26,8 +27,11 @@ export default function Events() {
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Community</h1>
           </div>
-          <div onClick={() => push('community/bulletin')} data-tap style={{ padding: '7px 14px', border: '1px solid rgba(122,172,136,0.4)', borderRadius: 3, cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8' }}>Bulletin Board</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div onClick={() => push('community/bulletin')} data-tap style={{ padding: '7px 14px', border: '1px solid rgba(122,172,136,0.4)', borderRadius: 3, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8' }}>Bulletin Board</span>
+            </div>
+            <BellChip />
           </div>
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Events &amp; Calendar</p>

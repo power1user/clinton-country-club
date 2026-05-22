@@ -1,6 +1,7 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { SectionHead } from '../components/Headers.jsx';
+import BellChip from '../components/BellChip.jsx';
 import { usePaceOfPlay, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
@@ -25,8 +26,13 @@ export default function GolfHub() {
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
       <div style={{ background: G.green, padding: '4px 20px 14px', flexShrink: 0 }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
-        <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Golf</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
+            <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Golf</h1>
+          </div>
+          <BellChip />
+        </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>{formatLongDate(now)}</p>
       </div>
 

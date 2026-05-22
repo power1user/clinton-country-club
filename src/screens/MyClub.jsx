@@ -1,6 +1,7 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { SectionHead } from '../components/Headers.jsx';
+import BellChip from '../components/BellChip.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
@@ -39,8 +40,13 @@ export default function MyClub() {
         <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
       <div style={{ background: G.green, padding: '6px 20px 20px', flexShrink: 0 }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
-        <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: '0 0 14px', lineHeight: 1.1 }}>My Club</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
+            <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: '0 0 14px', lineHeight: 1.1 }}>My Club</h1>
+          </div>
+          <BellChip />
+        </div>
         <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.5">
