@@ -8,6 +8,7 @@ import { useNav } from '../../hooks/useNav.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import { COMMON_TIMEZONES } from '../../lib/timezone.js';
+import { listFeatures, featureState, withFlagChange, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
 import CrudSection from './CrudSection.jsx';
 import Toggle from '../../components/Toggle.jsx';
 
@@ -511,6 +512,7 @@ export function ClubSettingsAdmin() {
 //                     Platform → All Clubs. Shows everything.
 export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
   const isPlatform = mode === 'platform';
+  const { isSuperAdmin } = useAuth();
   const [form, setForm] = useState({
     tagline: '',
     contact_email: '',
@@ -530,7 +532,8 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
     accent_color: '#9B7A1E',
     logo_url: '',
     hero_image_url: '',
-    enable_member_dms: false,
+    subscription_tier: 'basic',
+    feature_flags: {},
     pending_member_access: 'read_only',
   });
   const [busy, setBusy] = useState(false);
@@ -567,15 +570,16 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       accent_color:      club.accent_color      || '#9B7A1E',
       logo_url:          club.logo_url          || '',
       hero_image_url:    club.hero_image_url    || '',
-      enable_member_dms: !!club.enable_member_dms,
+      subscription_tier: club.subscription_tier || 'basic',
+      feature_flags:     club.feature_flags     || {},
       pending_member_access: club.pending_member_access || 'read_only',
     });
   }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
       club?.city, club?.state, club?.founded, club?.par, club?.yardage, club?.holes,
       club?.lat, club?.lng, club?.timezone,
       club?.primary_color, club?.secondary_color, club?.accent_color,
-      club?.logo_url, club?.hero_image_url, club?.enable_member_dms,
-      club?.pending_member_access]);
+      club?.logo_url, club?.hero_image_url, club?.subscription_tier,
+      club?.feature_flags, club?.pending_member_access]);
 
   const set = (k, v) => { dirty.current = true; setForm(p => ({ ...p, [k]: v })); };
 
@@ -614,9 +618,18 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       accent_color:      form.accent_color,
       logo_url:          form.logo_url.trim()       || null,
       hero_image_url:    form.hero_image_url.trim() || null,
-      enable_member_dms: !!form.enable_member_dms,
+      feature_flags:     form.feature_flags || {},
+      // Mirror dms flag → legacy enable_member_dms column so anything
+      // that hasn't migrated to useFlag('dms') stays consistent. Safe
+      // to remove in a future cleanup once the column is dropped.
+      enable_member_dms: !!(form.feature_flags && form.feature_flags.dms),
       pending_member_access: form.pending_member_access || 'read_only',
     };
+    // subscription_tier is only writable by super_admin (DB trigger
+    // enforces the same — defense in depth).
+    if (isSuperAdmin) {
+      payload.subscription_tier = form.subscription_tier || 'basic';
+    }
     if (isPlatform) {
       Object.assign(payload, {
         address:  form.address.trim() || null,
@@ -771,22 +784,85 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
         </>
       )}
 
-      <SectionHeading>Member Features</SectionHeading>
+      <SectionHeading>Subscription & Features</SectionHeading>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 8px' }}>
-        Optional features that change what members can do inside the app.
+        Your subscription tier determines which features are available. Within your tier, you can toggle individual features on or off.
       </p>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Enable member-to-member DMs</p>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
-            When on, members see a Member Directory and can DM each other. When off, the directory is hidden and no member can start a DM. Turn off if you're worried about member-to-member liability.
-          </p>
-        </div>
-        <Toggle
-          checked={!!form.enable_member_dms}
-          onChange={v => set('enable_member_dms', v)}
-          ariaLabel="Enable member-to-member DMs"
-        />
+
+      {/* Tier — editable dropdown for super_admin, badge for everyone else.
+          The DB also enforces this via a trigger, so a manager bypassing
+          the UI still can't change tier. */}
+      <div style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
+        <label style={labelStyle}>Subscription tier</label>
+        {isSuperAdmin ? (
+          <>
+            <select
+              value={form.subscription_tier}
+              onChange={e => set('subscription_tier', e.target.value)}
+              style={inputStyle}
+            >
+              <option value="basic">Basic</option>
+              <option value="standard">Standard</option>
+              <option value="pro">Pro</option>
+            </select>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '6px 0 0', lineHeight: 1.5 }}>
+              {TIER_DESCRIPTION[form.subscription_tier]}
+            </p>
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ display: 'inline-block', padding: '3px 10px', background: G.brass, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 10, color: '#F2E5C0', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {TIER_LABEL[form.subscription_tier] || 'Basic'}
+            </span>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.5, flex: 1 }}>
+              {TIER_DESCRIPTION[form.subscription_tier]}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Per-flag toggles. Flags whose min_tier exceeds the current tier
+          are rendered locked + grayscaled with an "upgrade to X" hint. */}
+      <div style={{ padding: '8px 14px 4px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '6px 0 8px' }}>Feature toggles</p>
+        {listFeatures().map(flag => {
+          // Re-evaluate state against the FORM (so super_admin changing
+          // tier in the same screen sees flags un-lock live) rather than
+          // the saved club row.
+          const liveClub = { subscription_tier: form.subscription_tier, feature_flags: form.feature_flags || {} };
+          const st = featureState(liveClub, flag.key);
+          const lockedByTier = st.reason === 'tier-locked';
+          return (
+            <div key={flag.key} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${G.border}`, opacity: lockedByTier ? 0.55 : 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>{flag.label}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
+                  {flag.description}
+                </p>
+                {lockedByTier && (
+                  <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
+                    Requires {TIER_LABEL[flag.min_tier]} tier — contact The Grounds to upgrade.
+                  </p>
+                )}
+              </div>
+              {lockedByTier ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" style={{ flexShrink: 0 }}>
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V7a4 4 0 018 0v4" />
+                </svg>
+              ) : (
+                <Toggle
+                  checked={st.value}
+                  onChange={v => set('feature_flags', withFlagChange(form.feature_flags, flag.key, v))}
+                  ariaLabel={flag.label}
+                />
+              )}
+            </div>
+          );
+        })}
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted, margin: '10px 0 6px', lineHeight: 1.5 }}>
+          More features unlock at higher tiers — they'll appear here when we ship them.
+        </p>
       </div>
 
       <div style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 14 }}>

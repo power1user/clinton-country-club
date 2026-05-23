@@ -9,12 +9,14 @@ import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 
 export default function MemberDirectory() {
   const { club, member, session, canMemberWrite } = useAuth();
+  const dmsOn = useFlag('dms');
   const { push } = useNav();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,8 +72,8 @@ export default function MemberDirectory() {
   }
 
   // Defensive — if a member somehow lands here while DMs are disabled
-  // (manager toggle), show a friendly message
-  if (!club?.enable_member_dms) {
+  // (manager toggle or tier doesn't include it), show a friendly message
+  if (!dmsOn) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
