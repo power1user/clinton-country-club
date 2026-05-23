@@ -20,7 +20,6 @@ export default function Home() {
       {/* iOS-style status bar */}
       <div style={{ height: 44, background: G.green, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px', flexShrink: 0 }}>
         <span style={{ color: '#7AAC88', fontSize: 11, fontWeight: 500, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
-        <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
       </div>
 
       {/* Header */}

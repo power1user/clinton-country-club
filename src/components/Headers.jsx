@@ -8,7 +8,6 @@ export function StatusBar() {
   return (
     <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
       <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif', fontWeight: 500 }}>{formatClockTime(now)}</span>
-      <span style={{ marginLeft: 'auto', color: '#7AAC88', fontSize: 10, letterSpacing: 2 }}>●●●</span>
     </div>
   );
 }

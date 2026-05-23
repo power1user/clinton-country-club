@@ -7,7 +7,7 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { useInbox, markNotificationRead } from '../hooks/useInbox.js';
+import { useInbox, markNotificationRead, hideThread } from '../hooks/useInbox.js';
 import { isPushSupported, pushPermission, subscribeToPush } from '../lib/push.js';
 
 const PUSH_DISMISSED_KEY = 'inbox.pushBannerDismissed';
@@ -135,6 +135,7 @@ export default function Inbox() {
             item={item}
             expanded={!!expanded[item.notificationId]}
             onTap={() => handleTap(item)}
+            onHide={item.type === 'thread' ? () => hideThread(item.threadId, session?.user?.id) : undefined}
           />
         ))}
       </div>
@@ -142,7 +143,7 @@ export default function Inbox() {
   );
 }
 
-function InboxRow({ item, expanded, onTap }) {
+function InboxRow({ item, expanded, onTap, onHide }) {
   const chipBg = item.type === 'thread'
     ? (item.kind === 'order'     ? G.openBg
       : item.kind === 'clubhouse' ? G.brass
@@ -176,15 +177,43 @@ function InboxRow({ item, expanded, onTap }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
           <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: chipBg, padding: '2px 7px', borderRadius: 2, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, flexShrink: 0 }}>{chipLabel}</span>
           <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{relativeTime(item.time)}</span>
         </div>
         <p style={{
-          fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: 0,
+          fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: '0 0 4px',
           ...(expanded ? {} : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
         }}>{item.preview}</p>
+        <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted }}>
+          {absoluteDate(item.time)} · {relativeTime(item.time)}
+        </span>
       </div>
+      {onHide && (
+        <div
+          onClick={(e) => { e.stopPropagation(); onHide(); }}
+          data-tap
+          aria-label="Hide this thread from my inbox"
+          style={{
+            width: 26, height: 26, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0, marginTop: 2,
+            background: 'transparent',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        </div>
+      )}
     </div>
   );
+}
+
+function absoluteDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const opts = sameYear
+    ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+    : { year: 'numeric', month: 'short', day: 'numeric' };
+  return d.toLocaleString(undefined, opts);
 }
 
 function urgencyChipBg(urgency) {

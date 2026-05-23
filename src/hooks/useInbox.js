@@ -30,9 +30,12 @@ export function useInboxUnread() {
       // 1) Thread messages newer than my last_read_at, in threads I participate in
       const { data: parts } = await supabase
         .from('thread_participants')
-        .select('thread_id, last_read_at')
+        .select('thread_id, last_read_at, hidden_at')
         .eq('user_id', session.user.id);
-      const partRows = parts || [];
+      // Hidden threads don't contribute to the bell unread count — the
+      // member has explicitly dismissed them. A new message clears the
+      // hidden_at flag (DB trigger) so the unread badge can come back.
+      const partRows = (parts || []).filter(p => !p.hidden_at);
 
       let threadUnread = 0;
       if (partRows.length) {
@@ -111,13 +114,16 @@ export function useInbox() {
     let cancelled = false;
 
     const load = async () => {
-      // Threads I participate in, with their participant row (for last_read_at)
+      // Threads I participate in. Skip threads the member explicitly
+      // hid — they'll resurface when a fresh message clears hidden_at
+      // (DB trigger fn_clear_hidden_on_new_message).
       const { data: parts } = await supabase
         .from('thread_participants')
-        .select('thread_id, last_read_at, threads(id, kind, subject, context_table, context_id, last_message_at, club_id)')
+        .select('thread_id, last_read_at, hidden_at, threads(id, kind, subject, context_table, context_id, last_message_at, club_id)')
         .eq('user_id', session.user.id);
 
       const myThreads = (parts || [])
+        .filter(p => !p.hidden_at)
         .map(p => ({ ...p.threads, last_read_at: p.last_read_at }))
         .filter(t => t && t.club_id === club.id);
 
@@ -205,6 +211,17 @@ export async function markThreadRead(threadId, userId) {
   await supabase
     .from('thread_participants')
     .update({ last_read_at: new Date().toISOString() })
+    .eq('thread_id', threadId)
+    .eq('user_id', userId);
+}
+
+// Hide a thread from the calling user's inbox only. Other participants
+// still see it. A new message resurfaces it (DB trigger).
+export async function hideThread(threadId, userId) {
+  if (!threadId || !userId) return;
+  await supabase
+    .from('thread_participants')
+    .update({ hidden_at: new Date().toISOString() })
     .eq('thread_id', threadId)
     .eq('user_id', userId);
 }
