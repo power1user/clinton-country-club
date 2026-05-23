@@ -508,6 +508,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
     logo_url: '',
     hero_image_url: '',
     enable_member_dms: false,
+    pending_member_access: 'read_only',
   });
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -544,12 +545,14 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       logo_url:          club.logo_url          || '',
       hero_image_url:    club.hero_image_url    || '',
       enable_member_dms: !!club.enable_member_dms,
+      pending_member_access: club.pending_member_access || 'read_only',
     });
   }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
       club?.city, club?.state, club?.founded, club?.par, club?.yardage, club?.holes,
       club?.lat, club?.lng, club?.timezone,
       club?.primary_color, club?.secondary_color, club?.accent_color,
-      club?.logo_url, club?.hero_image_url, club?.enable_member_dms]);
+      club?.logo_url, club?.hero_image_url, club?.enable_member_dms,
+      club?.pending_member_access]);
 
   const set = (k, v) => { dirty.current = true; setForm(p => ({ ...p, [k]: v })); };
 
@@ -589,6 +592,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       logo_url:          form.logo_url.trim()       || null,
       hero_image_url:    form.hero_image_url.trim() || null,
       enable_member_dms: !!form.enable_member_dms,
+      pending_member_access: form.pending_member_access || 'read_only',
     };
     if (isPlatform) {
       Object.assign(payload, {
@@ -748,7 +752,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 8px' }}>
         Optional features that change what members can do inside the app.
       </p>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Enable member-to-member DMs</p>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
@@ -760,6 +764,18 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
           onChange={v => set('enable_member_dms', v)}
           ariaLabel="Enable member-to-member DMs"
         />
+      </div>
+
+      <div style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 14 }}>
+        <label style={labelStyle}>Pending Member Access</label>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 8px', lineHeight: 1.5 }}>
+          What can a brand-new signup do before staff promotes them to active? Switch to 'Full' if you don't need an approval step at all; switch to 'Locked' if you want every signup to wait for a manual approval.
+        </p>
+        <select value={form.pending_member_access} onChange={e => set('pending_member_access', e.target.value)} style={inputStyle}>
+          <option value="read_only">Read-only · browse, no writes (recommended)</option>
+          <option value="full">Full · no approval gating</option>
+          <option value="locked">Locked · splash screen only until approved</option>
+        </select>
       </div>
 
       {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}

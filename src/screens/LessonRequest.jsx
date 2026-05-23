@@ -4,6 +4,7 @@ import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { Brass } from '../components/Buttons.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 const PROS = [
   { id: 'james', name: 'James Thornton, PGA', sub: 'Head Professional',         rate: '$125 / 45 min' },
@@ -13,7 +14,7 @@ const PROS = [
 const FOCUSES = ['Full Swing', 'Short Game', 'Putting', 'Bunker Play', 'Course Management', 'Junior Lesson'];
 
 export default function LessonRequest() {
-  const { club, member } = useAuth();
+  const { club, member, canMemberWrite } = useAuth();
   const [pro, setPro] = useState(null);
   const [date, setDate] = useState('');
   const [focus, setFocus] = useState([]);
@@ -54,6 +55,16 @@ export default function LessonRequest() {
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 28px', lineHeight: 1.6 }}>The pro shop will follow up by email to confirm your lesson time.</p>
           <Brass onPress={() => setSubmitted(false)}>Book Another</Brass>
         </div>
+      </div>
+    );
+  }
+
+  if (!canMemberWrite) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Book a Lesson" />
+        <PendingGuard action="book lessons" />
       </div>
     );
   }

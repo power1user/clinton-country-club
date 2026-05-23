@@ -8,6 +8,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase.js';
 import { markThreadRead } from '../hooks/useInbox.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 const ORDER_STATUS_LABEL = {
   pending:          { label: 'New order',     state: 'limited' },
@@ -19,7 +20,7 @@ const ORDER_STATUS_LABEL = {
 
 export default function Thread({ params }) {
   const threadId = params?.threadId;
-  const { session, member } = useAuth();
+  const { session, member, canMemberWrite } = useAuth();
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [context, setContext] = useState(null);    // e.g. food_orders row
@@ -160,7 +161,12 @@ export default function Thread({ params }) {
       </div>
 
       {/* Compose */}
-      {thread && (
+      {thread && !canMemberWrite && (
+        <div style={{ padding: '12px', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
+          <PendingGuard action="reply to messages" inline />
+        </div>
+      )}
+      {thread && canMemberWrite && (
         <div style={{ padding: '10px 12px 14px', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
           {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, margin: '0 0 6px' }}>{err}</p>}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>

@@ -3,9 +3,11 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 export default function EventDetail({ params }) {
   const ev = params?.event;
+  const { member, canMemberWrite } = useAuth();
   if (!ev) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -17,7 +19,6 @@ export default function EventDetail({ params }) {
       </div>
     );
   }
-  const { member } = useAuth();
   const [registered, setRegistered] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -101,15 +102,17 @@ export default function EventDetail({ params }) {
 
         {!registered ? (
           <div style={{ padding: '0 20px 32px' }}>
-            <div
-              onClick={handleRegister}
-              data-tap
-              style={{ padding: 14, background: ev.spots > 0 && !busy ? G.green : G.border, borderRadius: 4, textAlign: 'center', cursor: ev.spots > 0 && !busy ? 'pointer' : 'not-allowed' }}
-            >
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: ev.spots > 0 && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-                {busy ? 'Registering…' : ev.spots === 0 ? 'Join Waitlist' : `Register — ${ev.price}`}
-              </span>
-            </div>
+            <PendingGuard action="RSVP to events" inline>
+              <div
+                onClick={handleRegister}
+                data-tap
+                style={{ padding: 14, background: ev.spots > 0 && !busy ? G.green : G.border, borderRadius: 4, textAlign: 'center', cursor: ev.spots > 0 && !busy ? 'pointer' : 'not-allowed' }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: ev.spots > 0 && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+                  {busy ? 'Registering…' : ev.spots === 0 ? 'Join Waitlist' : `Register — ${ev.price}`}
+                </span>
+              </div>
+            </PendingGuard>
             {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginTop: 8 }}>{err}</p>}
           </div>
         ) : (

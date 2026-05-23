@@ -126,11 +126,20 @@ export function AuthProvider({ children }) {
   const isAdmin      = isClubAdmin; // back-compat alias — any elevated role
   const hasPerm      = (key) => userHasPerm(role, permissions, key);
 
+  // Pending-member gating. Manager sets clubs.pending_member_access to
+  // 'read_only' (default — browse but no writes), 'full' (no gating), or
+  // 'locked' (splash screen only). Staff are never gated.
+  const isPending     = member?.status === 'pending' && !isAdmin;
+  const pendingAccess = club?.pending_member_access || 'read_only';
+  const isPendingLocked    = isPending && pendingAccess === 'locked';
+  const canMemberWrite     = !isPending || pendingAccess === 'full';
+
   return (
     <AuthCtx.Provider value={{
       session, member, club, role, permissions,
       isSuperAdmin, isManager, isClubAdmin, isAdmin,
       hasPerm,
+      isPending, pendingAccess, isPendingLocked, canMemberWrite,
       loading, signIn, signUp, signOut, isConfigured,
     }}>
       {children}

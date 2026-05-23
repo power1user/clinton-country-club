@@ -11,9 +11,10 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 export default function MemberDirectory() {
-  const { club, member, session } = useAuth();
+  const { club, member, session, canMemberWrite } = useAuth();
   const { push } = useNav();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,16 @@ export default function MemberDirectory() {
     if (error) { setErr(error.message); return; }
     push('thread', { threadId: data });
   };
+
+  if (!canMemberWrite) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Member Directory" />
+        <PendingGuard action="message other members" />
+      </div>
+    );
+  }
 
   // Defensive — if a member somehow lands here while DMs are disabled
   // (manager toggle), show a friendly message

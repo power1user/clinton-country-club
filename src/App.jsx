@@ -80,8 +80,44 @@ function ScreenRenderer() {
   );
 }
 
+function PendingLockedSplash() {
+  const { club, signOut } = useAuth();
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: G.bg }}>
+      <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+      <div style={{ background: G.green, padding: '20px 24px 28px', flexShrink: 0, textAlign: 'center' }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#7AAC88', letterSpacing: '0.3em', textTransform: 'uppercase', margin: '0 0 4px' }}>{club?.name || 'Your club'}</p>
+        <h1 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0 }}>Awaiting Approval</h1>
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center' }}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="1.5" style={{ marginBottom: 16 }}>
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, lineHeight: 1.6, margin: '0 0 18px', maxWidth: 320 }}>
+          Thanks for signing up. Your membership is pending approval from the {club?.name || 'club'} office. They'll review your information and unlock your account.
+        </p>
+        {(club?.contact_phone || club?.contact_email) && (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '14px 18px', width: '100%', maxWidth: 340 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 8px' }}>Need to follow up?</p>
+            {club.contact_phone && (
+              <a href={`tel:${club.contact_phone.replace(/[^+\d]/g, '')}`} style={{ display: 'block', fontFamily: '"Lora",serif', fontSize: 14, color: G.text, textDecoration: 'none', margin: '4px 0' }}>{club.contact_phone}</a>
+            )}
+            {club.contact_email && (
+              <a href={`mailto:${club.contact_email}`} style={{ display: 'block', fontFamily: '"Lora",serif', fontSize: 14, color: G.text, textDecoration: 'none', margin: '4px 0' }}>{club.contact_email}</a>
+            )}
+          </div>
+        )}
+        <div onClick={signOut} data-tap style={{ marginTop: 28, padding: '10px 16px', cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign out</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Gate() {
-  const { session, loading, isConfigured } = useAuth();
+  const { session, loading, isConfigured, isPendingLocked } = useAuth();
 
   if (loading) {
     // First-open splash with parent-brand attribution. Briefly visible
@@ -109,6 +145,12 @@ function Gate() {
 
   if (!session) {
     return <Login />;
+  }
+
+  // Manager has set this club to 'locked' for pending members and this
+  // user is still pending — show the splash + nothing else.
+  if (isPendingLocked) {
+    return <PendingLockedSplash />;
   }
 
   return (

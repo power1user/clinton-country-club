@@ -5,15 +5,26 @@ import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 export default function CourseOrder() {
   const { pop, push, cart, addToCart, removeFromCart, cartTotal } = useNav();
-  const { club, member } = useAuth();
+  const { club, member, canMemberWrite } = useAuth();
   const brand = useBrand();
   const [hole, setHole] = useState(null);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  if (!canMemberWrite) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Order Ahead" />
+        <PendingGuard action="place food orders" />
+      </div>
+    );
+  }
 
   const placeOrder = async () => {
     if (cart.length === 0 || !hole) return;

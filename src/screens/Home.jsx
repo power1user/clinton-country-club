@@ -3,10 +3,12 @@ import { useNav } from '../hooks/useNav.jsx';
 import StatusPill from '../components/StatusPill.jsx';
 import BellChip from '../components/BellChip.jsx';
 import { useClubStatus, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Home() {
   const { push, goTab } = useNav();
+  const { isPending, pendingAccess, club } = useAuth();
   const brand = useBrand();
   const now = useNow();
   const { data: statusList } = useClubStatus();
@@ -14,6 +16,7 @@ export default function Home() {
   const { data: pace }       = usePaceOfPlay();
   const { data: w }          = useWeather();
   const locationLabel = `${brand.prefix} CC, ${brand.state}`;
+  const showPendingBanner = isPending && pendingAccess === 'read_only';
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -41,6 +44,18 @@ export default function Home() {
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>{formatLongDate(now)}</p>
       </div>
+
+      {showPendingBanner && (
+        <div style={{ background: 'rgba(155,122,30,0.15)', borderBottom: `1px solid ${G.brass}`, padding: '10px 16px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="1.8" style={{ flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, margin: 0, lineHeight: 1.45, flex: 1 }}>
+            Your membership is pending approval. You can browse, but ordering, RSVPs, posts, and messages unlock once {club?.name || 'the club'} confirms.
+          </p>
+        </div>
+      )}
 
       {/* Status pills */}
       <div style={{ background: G.greenMid, padding: '12px 16px 14px', flexShrink: 0 }}>

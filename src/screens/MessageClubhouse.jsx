@@ -8,6 +8,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
+import PendingGuard from '../components/PendingGuard.jsx';
 
 const TOPICS = [
   { id: 'Pro Shop',   desc: 'Lessons, equipment, fittings, tee-time requests' },
@@ -18,10 +19,20 @@ const TOPICS = [
 ];
 
 export default function MessageClubhouse() {
-  const { club, member, session } = useAuth();
+  const { club, member, session, canMemberWrite } = useAuth();
   const { push, pop } = useNav();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  if (!canMemberWrite) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Message Clubhouse" />
+        <PendingGuard action="message the clubhouse" />
+      </div>
+    );
+  }
 
   const startThread = async (topic) => {
     if (!club || !session?.user?.id || busy) return;
