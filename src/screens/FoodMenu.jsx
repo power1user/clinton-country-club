@@ -1,26 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import BellChip from '../components/BellChip.jsx';
 import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
+const SPECIALS_TAB = '__specials__';
+
 export default function FoodMenu() {
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
-  const { data: menu } = useMenu();
+  const { data: menu, loading } = useMenu();
   const brand = useBrand();
   const now = useNow();
-  const [cat, setCat] = useState('specials');
-  // Categories match Clinton CC's clubhouse pub menu. No separate dinner —
-  // the pub menu is the same throughout the day.
-  const cats = [
-    { id: 'specials', l: 'Pub Favorites' },
-    { id: 'lunch',    l: 'Sandwiches' },
-    { id: 'bar',      l: 'Wings & Bites' },
-    { id: 'desserts', l: 'Desserts' },
-  ];
-  const items = menu[cat] || [];
+  const [cat, setCat] = useState(null);          // category id, or SPECIALS_TAB
   const getQty = (id) => cart.find(i => i.id === id)?.qty || 0;
+
+  // Build tab list: Specials (if any) + every active category from the DB
+  const hasSpecials = (menu.specials || []).length > 0;
+  const cats = [
+    ...(hasSpecials ? [{ id: SPECIALS_TAB, l: "Today's Specials" }] : []),
+    ...(menu.categories || []).map(c => ({ id: c.id, l: c.name })),
+  ];
+
+  // Pick a sensible default tab once the data lands.
+  useEffect(() => {
+    if (cat !== null) return;
+    if (cats.length > 0) setCat(cats[0].id);
+  }, [cats.length, cat]);
+
+  const items =
+    cat === SPECIALS_TAB ? (menu.specials || []) :
+    cat ? (menu.itemsByCategory?.[cat] || []) :
+    [];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -76,10 +87,20 @@ export default function FoodMenu() {
         </div>
 
         <div style={{ padding: '8px 16px 80px' }}>
-          {cat === 'specials' && (
+          {cat === SPECIALS_TAB && (
             <div style={{ marginBottom: 8, padding: '10px 12px', background: 'rgba(155,122,30,0.08)', border: '1px solid rgba(155,122,30,0.25)', borderRadius: 4 }}>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>Chef's Features Today</p>
             </div>
+          )}
+          {!loading && cats.length === 0 && (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>
+              The menu is being prepared. Check back soon.
+            </p>
+          )}
+          {!loading && cats.length > 0 && items.length === 0 && cat !== SPECIALS_TAB && (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '24px 0' }}>
+              Nothing in this category yet.
+            </p>
           )}
           {items.map(item => {
             const qty = getQty(item.id);

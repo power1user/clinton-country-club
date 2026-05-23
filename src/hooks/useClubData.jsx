@@ -204,41 +204,67 @@ export function useEvents() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Menus (grouped by category, same shape as DATA_MENU)
+// Menus — driven by the menu_categories table (managed via the admin
+// Menu Categories section). Returns categories[] (ordered + active-filtered)
+// and itemsByCategory keyed by category id, with a "specials" virtual
+// bucket aggregating any item flagged is_special.
 // ────────────────────────────────────────────────────────────────────────────
+const EMPTY_MENU_V2 = { categories: [], itemsByCategory: {} };
+
 export function useMenu() {
   const { club } = useAuth();
-  const [data, setData] = useState(EMPTY_MENU);
+  const [data, setData] = useState(EMPTY_MENU_V2);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isConfigured || !club) { setData(EMPTY_MENU); setLoading(false); return; }
+    if (!isConfigured || !club) { setData(EMPTY_MENU_V2); setLoading(false); return; }
 
     let cancelled = false;
     const load = async () => {
-      const { data: rows } = await supabase
-        .from('menus')
-        .select('id, category, sort_order, item_name, description, price, tag, is_special, available_today')
-        .eq('club_id', club.id)
-        .eq('available_today', true)
-        .order('category', { ascending: true })
-        .order('sort_order', { ascending: true });
+      const [{ data: cats }, { data: rows }] = await Promise.all([
+        supabase
+          .from('menu_categories')
+          .select('id, name, sort_order, is_active')
+          .eq('club_id', club.id)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
+        supabase
+          .from('menus')
+          .select('id, category, category_id, sort_order, item_name, description, price, tag, is_special, available_today')
+          .eq('club_id', club.id)
+          .eq('available_today', true)
+          .order('sort_order', { ascending: true }),
+      ]);
       if (cancelled) return;
-      if (rows) {
-        const grouped = { specials: [], lunch: [], dinner: [], bar: [], desserts: [] };
-        for (const r of rows) {
-          if (!grouped[r.category]) grouped[r.category] = [];
-          grouped[r.category].push({ id: r.id, name: r.item_name, desc: r.description, price: r.price, tag: r.tag });
+
+      const categories = cats || [];
+      const itemsByCategory = {};
+      const specials = [];
+      // Pre-seed every category with an empty array so empty categories
+      // still appear (admin sees "no items in this category yet").
+      categories.forEach(c => { itemsByCategory[c.id] = []; });
+
+      for (const r of (rows || [])) {
+        const item = {
+          id: r.id, name: r.item_name, desc: r.description,
+          price: r.price, tag: r.tag, is_special: !!r.is_special,
+        };
+        if (r.category_id && itemsByCategory[r.category_id]) {
+          itemsByCategory[r.category_id].push(item);
         }
-        setData(grouped);
+        if (r.is_special) specials.push(item);
       }
+
+      setData({ categories, itemsByCategory, specials });
       setLoading(false);
     };
     load();
 
     const channel = supabase
       .channel(`menus:${club.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menus', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menus',           filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_categories', filter: `club_id=eq.${club.id}` }, () => load())
       .subscribe();
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
