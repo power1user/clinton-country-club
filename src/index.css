@@ -7,6 +7,17 @@ html, body, #root {
   height: 100%;
   background: #0C100C;
   overflow: hidden;
+  /* iOS standalone PWAs draw under the status bar + home indicator.
+     Setting the page background to the dark chrome color avoids a
+     bright "white bar" peeking past the safe area on the home-indicator
+     side. Pair with env(safe-area-inset-*) padding inside the layout. */
+}
+
+/* On small screens (mobile), match the body background to the dark
+   nav color so any safe-area space underneath the bottom nav blends in
+   instead of showing as a bright stripe. */
+@media (max-height: 900px), (max-width: 450px) {
+  html, body { background: #152E24; }   /* same as theme.js G.greenDk */
 }
 
 #root {

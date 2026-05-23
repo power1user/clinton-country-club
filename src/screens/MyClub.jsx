@@ -4,6 +4,7 @@ import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { SectionHead } from '../components/Headers.jsx';
 import BellChip from '../components/BellChip.jsx';
 import InstallCard from '../components/InstallCard.jsx';
+import NotificationsToggle from '../components/NotificationsToggle.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
@@ -83,7 +84,8 @@ export default function MyClub() {
           </div>
         </div>
 
-        <div style={{ padding: '8px 16px 4px' }}>
+        <div style={{ padding: '8px 16px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <NotificationsToggle />
           <InstallCard variant="card" />
         </div>
 

@@ -12,7 +12,16 @@ export default function BottomNav() {
     { id: 'myclub',    l: 'My Club' },
   ];
   return (
-    <div style={{ background: G.greenDk, borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexShrink: 0, padding: '8px 4px 20px' }}>
+    <div style={{
+      background: G.greenDk,
+      borderTop: '1px solid rgba(255,255,255,0.07)',
+      display: 'flex',
+      flexShrink: 0,
+      // iOS standalone PWAs draw the home-indicator below the viewport.
+      // env(safe-area-inset-bottom) gives the OS reserved space + a small
+      // extra cushion so nav labels never touch the indicator.
+      padding: '8px 4px max(20px, calc(env(safe-area-inset-bottom) + 8px))',
+    }}>
       {tabs.map(t => (
         <div
           key={t.id}
