@@ -64,6 +64,35 @@ export function ProShopItemsAdmin() {
   );
 }
 
+// Lesson pros — per-club roster surfaced on LessonRequest.jsx.
+// Active flag soft-deletes a pro who's left without breaking history
+// (pro_shop_inquiries.pro is a free-text snapshot of the name).
+export function LessonProsAdmin() {
+  const { hasPerm } = useAuth();
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_manage_proshop')}
+      table="lesson_pros"
+      title="Lesson Pro"
+      emptyMsg="No pros yet — add the first one so members can book lessons."
+      columns={['id', 'name', 'title', 'photo_url', 'bio', 'rate', 'sort_order', 'active']}
+      order={{ column: 'sort_order', ascending: true }}
+      primaryField="name"
+      secondaryFn={r => [r.title, r.rate, r.active === false ? 'Inactive' : null].filter(Boolean).join(' · ')}
+      defaultRow={{ name: '', title: '', photo_url: '', bio: '', rate: '', sort_order: 0, active: true }}
+      fields={[
+        { key: 'name',       label: 'Name',           type: 'text',     placeholder: 'James Thornton, PGA' },
+        { key: 'title',      label: 'Title',          type: 'text',     placeholder: 'Head Professional' },
+        { key: 'rate',       label: 'Rate (display)', type: 'text',     placeholder: '$125 / 45 min' },
+        { key: 'photo_url',  label: 'Photo URL',      type: 'url',      placeholder: 'https://…' },
+        { key: 'bio',        label: 'Bio',            type: 'textarea', placeholder: 'Short bio shown to members…' },
+        { key: 'sort_order', label: 'Sort Order',     type: 'number' },
+        { key: 'active',     label: 'Active (members can book)', type: 'checkbox' },
+      ]}
+    />
+  );
+}
+
 export function HoleSponsorsAdmin() {
   const { hasPerm } = useAuth();
   return (

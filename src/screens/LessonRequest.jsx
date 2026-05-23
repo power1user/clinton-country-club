@@ -1,4 +1,8 @@
-import { useState } from 'react';
+// Lesson request — member picks a pro, preferred date, focus areas,
+// and submits. Pros come from public.lesson_pros (per-club roster
+// maintained in admin → Pro Shop → Lesson Pros). Pre-Phase-B2 this
+// was a hardcoded PROS array for Clinton only.
+import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { Brass } from '../components/Buttons.jsx';
@@ -6,16 +10,13 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 
-const PROS = [
-  { id: 'james', name: 'James Thornton, PGA', sub: 'Head Professional',         rate: '$125 / 45 min' },
-  { id: 'sarah', name: 'Sarah Calloway, PGA', sub: 'Teaching Professional',    rate: '$95 / 45 min' },
-  { id: 'mike',  name: 'Mike Ferrante, LPGA', sub: "Junior & Women's Programs", rate: '$90 / 45 min' },
-];
 const FOCUSES = ['Full Swing', 'Short Game', 'Putting', 'Bunker Play', 'Course Management', 'Junior Lesson'];
 
 export default function LessonRequest() {
   const { club, member, canMemberWrite } = useAuth();
-  const [pro, setPro] = useState(null);
+  const [pros, setPros] = useState([]);
+  const [prosLoading, setProsLoading] = useState(true);
+  const [pro, setPro] = useState(null);            // selected pro's id
   const [date, setDate] = useState('');
   const [focus, setFocus] = useState([]);
   const [submitted, setSubmitted] = useState(false);
@@ -23,16 +24,43 @@ export default function LessonRequest() {
   const [err, setErr] = useState(null);
   const toggleFocus = (f) => setFocus(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
 
+  // Load the club's roster. Realtime subscription so a manager
+  // adding/editing a pro is visible without a refresh.
+  useEffect(() => {
+    if (!isConfigured || !club) { setPros([]); setProsLoading(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('lesson_pros')
+        .select('id, name, title, rate, photo_url, bio, sort_order, active')
+        .eq('club_id', club.id)
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      setPros(data || []);
+      setProsLoading(false);
+    };
+    load();
+    const channel = supabase
+      .channel(`lesson_pros:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_pros', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  const selectedPro = pros.find(p => p.id === pro);
+
   const handleSubmit = async () => {
-    if (!pro) return;
+    if (!pro || !selectedPro) return;
     if (!isConfigured || !club || !member) { setSubmitted(true); return; }
     setBusy(true); setErr(null);
-    const proName = PROS.find(p => p.id === pro)?.name || pro;
+    // Snapshot the pro NAME into pro_shop_inquiries so historical
+    // records survive if the pro is later removed from the roster.
     const { error } = await supabase.from('pro_shop_inquiries').insert({
       club_id: club.id,
       member_id: member.id,
       kind: 'lesson',
-      pro: proName,
+      pro: selectedPro.name,
       preferred_date: date || null,
       focus_areas: focus,
     });
@@ -51,9 +79,9 @@ export default function LessonRequest() {
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={G.openDot} strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>
           </div>
           <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 22, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Request Sent</h2>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: '0 0 6px' }}>with {PROS.find(p => p.id === pro)?.name}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: '0 0 6px' }}>with {selectedPro?.name}</p>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 28px', lineHeight: 1.6 }}>The pro shop will follow up by email to confirm your lesson time.</p>
-          <Brass onPress={() => setSubmitted(false)}>Book Another</Brass>
+          <Brass onPress={() => { setSubmitted(false); setPro(null); setDate(''); setFocus([]); }}>Book Another</Brass>
         </div>
       </div>
     );
@@ -76,18 +104,39 @@ export default function LessonRequest() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
         <div style={{ marginBottom: 18 }}>
           <SectionHead label="Choose a Professional" />
-          {PROS.map(p => (
+          {prosLoading && (
+            <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center', margin: 0 }}>Loading pros…</p>
+          )}
+          {!prosLoading && pros.length === 0 && (
+            <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 16, textAlign: 'center' }}>
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+                No pros are currently accepting lesson requests. Check back later or reach out to the pro shop directly.
+              </p>
+            </div>
+          )}
+          {!prosLoading && pros.map(p => (
             <div key={p.id} onClick={() => setPro(p.id)} data-tap style={{ padding: '13px 14px', background: pro === p.id ? G.green : G.card, borderRadius: 4, marginBottom: 8, border: `1.5px solid ${pro === p.id ? G.green : G.border}`, cursor: 'pointer', transition: 'all 0.15s' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: pro === p.id ? G.greenMid : 'rgba(155,122,30,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pro === p.id ? '#A8D8B8' : G.brass} strokeWidth="1.5"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+                {p.photo_url ? (
+                  <img src={p.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: pro === p.id ? `1.5px solid ${G.brassLt}` : 'none' }} />
+                ) : (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: pro === p.id ? G.greenMid : 'rgba(155,122,30,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pro === p.id ? '#A8D8B8' : G.brass} strokeWidth="1.5"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: pro === p.id ? '#F2EDE0' : G.text, margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
+                  {p.title && (
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? '#7AAC88' : G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
+                  )}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: pro === p.id ? '#F2EDE0' : G.text, margin: '0 0 1px' }}>{p.name}</p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? '#7AAC88' : G.muted, margin: 0 }}>{p.sub}</p>
-                </div>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? G.brassLt : G.muted, flexShrink: 0 }}>{p.rate}</span>
+                {p.rate && (
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? G.brassLt : G.muted, flexShrink: 0 }}>{p.rate}</span>
+                )}
               </div>
+              {pro === p.id && p.bio && (
+                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11.5, color: '#D8E5DC', margin: '8px 0 0', lineHeight: 1.55 }}>{p.bio}</p>
+              )}
             </div>
           ))}
         </div>

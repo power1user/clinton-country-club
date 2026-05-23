@@ -6,7 +6,7 @@ import { supabase, isConfigured } from '../lib/supabase.js';
 import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
 import { GreenWithPin } from './PinMap.jsx';
 import {
-  MenuCategoriesAdmin, MenuItemsAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
+  MenuCategoriesAdmin, MenuItemsAdmin, ProShopItemsAdmin, LessonProsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
@@ -72,8 +72,9 @@ const AREAS = [
     d: 'Catalog + lesson queue',
     icon: IconBag,
     sections: [
-      { id: 'proitems', permKey: 'can_manage_proshop',  l: 'Pro Shop Items',  d: 'Catalog of items for sale', icon: IconBag  },
-      { id: 'lessons',  permKey: 'can_manage_lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',  icon: IconList },
+      { id: 'proitems',  permKey: 'can_manage_proshop',  l: 'Pro Shop Items',  d: 'Catalog of items for sale',     icon: IconBag    },
+      { id: 'lessonpros',permKey: 'can_manage_proshop',  l: 'Lesson Pros',     d: 'Roster shown when booking',     icon: IconPeople },
+      { id: 'lessons',   permKey: 'can_manage_lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',      icon: IconList   },
     ],
   },
   {
@@ -168,6 +169,7 @@ export default function AdminPanel() {
           {sec === 'memberposts'    && <MemberPostsAdmin />}
           {sec === 'clubguide'      && <ClubGuideAdmin />}
           {sec === 'proitems'       && <ProShopItemsAdmin />}
+          {sec === 'lessonpros'     && <LessonProsAdmin />}
           {sec === 'lessons'        && <LessonRequestsAdmin />}
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
