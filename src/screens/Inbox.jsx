@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useNav } from '../hooks/useNav.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useInbox, markNotificationRead, hideThread } from '../hooks/useInbox.js';
 import { isPushSupported, pushPermission, subscribeToPush } from '../lib/push.js';
@@ -14,6 +15,7 @@ const PUSH_DISMISSED_KEY = 'inbox.pushBannerDismissed';
 
 export default function Inbox() {
   const { push } = useNav();
+  const [scrollRef, onScroll] = useScrollRestore();
   const { session, member } = useAuth();
   const { threads, notifications, loading } = useInbox();
   const [expanded, setExpanded] = useState({});      // notification id → bool
@@ -90,7 +92,7 @@ export default function Inbox() {
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Inbox" />
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
         {showPushBanner && (
           <div style={{ margin: '14px 16px 6px', padding: '12px 14px', background: G.card, border: `1px solid ${G.brass}`, borderRadius: 6, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="1.8" style={{ flexShrink: 0, marginTop: 2 }}>

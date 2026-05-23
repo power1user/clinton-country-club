@@ -3,6 +3,7 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useBulletinPosts } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 
 function NewPostSheet({ onClose, onSubmitted, club, member }) {
@@ -83,6 +84,7 @@ function NewPostSheet({ onClose, onSubmitted, club, member }) {
 export default function BulletinBoard() {
   const { data: posts, refresh } = useBulletinPosts();
   const { club, member } = useAuth();
+  const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const cats = [{ id: 'all', l: 'All' }, { id: 'Classifieds', l: 'Classifieds' }, { id: 'Wanted', l: 'Wanted' }, { id: 'General', l: 'General' }];
@@ -107,7 +109,7 @@ export default function BulletinBoard() {
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {filtered.map(post => (
           <div key={post.id} style={{ marginBottom: 10, padding: '14px 14px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>

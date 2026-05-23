@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import BellChip from '../components/BellChip.jsx';
 import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -9,6 +10,7 @@ const SPECIALS_TAB = '__specials__';
 
 export default function FoodMenu() {
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
+  const [scrollRef, onScroll] = useScrollRestore();
   const { data: menu, loading } = useMenu();
   const brand = useBrand();
   const now = useNow();
@@ -75,7 +77,7 @@ export default function FoodMenu() {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
         <div onClick={() => push('food/order')} data-tap style={{ margin: '12px 16px 4px', padding: '11px 14px', background: G.green, borderRadius: 4, display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 12 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.5"><circle cx="12" cy="10" r="3" /><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" /></svg>
           <div style={{ flex: 1 }}>

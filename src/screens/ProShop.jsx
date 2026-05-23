@@ -1,15 +1,17 @@
 import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useProShopItems } from '../hooks/useClubData.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 
 export default function ProShop() {
   const { data: items, loading } = useProShopItems();
+  const [scrollRef, onScroll] = useScrollRestore();
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Pro Shop" />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
         <SectionHead label="Current Catalog" />
         {loading && (
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0' }}>Loading the catalog…</p>

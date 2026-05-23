@@ -1,5 +1,6 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import StatusPill from '../components/StatusPill.jsx';
 import BellChip from '../components/BellChip.jsx';
 import { useClubStatus, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
@@ -8,6 +9,7 @@ import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Home() {
   const { push, goTab } = useNav();
+  const [scrollRef, onScroll] = useScrollRestore();
   const { isPending, pendingAccess, club } = useAuth();
   const brand = useBrand();
   const now = useNow();
@@ -92,7 +94,7 @@ export default function Home() {
       </div>
 
       {/* Scrollable body */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
         {/* Weather */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${G.border}` }}>
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 11, color: G.brass, margin: '0 0 6px' }}>Current Conditions</p>

@@ -1,5 +1,6 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { SectionHead } from '../components/Headers.jsx';
 import BellChip from '../components/BellChip.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -9,6 +10,7 @@ import { PLATFORM_NAME, VERSION } from '../lib/version.js';
 
 export default function MyClub() {
   const { push } = useNav();
+  const [scrollRef, onScroll] = useScrollRestore();
   const { member, isAdmin, signOut, club } = useAuth();
   const brand = useBrand();
   const now = useNow();
@@ -67,7 +69,7 @@ export default function MyClub() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ padding: '14px 16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {actions.map(a => (

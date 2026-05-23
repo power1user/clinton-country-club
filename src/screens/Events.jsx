@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import BellChip from '../components/BellChip.jsx';
 import { useEvents, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 
 export default function Events() {
   const { push } = useNav();
+  const [scrollRef, onScroll] = useScrollRestore();
   const { data: events } = useEvents();
   const brand = useBrand();
   const now = useNow();
@@ -42,7 +44,7 @@ export default function Events() {
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {shown.map(ev => (
           <div key={ev.id} onClick={() => push('community/event', { event: ev })} data-tap style={{ display: 'flex', gap: 12, padding: '14px 14px', background: G.card, borderRadius: 4, marginBottom: 10, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
             <div style={{ width: 48, height: 52, background: G.green, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

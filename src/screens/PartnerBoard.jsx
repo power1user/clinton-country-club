@@ -4,11 +4,13 @@ import { BackHeader } from '../components/Headers.jsx';
 import { Brass } from '../components/Buttons.jsx';
 import { usePartnerPosts } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 
 export default function PartnerBoard() {
   const { data: posts, refresh } = usePartnerPosts();
   const { club, member } = useAuth();
+  const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
   const [contact, setContact] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -26,7 +28,7 @@ export default function PartnerBoard() {
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 80px' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 80px' }}>
         {filtered.map(p => (
           <div key={p.id} style={{ marginBottom: 12, padding: '14px 16px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
