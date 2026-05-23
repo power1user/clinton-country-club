@@ -1,0 +1,25 @@
+{
+  "name": "The Grounds",
+  "short_name": "The Grounds",
+  "description": "Country club member app, white-labeled per club, by The Grounds.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2EDE0",
+  "theme_color": "#1B3A2D",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

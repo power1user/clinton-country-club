@@ -3,6 +3,7 @@ import { G } from '../theme.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { PLATFORM_NAME } from '../lib/version.js';
+import InstallCard from '../components/InstallCard.jsx';
 
 export default function Login() {
   const { signIn, signUp, isConfigured } = useAuth();
@@ -101,9 +102,14 @@ export default function Login() {
             </div>
           )}
           {info && (
-            <div style={{ padding: '10px 12px', background: 'rgba(26,92,52,0.08)', border: `1px solid ${G.openDot}`, borderRadius: 4 }}>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.openBg, margin: 0 }}>{info}</p>
-            </div>
+            <>
+              <div style={{ padding: '10px 12px', background: 'rgba(26,92,52,0.08)', border: `1px solid ${G.openDot}`, borderRadius: 4 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.openBg, margin: 0 }}>{info}</p>
+              </div>
+              {/* Right after sign-up, suggest installing as a PWA so the
+                  new member's next visit is one tap from the home screen. */}
+              <InstallCard variant="banner" />
+            </>
           )}
 
           <button

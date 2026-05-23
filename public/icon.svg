@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#1B3A2D"/>
+  <!-- Slight inner highlight -->
+  <rect x="32" y="32" width="448" height="448" rx="68" fill="#234D38" opacity="0.45"/>
+  <!-- Flagpole -->
+  <line x1="208" y1="384" x2="208" y2="144" stroke="#F2EDE0" stroke-width="14" stroke-linecap="round"/>
+  <!-- Flag -->
+  <path d="M208 144 L356 184 L208 224 Z" fill="#9B7A1E"/>
+  <!-- Golf ball -->
+  <circle cx="232" cy="384" r="28" fill="#F2EDE0"/>
+  <!-- Ball dimples (subtle) -->
+  <circle cx="226" cy="378" r="2.5" fill="#1B3A2D" opacity="0.25"/>
+  <circle cx="240" cy="380" r="2.5" fill="#1B3A2D" opacity="0.25"/>
+  <circle cx="231" cy="392" r="2.5" fill="#1B3A2D" opacity="0.25"/>
+  <!-- Ground line -->
+  <line x1="120" y1="396" x2="392" y2="396" stroke="#234D38" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+</svg>
