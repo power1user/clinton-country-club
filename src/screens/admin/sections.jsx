@@ -819,6 +819,291 @@ function ColorRow({ label, value, onChange }) {
 }
 
 // ============================================================
+// NewsAdminFull — replaces the old composer with full list + edit + delete
+// ============================================================
+export function NewsAdminFull() {
+  const { hasPerm } = useAuth();
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_post_news')}
+      table="news"
+      title="News Article"
+      emptyMsg="No news posts yet."
+      columns={['id', 'category', 'headline', 'body', 'date_label', 'published_at']}
+      order={{ column: 'published_at', ascending: false }}
+      primaryField="headline"
+      secondaryFn={r => `${r.category || 'General'} · ${r.date_label || (r.published_at ? new Date(r.published_at).toLocaleDateString() : '')}`}
+      defaultRow={{ category: 'Events', headline: '', body: '', date_label: 'Today', published_at: new Date().toISOString() }}
+      fields={[
+        { key: 'category',   label: 'Category', type: 'select', options: ['Events', 'Course', 'Dining', 'Club', 'General'] },
+        { key: 'headline',   label: 'Headline', type: 'text' },
+        { key: 'body',       label: 'Body',     type: 'textarea' },
+        { key: 'date_label', label: 'Date label (what members see)', type: 'text', placeholder: 'Today, May 14, etc.' },
+      ]}
+    />
+  );
+}
+
+// ============================================================
+// HolesAdmin — per-hole metadata (par, yards, name, description, image)
+// ============================================================
+export function HolesAdmin() {
+  const { hasPerm } = useAuth();
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_edit_pins')}
+      table="holes"
+      title="Hole"
+      emptyMsg="No holes defined yet."
+      columns={['id', 'hole_number', 'par', 'yards', 'yards_blue', 'yards_white', 'yards_red', 'handicap', 'name', 'description', 'green_image']}
+      order={{ column: 'hole_number', ascending: true }}
+      primaryField="name"
+      secondaryFn={r => `Hole ${r.hole_number} · Par ${r.par ?? '?'} · ${r.yards ?? '?'} yds${r.handicap ? ` · Hdcp ${r.handicap}` : ''}`}
+      defaultRow={{ hole_number: 1, par: 4, yards: null, yards_blue: null, yards_white: null, yards_red: null, handicap: null, name: '', description: '', green_image: '' }}
+      fields={[
+        { key: 'hole_number', label: 'Hole #', type: 'number' },
+        { key: 'name',        label: 'Name (optional)', type: 'text', placeholder: 'Lakeview, Cedar Bend…' },
+        { key: 'par',         label: 'Par', type: 'number' },
+        { key: 'handicap',    label: 'Handicap (1 = hardest)', type: 'number' },
+        { key: 'yards',       label: 'Yards (default tee)', type: 'number' },
+        { key: 'yards_blue',  label: 'Yards — Blue', type: 'number' },
+        { key: 'yards_white', label: 'Yards — White', type: 'number' },
+        { key: 'yards_red',   label: 'Yards — Red', type: 'number' },
+        { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Dogleg right, water short, etc.' },
+        { key: 'green_image', label: 'Green Image URL', type: 'url', placeholder: '/greens/hole-1.svg or https://…' },
+      ]}
+    />
+  );
+}
+
+// ============================================================
+// MenuItemsAdmin — individual menu items linked to a menu_category
+// ============================================================
+export function MenuItemsAdmin() {
+  const { club, hasPerm } = useAuth();
+  const [cats, setCats] = useState([]);
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    supabase.from('menu_categories').select('id, name').eq('club_id', club.id).order('sort_order', { ascending: true }).then(({ data }) => {
+      if (!cancelled) setCats(data || []);
+    });
+    return () => { cancelled = true; };
+  }, [club?.id]);
+
+  const catOptions = cats.length
+    ? cats.map(c => ({ value: c.id, label: c.name }))
+    : [{ value: '', label: '(create a category first)' }];
+
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_manage_menu')}
+      table="menus"
+      title="Menu Item"
+      emptyMsg="No menu items yet."
+      columns={['id', 'category_id', 'category', 'item_name', 'description', 'price', 'tag', 'is_special', 'available_today', 'sort_order']}
+      order={{ column: 'sort_order', ascending: true }}
+      primaryField="item_name"
+      secondaryFn={r => {
+        const cat = cats.find(c => c.id === r.category_id);
+        return [cat?.name || r.category, r.price, r.is_special && 'Special', r.available_today === false && 'Hidden'].filter(Boolean).join(' · ');
+      }}
+      defaultRow={{ category_id: catOptions[0]?.value || null, item_name: '', description: '', price: '', tag: '', is_special: false, available_today: true, sort_order: 0 }}
+      fields={[
+        { key: 'category_id',     label: 'Category', type: 'select', options: catOptions },
+        { key: 'item_name',       label: 'Item Name', type: 'text' },
+        { key: 'description',     label: 'Description', type: 'textarea' },
+        { key: 'price',           label: 'Price (display string)', type: 'text', placeholder: '$12 or "Market"' },
+        { key: 'tag',             label: 'Tag (optional)', type: 'text', placeholder: 'Chef Special, Gluten Free…' },
+        { key: 'is_special',      label: "Show in Today's Specials", type: 'checkbox' },
+        { key: 'available_today', label: 'Available today', type: 'checkbox' },
+        { key: 'sort_order',      label: 'Sort Order (within category)', type: 'number' },
+      ]}
+    />
+  );
+}
+
+// ============================================================
+// EventsAdmin — create/edit events (RSVPs are a separate section)
+// ============================================================
+export function EventsAdmin() {
+  const { hasPerm } = useAuth();
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_manage_events')}
+      table="events"
+      title="Event"
+      emptyMsg="No events scheduled yet."
+      columns={['id', 'title', 'description', 'category', 'event_date', 'event_time', 'date_label', 'dow', 'day_num', 'spots', 'price']}
+      order={{ column: 'event_date', ascending: true }}
+      primaryField="title"
+      secondaryFn={r => [r.category, r.event_date ? new Date(r.event_date + 'T12:00:00').toLocaleDateString() : null, r.event_time, r.spots != null && `${r.spots} spots`].filter(Boolean).join(' · ')}
+      defaultRow={{ title: '', description: '', category: 'Social', event_date: new Date().toISOString().slice(0, 10), event_time: '', spots: 0, price: '' }}
+      beforeSave={(form) => {
+        // Auto-derive the denormalized display fields from event_date
+        if (form.event_date) {
+          const d = new Date(form.event_date + 'T12:00:00');
+          form.dow = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+          form.day_num = d.getDate().toString();
+          form.date_label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+        return form;
+      }}
+      fields={[
+        { key: 'title',       label: 'Title', type: 'text' },
+        { key: 'category',    label: 'Category', type: 'select', options: ['Golf', 'Social', 'Dining'] },
+        { key: 'event_date',  label: 'Date', type: 'date' },
+        { key: 'event_time',  label: 'Time (display string)', type: 'text', placeholder: '7:30am shotgun · 6:00pm – 9:00pm' },
+        { key: 'spots',       label: 'Spots available', type: 'number' },
+        { key: 'price',       label: 'Price (display string)', type: 'text', placeholder: '$125, Free, Market…' },
+        { key: 'description', label: 'Description', type: 'textarea' },
+      ]}
+    />
+  );
+}
+
+// ============================================================
+// ClubGuideAdmin — onboarding pages stored in club_content
+// ============================================================
+export function ClubGuideAdmin() {
+  const { hasPerm } = useAuth();
+  return (
+    <CrudSection
+      canEdit={hasPerm('can_post_news') /* reuse — same role typically owns docs */}
+      table="club_content"
+      title="Guide Page"
+      emptyMsg="No member-guide pages yet."
+      columns={['id', 'slug', 'title', 'icon', 'body', 'sort_order']}
+      order={{ column: 'sort_order', ascending: true }}
+      primaryField="title"
+      secondaryFn={r => `${r.slug} · sort ${r.sort_order ?? 0}`}
+      defaultRow={{ slug: '', title: '', icon: '', body: '', sort_order: 0 }}
+      fields={[
+        { key: 'title',      label: 'Title', type: 'text', placeholder: 'Welcome, Dress Code, Tee Times…' },
+        { key: 'slug',       label: 'Slug (URL-safe key)', type: 'text', placeholder: 'welcome, dress, tee-times…' },
+        { key: 'icon',       label: 'Icon character (optional)', type: 'text', placeholder: '◈ ⛳ ◻ ◎' },
+        { key: 'body',       label: 'Body', type: 'textarea' },
+        { key: 'sort_order', label: 'Sort Order', type: 'number' },
+      ]}
+    />
+  );
+}
+
+// ============================================================
+// MemberPostsAdmin — moderation queue for bulletin + partner posts
+// ============================================================
+export function MemberPostsAdmin() {
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_manage_members');
+  const [bulletin, setBulletin] = useState([]);
+  const [partner, setPartner] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('bulletin');
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    const load = async () => {
+      const [{ data: b }, { data: p }] = await Promise.all([
+        supabase.from('bulletin_posts')
+          .select('id, category, title, body, hidden, created_at, member_id, members(name, membership_number)')
+          .eq('club_id', club.id)
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase.from('partner_posts')
+          .select('id, category, title, body, hcp, is_open, created_at, member_id, members(name, membership_number)')
+          .eq('club_id', club.id)
+          .order('created_at', { ascending: false })
+          .limit(200),
+      ]);
+      if (cancelled) return;
+      setBulletin(b || []); setPartner(p || []);
+      setLoading(false);
+    };
+    load();
+    const channel = supabase
+      .channel(`memberposts:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bulletin_posts', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_posts',  filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  const toggleHidden = async (row) => {
+    await supabase.from('bulletin_posts').update({ hidden: !row.hidden }).eq('id', row.id);
+  };
+  const removeBulletin = async (id) => {
+    if (!confirm('Delete this bulletin post? Members will lose it permanently.')) return;
+    await supabase.from('bulletin_posts').delete().eq('id', id);
+  };
+  const togglePartnerOpen = async (row) => {
+    await supabase.from('partner_posts').update({ is_open: !row.is_open }).eq('id', row.id);
+  };
+  const removePartner = async (id) => {
+    if (!confirm('Delete this partner post? Members will lose it permanently.')) return;
+    await supabase.from('partner_posts').delete().eq('id', id);
+  };
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Member-generated posts. Hide a bulletin post to keep it out of the member feed while leaving it on record; delete to remove entirely. {!canEdit && 'View only — ask your manager for can_manage_members to moderate.'}
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, background: G.card, padding: 4, borderRadius: 4, border: `1px solid ${G.border}` }}>
+        {[{ id: 'bulletin', l: `Bulletin (${bulletin.length})` }, { id: 'partner', l: `Partner posts (${partner.length})` }].map(t => (
+          <div key={t.id} onClick={() => setTab(t.id)} data-tap style={{ flex: 1, padding: '8px 12px', borderRadius: 3, background: tab === t.id ? G.green : 'transparent', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: tab === t.id ? '#F2EDE0' : G.muted, fontWeight: tab === t.id ? 600 : 400 }}>{t.l}</span>
+          </div>
+        ))}
+      </div>
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+
+      {!loading && tab === 'bulletin' && bulletin.length === 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: 16, textAlign: 'center', background: G.card, borderRadius: 4 }}>No bulletin posts yet.</p>
+      )}
+      {!loading && tab === 'bulletin' && bulletin.map(r => (
+        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, opacity: r.hidden ? 0.5 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.hidden && <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, fontStyle: 'italic', marginLeft: 8 }}>(hidden)</span>}</p>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
+          </div>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0' }}>{r.category} · {r.members?.name || 'Member'}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0 8px', lineHeight: 1.5 }}>{r.body}</p>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <span onClick={() => toggleHidden(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.hidden ? 'Unhide' : 'Hide'}</span>
+              <span onClick={() => removeBulletin(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {!loading && tab === 'partner' && partner.length === 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: 16, textAlign: 'center', background: G.card, borderRadius: 4 }}>No partner posts yet.</p>
+      )}
+      {!loading && tab === 'partner' && partner.map(r => (
+        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, opacity: r.is_open === false ? 0.5 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.is_open === false && <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, fontStyle: 'italic', marginLeft: 8 }}>(closed)</span>}</p>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
+          </div>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0' }}>{r.category || 'Foursome'} · {r.members?.name || 'Member'}{r.hcp != null && ` · Hcp ${r.hcp}`}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0 8px', lineHeight: 1.5 }}>{r.body}</p>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <span onClick={() => togglePartnerOpen(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.is_open === false ? 'Reopen' : 'Mark closed'}</span>
+              <span onClick={() => removePartner(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
 // ClubhouseInboxAdmin — staff sees member-initiated clubhouse threads,
 // grouped by topic. Tap a thread -> opens Thread view to reply.
 // (Push for new clubhouse messages fires via the same trigger as

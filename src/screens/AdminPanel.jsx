@@ -6,11 +6,11 @@ import { supabase, isConfigured } from '../lib/supabase.js';
 import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
 import { GreenWithPin } from './PinMap.jsx';
 import {
-  MenuCategoriesAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
+  MenuCategoriesAdmin, MenuItemsAdmin, ProShopItemsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
-  EventRegistrationsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
-  ClubhouseInboxAdmin,
-  SuperAdminsAdmin, AllClubsAdmin, PlatformSettingsAdmin, PlatformMetricsAdmin,
+  EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
+  ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
+  SuperAdminsAdmin, AllClubsAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -21,44 +21,49 @@ const AREAS = [
   {
     id: 'course',
     l: 'Course',
-    d: 'Status, hours, pins, pace, sponsors',
+    d: 'Status, pace, pins, holes, sponsors',
     icon: IconFlag,
     sections: [
-      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',        d: 'Hours, open/closed, member-only days',     icon: IconStatus    },
-      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours', icon: IconCalendar  },
-      { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace of Play',       d: "Set today's pace indicator",               icon: IconClock     },
-      { id: 'pins',      permKey: 'can_edit_pins',          l: 'Pin Positions',      d: "Place today's pin on each green",          icon: IconFlag      },
-      { id: 'holespons', permKey: 'can_manage_sponsors',    l: 'Hole Sponsors',      d: 'Local sponsor per hole',                   icon: IconHandshake },
+      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',        d: 'Hours, open/closed, member-only days',      icon: IconStatus    },
+      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',  icon: IconCalendar  },
+      { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace of Play',       d: "Set today's pace indicator",                icon: IconClock     },
+      { id: 'pins',      permKey: 'can_edit_pins',          l: 'Pin Positions',      d: "Place today's pin on each green",           icon: IconFlag      },
+      { id: 'holes',     permKey: 'can_edit_pins',          l: 'Holes',              d: 'Par, yardage, names + descriptions',        icon: IconList      },
+      { id: 'holespons', permKey: 'can_manage_sponsors',    l: 'Hole Sponsors',      d: 'Local sponsor per hole',                    icon: IconHandshake },
     ],
   },
   {
     id: 'dining',
     l: 'Dining',
-    d: 'Menu categories, daily orders',
+    d: 'Menu, items, orders',
     icon: IconUtensils,
     sections: [
-      { id: 'menucats', permKey: 'can_manage_menu', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
-      { id: 'foodord',  permKey: 'can_view_orders', l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
+      { id: 'menucats',  permKey: 'can_manage_menu', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
+      { id: 'menuitems', permKey: 'can_manage_menu', l: 'Menu Items',      d: 'Add, edit, hide individual dishes',        icon: IconUtensils },
+      { id: 'foodord',   permKey: 'can_view_orders', l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
     ],
   },
   {
     id: 'events',
     l: 'Events',
-    d: 'RSVPs + event ops',
+    d: 'Calendar + RSVPs',
     icon: IconCalendar,
     sections: [
-      { id: 'events', permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations', icon: IconList },
+      { id: 'eventsadmin', permKey: 'can_manage_events', l: 'Events',      d: 'Add, edit, cancel events',     icon: IconCalendar },
+      { id: 'events',      permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations',  icon: IconList },
     ],
   },
   {
-    id: 'marketing',
-    l: 'Marketing',
-    d: 'News, notifications, banners',
+    id: 'comms',
+    l: 'Communications',
+    d: 'News, notifications, banners, member posts, club guide',
     icon: IconNews,
     sections: [
-      { id: 'news',    permKey: 'can_post_news',          l: 'Post News',       d: 'Publish announcements to all members', icon: IconNews   },
-      { id: 'notifs',  permKey: 'can_send_notifications', l: 'Notifications',   d: 'Push alerts to all members',           icon: IconBell   },
-      { id: 'banners', permKey: 'can_manage_sponsors',    l: 'Sponsor Banners', d: 'Rotating sponsor banners',             icon: IconBanner },
+      { id: 'news',         permKey: 'can_post_news',          l: 'News',            d: 'List, edit, publish announcements',         icon: IconNews    },
+      { id: 'notifs',       permKey: 'can_send_notifications', l: 'Notifications',   d: 'Push alerts to all members',                icon: IconBell    },
+      { id: 'banners',      permKey: 'can_manage_sponsors',    l: 'Sponsor Banners', d: 'Rotating sponsor banners',                  icon: IconBanner  },
+      { id: 'memberposts',  permKey: 'can_manage_members',     l: 'Member Posts',    d: 'Moderate bulletin + partner posts',         icon: IconList    },
+      { id: 'clubguide',    permKey: 'can_post_news',          l: 'Club Guide',      d: 'Onboarding pages members read on first run',icon: IconList    },
     ],
   },
   {
@@ -74,27 +79,25 @@ const AREAS = [
   {
     id: 'people',
     l: 'People',
-    d: 'Members + staff',
+    d: 'Members, staff, club settings',
     icon: IconPeople,
     sections: [
-      { id: 'members',         permKey: 'can_manage_members',       l: 'Members',          d: 'Roster, CSV import, invites',          icon: IconPeople },
-      { id: 'staff',           permKey: 'can_manage_staff',         l: 'Staff',            d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
-      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox',  d: 'Member messages routed to staff',      icon: IconBell },
-      { id: 'clubsettings',                                          l: 'Club Settings',    d: 'Logo, colors, address, contact info',  icon: IconCog, managerOnly: true },
+      { id: 'members',         permKey: 'can_manage_members',       l: 'Members',         d: 'Roster, CSV import, invites',          icon: IconPeople },
+      { id: 'staff',           permKey: 'can_manage_staff',         l: 'Staff',           d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
+      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox', d: 'Member messages routed to staff',      icon: IconBell },
+      { id: 'clubsettings',                                          l: 'Club Settings',   d: 'Logo, colors, contact, gating',        icon: IconCog, managerOnly: true },
     ],
   },
   // Super-admin only — platform-wide controls
   {
     id: 'platform',
     l: 'Platform',
-    d: 'Super admins, clubs, platform settings',
+    d: 'Super admins + all clubs',
     icon: IconPlatform,
     superOnly: true,
     sections: [
-      { id: 'superadmins', l: 'Super Admins',       d: 'Promote / demote platform admins',         icon: IconShield  },
-      { id: 'allclubs',    l: 'All Clubs',          d: 'Manage every club on the platform',        icon: IconFlag    },
-      { id: 'platsettings',l: 'Platform Settings',  d: "The Grounds branding, billing, defaults",  icon: IconList    },
-      { id: 'platmetrics', l: 'Cross-Club Metrics', d: 'Aggregate platform stats',                 icon: IconClock   },
+      { id: 'superadmins', l: 'Super Admins', d: 'Promote / demote platform admins',  icon: IconShield  },
+      { id: 'allclubs',    l: 'All Clubs',    d: 'Manage every club on the platform', icon: IconFlag    },
     ],
   },
 ];
@@ -106,6 +109,7 @@ export default function AdminPanel() {
   const { club, member, isAdmin, isSuperAdmin, isManager, hasPerm } = useAuth();
   const [area, setArea] = useState(null);   // top-level area, null = main hub
   const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
+  const [query, setQuery] = useState('');   // admin hub search
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);
 
@@ -147,27 +151,30 @@ export default function AdminPanel() {
           right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
         />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-          {sec === 'status'    && <StatusAdmin club={club} />}
-          {sec === 'overrides' && <ScheduleOverridesAdmin />}
-          {sec === 'news'      && <NewsAdmin club={club} />}
-          {sec === 'notifs'    && <NotificationsAdmin />}
-          {sec === 'pace'      && <PaceAdmin club={club} />}
-          {sec === 'pins'      && <PinsAdmin club={club} />}
-          {sec === 'menucats'  && <MenuCategoriesAdmin />}
-          {sec === 'foodord'   && <FoodOrdersAdmin />}
-          {sec === 'events'    && <EventRegistrationsAdmin />}
-          {sec === 'proitems'  && <ProShopItemsAdmin />}
-          {sec === 'lessons'   && <LessonRequestsAdmin />}
-          {sec === 'holespons' && <HoleSponsorsAdmin />}
-          {sec === 'banners'   && <SponsorBannersAdmin />}
+          {sec === 'status'         && <StatusAdmin club={club} />}
+          {sec === 'overrides'      && <ScheduleOverridesAdmin />}
+          {sec === 'pace'           && <PaceAdmin club={club} />}
+          {sec === 'pins'           && <PinsAdmin club={club} />}
+          {sec === 'holes'          && <HolesAdmin />}
+          {sec === 'holespons'      && <HoleSponsorsAdmin />}
+          {sec === 'menucats'       && <MenuCategoriesAdmin />}
+          {sec === 'menuitems'      && <MenuItemsAdmin />}
+          {sec === 'foodord'        && <FoodOrdersAdmin />}
+          {sec === 'eventsadmin'    && <EventsAdmin />}
+          {sec === 'events'         && <EventRegistrationsAdmin />}
+          {sec === 'news'           && <NewsAdminFull />}
+          {sec === 'notifs'         && <NotificationsAdmin />}
+          {sec === 'banners'        && <SponsorBannersAdmin />}
+          {sec === 'memberposts'    && <MemberPostsAdmin />}
+          {sec === 'clubguide'      && <ClubGuideAdmin />}
+          {sec === 'proitems'       && <ProShopItemsAdmin />}
+          {sec === 'lessons'        && <LessonRequestsAdmin />}
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
-          {sec === 'superadmins'  && isSuperAdmin && <SuperAdminsAdmin />}
-          {sec === 'allclubs'     && isSuperAdmin && <AllClubsAdmin />}
-          {sec === 'platsettings' && isSuperAdmin && <PlatformSettingsAdmin />}
-          {sec === 'platmetrics'  && isSuperAdmin && <PlatformMetricsAdmin />}
+          {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
+          {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
         </div>
       </div>
     );
@@ -199,19 +206,94 @@ export default function AdminPanel() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Staff Admin" right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
-          Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose an area to manage.
-        </p>
-        <CardGrid items={AREAS.filter(areaVisible)} onSelect={setArea} />
-        {AREAS.filter(areaVisible).length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: 0 }}>
-              You don't have any admin permissions yet. Ask your club manager to grant access.
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px 28px' }}>
+        {/* Search bar */}
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search admin settings…"
+            style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${G.border}`, borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+          />
+          {query && (
+            <div onClick={() => setQuery('')} data-tap style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', padding: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </div>
+          )}
+        </div>
+
+        {!query && (
+          <>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px', textAlign: 'center' }}>
+              Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose an area to manage.
             </p>
-          </div>
+            <CardGrid items={AREAS.filter(areaVisible)} onSelect={setArea} />
+            {AREAS.filter(areaVisible).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: 0 }}>
+                  You don't have any admin permissions yet. Ask your club manager to grant access.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {query && (
+          <SearchResults
+            query={query}
+            sectionVisible={sectionVisible}
+            onSelect={(s) => { setQuery(''); setSec(s.id); }}
+          />
         )}
       </div>
+    </div>
+  );
+}
+
+// Flat search across area + section labels/descriptions. Jumps straight
+// to the matching section, skipping the area sub-hub.
+function SearchResults({ query, sectionVisible, onSelect }) {
+  const q = query.toLowerCase().trim();
+  const matches = AREAS.flatMap(a =>
+    a.sections
+      .filter(sectionVisible)
+      .filter(s =>
+        s.l.toLowerCase().includes(q) ||
+        (s.d || '').toLowerCase().includes(q) ||
+        a.l.toLowerCase().includes(q)
+      )
+      .map(s => ({ ...s, areaLabel: a.l }))
+  );
+
+  if (matches.length === 0) {
+    return (
+      <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 16px', textAlign: 'center', margin: 0 }}>
+        Nothing matches "{query}".
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+      {matches.map((s, i) => {
+        const Icon = s.icon;
+        return (
+          <div key={s.id} onClick={() => onSelect(s)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 12, cursor: 'pointer' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Icon color={G.brassLt} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>{s.l}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>{s.areaLabel} · {s.d}</p>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+          </div>
+        );
+      })}
     </div>
   );
 }
