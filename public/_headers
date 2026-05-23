@@ -1,0 +1,11 @@
+# Cache rules for Cloudflare Pages.
+#  · /assets/* — hashed bundles, safe to cache for a year
+#  · /index.html — must always re-validate so members get fresh builds
+#    after a deploy (otherwise the edge can serve stale HTML pointing at
+#    old asset hashes and the app boots blank).
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate

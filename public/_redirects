@@ -1,0 +1,5 @@
+# SPA fallback — every non-asset path serves index.html so the in-house
+# screen router (src/hooks/useNav.jsx) can take over client-side.
+# Cloudflare Pages reads this file from the publish directory at deploy
+# time; same syntax as Netlify's _redirects.
+/*    /index.html    200
