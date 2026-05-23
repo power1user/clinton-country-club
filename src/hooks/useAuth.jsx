@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isConfigured, CLUB_SLUG } from '../lib/supabase.js';
 import { highestRole, userHasPerm } from '../lib/permissions.js';
 import { applyClubPalette } from '../theme.js';
+import { needsTerms } from '../lib/terms.js';
 
 const AuthCtx = createContext(null);
 
@@ -51,52 +52,56 @@ export function AuthProvider({ children }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Hydrate member + role + permissions whenever session changes
-  useEffect(() => {
+  // Hydrate member + role + permissions whenever session changes.
+  // hydrateMember() is also exposed via context as `refreshMember()` so
+  // screens that mutate the member row (e.g. TermsGate after accepting,
+  // future profile-edit screens) can pull the fresh state back in
+  // without a page reload.
+  const hydrateMember = async () => {
     if (!isConfigured || !session?.user || !club) {
       setMember(null);
       setRole(null);
       setPermissions({});
       return;
     }
-    (async () => {
-      let { data: m } = await supabase
-        .from('members')
-        .select('*')
-        .eq('club_id', club.id)
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+    let { data: m } = await supabase
+      .from('members')
+      .select('*')
+      .eq('club_id', club.id)
+      .eq('user_id', session.user.id)
+      .maybeSingle();
 
-      // If no member row is linked yet, try to claim a pending one with the
-      // matching email (set up by staff via "Add Member" or CSV import).
-      if (!m) {
-        const { data: claimed } = await supabase.rpc('claim_member_by_email', { p_club_id: club.id });
-        if (claimed) {
-          const refetch = await supabase
-            .from('members')
-            .select('*')
-            .eq('id', claimed)
-            .maybeSingle();
-          m = refetch.data;
-        }
+    // If no member row is linked yet, try to claim a pending one with the
+    // matching email (set up by staff via "Add Member" or CSV import).
+    if (!m) {
+      const { data: claimed } = await supabase.rpc('claim_member_by_email', { p_club_id: club.id });
+      if (claimed) {
+        const refetch = await supabase
+          .from('members')
+          .select('*')
+          .eq('id', claimed)
+          .maybeSingle();
+        m = refetch.data;
       }
+    }
 
-      // user_roles: match this club OR platform-wide (null club_id) for super_admin.
-      // A user can hold up to two rows here (e.g. super_admin + a club-scoped admin role).
-      const { data: roleRows } = await supabase
-        .from('user_roles')
-        .select('role, permissions')
-        .eq('user_id', session.user.id)
-        .or(`club_id.eq.${club.id},club_id.is.null`);
+    // user_roles: match this club OR platform-wide (null club_id) for super_admin.
+    // A user can hold up to two rows here (e.g. super_admin + a club-scoped admin role).
+    const { data: roleRows } = await supabase
+      .from('user_roles')
+      .select('role, permissions')
+      .eq('user_id', session.user.id)
+      .or(`club_id.eq.${club.id},club_id.is.null`);
 
-      const top = highestRole(roleRows);
-      // Use club_admin perms if present; manager/super_admin have all perms implicitly.
-      const adminRow = (roleRows || []).find(r => r.role === 'club_admin');
-      setMember(m || null);
-      setRole(top);
-      setPermissions(adminRow?.permissions || {});
-    })();
-  }, [session, club]);
+    const top = highestRole(roleRows);
+    // Use club_admin perms if present; manager/super_admin have all perms implicitly.
+    const adminRow = (roleRows || []).find(r => r.role === 'club_admin');
+    setMember(m || null);
+    setRole(top);
+    setPermissions(adminRow?.permissions || {});
+  };
+
+  useEffect(() => { hydrateMember(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [session, club]);
 
   const signIn = async (email, password) => {
     if (!isConfigured) return { error: { message: 'Supabase not configured' } };
@@ -134,12 +139,20 @@ export function AuthProvider({ children }) {
   const isPendingLocked    = isPending && pendingAccess === 'locked';
   const canMemberWrite     = !isPending || pendingAccess === 'full';
 
+  // Terms of use gating. Member needs to accept the current ToU version
+  // before any in-app screen is shown. We only gate when we have a real
+  // member row — orphan-session edge cases fall through to whatever
+  // other handling exists (typically the pending-locked splash or a
+  // blank app boot). Staff are gated too — consistency over carve-outs.
+  const needsTermsAcceptance = needsTerms(member);
+
   return (
     <AuthCtx.Provider value={{
       session, member, club, role, permissions,
       isSuperAdmin, isManager, isClubAdmin, isAdmin,
       hasPerm,
       isPending, pendingAccess, isPendingLocked, canMemberWrite,
+      needsTermsAcceptance, refreshMember: hydrateMember,
       loading, signIn, signUp, signOut, isConfigured,
     }}>
       {children}

@@ -30,6 +30,7 @@ import ProShop from './screens/ProShop.jsx';
 import LessonRequest from './screens/LessonRequest.jsx';
 import OnboardingGuide from './screens/OnboardingGuide.jsx';
 import AdminPanel from './screens/AdminPanel.jsx';
+import TermsGate from './screens/TermsGate.jsx';
 
 const SCREENS = {
   home: Home,
@@ -117,7 +118,7 @@ function PendingLockedSplash() {
 }
 
 function Gate() {
-  const { session, loading, isConfigured, isPendingLocked } = useAuth();
+  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance } = useAuth();
 
   if (loading) {
     // First-open splash with parent-brand attribution. Briefly visible
@@ -151,6 +152,14 @@ function Gate() {
   // user is still pending — show the splash + nothing else.
   if (isPendingLocked) {
     return <PendingLockedSplash />;
+  }
+
+  // Member hasn't accepted the current ToU version. Gate every screen
+  // behind acceptance — this fires both on first login and after a
+  // version bump. (Comes AFTER pending-locked so unapproved members
+  // don't see terms before they're approved.)
+  if (needsTermsAcceptance) {
+    return <TermsGate />;
   }
 
   return (
