@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -58,11 +58,78 @@ const SCREENS = {
   'myclub/admin': AdminPanel,
 };
 
-const TAB_ROOTS = new Set(['home', 'golf', 'food', 'community', 'myclub']);
+// Ordered list — used for tab swipe to figure out next/prev.
+// Keep in sync with the BottomNav tabs array.
+const TAB_ORDER = ['home', 'golf', 'food', 'community', 'myclub'];
+const TAB_ROOTS = new Set(TAB_ORDER);
+
+// Swipe thresholds tuned by feel on iPhone:
+//   · 60px or more of horizontal travel, OR a fast flick (>0.4 px/ms)
+//   · horizontal movement must dominate (locked once Math.abs(dx) > dy)
+//   · start point must be 30+ px from each edge so we don't fight iOS
+//     Safari's edge-swipe-back gesture
+const SWIPE_MIN_PX = 60;
+const SWIPE_MIN_VELOCITY = 0.4;   // px / ms
+const SWIPE_EDGE_GUARD = 30;
+const SWIPE_AXIS_LOCK_PX = 8;     // delta before we decide horizontal vs vertical
 
 function ScreenRenderer() {
-  const { current, animKey, dir } = useNav();
+  const { current, animKey, dir, tab, goTab } = useNav();
+  const touchRef = useRef(null);
+
   const Comp = SCREENS[current.id];
+  const isRoot = TAB_ROOTS.has(current.id);
+
+  // Touch handlers — only activate at tab roots. Drilled-down screens
+  // (Thread, EventDetail, OrderConfirm, etc.) shouldn't horizontal-swipe
+  // because they often contain horizontally-scrollable content of their
+  // own (chat bubbles, image carousels in future) and the gesture would
+  // feel like a back navigation, not a tab change.
+  const onTouchStart = (e) => {
+    if (!isRoot) { touchRef.current = null; return; }
+    const t = e.touches[0];
+    if (!t) return;
+    const w = (typeof window !== 'undefined' ? window.innerWidth : 0) ||
+              document.documentElement.clientWidth;
+    // Edge guard — leave iOS Safari's edge-swipe-back gesture alone
+    if (t.clientX < SWIPE_EDGE_GUARD || t.clientX > w - SWIPE_EDGE_GUARD) {
+      touchRef.current = null; return;
+    }
+    touchRef.current = { x0: t.clientX, y0: t.clientY, t0: Date.now(), axis: null };
+  };
+
+  const onTouchMove = (e) => {
+    const s = touchRef.current;
+    if (!s) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - s.x0;
+    const dy = t.clientY - s.y0;
+    if (s.axis === null && (Math.abs(dx) > SWIPE_AXIS_LOCK_PX || Math.abs(dy) > SWIPE_AXIS_LOCK_PX)) {
+      s.axis = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    const s = touchRef.current;
+    touchRef.current = null;
+    if (!s || s.axis !== 'h') return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - s.x0;
+    const elapsed = Math.max(1, Date.now() - s.t0);
+    const passed = Math.abs(dx) >= SWIPE_MIN_PX ||
+                   (Math.abs(dx) / elapsed) >= SWIPE_MIN_VELOCITY;
+    if (!passed) return;
+    const idx = TAB_ORDER.indexOf(tab);
+    if (idx === -1) return;
+    // Swipe left  (dx < 0) → reveal next tab (idx + 1)
+    // Swipe right (dx > 0) → reveal previous tab (idx - 1)
+    const next = idx + (dx < 0 ? 1 : -1);
+    if (next < 0 || next >= TAB_ORDER.length) return;       // stop at edges
+    goTab(TAB_ORDER[next]);
+  };
+
   if (!Comp) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: G.bg }}>
@@ -70,11 +137,17 @@ function ScreenRenderer() {
       </div>
     );
   }
-  const isRoot = TAB_ROOTS.has(current.id);
   const animClass = dir === 'forward' ? 'screen-forward' : dir === 'back' ? 'screen-back' : 'screen-tab';
 
   return (
-    <div key={animKey} className={animClass} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+    <div
+      key={animKey}
+      className={animClass}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}
+    >
       <Comp params={current.params} />
       {isRoot && <BottomNav />}
     </div>
