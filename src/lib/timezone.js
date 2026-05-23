@@ -35,6 +35,18 @@ export function clubLocalParts(date, timezone) {
   };
 }
 
+// Today's date as YYYY-MM-DD in the given club timezone. Used to query
+// schedule_overrides against `override_date` and to scope "today"
+// computations to the club rather than the browser.
+export function todayInClubTz(timezone) {
+  const tz = timezone || DEFAULT_TIMEZONE;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
 // A short curated list of IANA zones for the New-Club onboarding form.
 // Add to this as we onboard clubs in other regions — runtime supports
 // any IANA zone so this is just a UX nicety.

@@ -121,7 +121,13 @@ export function SponsorBannersAdmin() {
 export function ScheduleOverridesAdmin() {
   const { hasPerm } = useAuth();
   const { data: facilities } = useClubStatus();
-  const facilityOptions = facilities.map(f => ({ value: f.statusId, label: f.label }));
+  // Empty-string sentinel maps to a real NULL status_id on save. Works
+  // on the edit path too because CrudFormModal renders `value ?? ''`,
+  // so a DB-null status_id automatically picks the All Facilities option.
+  const facilityOptions = [
+    { value: '', label: '— All Facilities —' },
+    ...facilities.map(f => ({ value: f.statusId, label: f.label })),
+  ];
   return (
     <CrudSection
       canEdit={hasPerm('can_edit_course_status')}
@@ -132,12 +138,29 @@ export function ScheduleOverridesAdmin() {
       order={{ column: 'override_date', ascending: true }}
       primaryField="override_date"
       secondaryFn={r => {
-        const f = facilities.find(x => x.statusId === r.status_id);
-        return `${f?.label || '(facility)'} · ${r.is_closed ? 'Closed' : `${r.opens_at || ''}–${r.closes_at_dusk ? 'Dusk' : (r.closes_at || '')}`}${r.reason ? ' · ' + r.reason : ''}`;
+        const facLabel = r.status_id == null
+          ? 'All Facilities'
+          : (facilities.find(x => x.statusId === r.status_id)?.label || '(facility)');
+        return `${facLabel} · ${r.is_closed ? 'Closed' : `${r.opens_at || ''}–${r.closes_at_dusk ? 'Dusk' : (r.closes_at || '')}`}${r.reason ? ' · ' + r.reason : ''}`;
       }}
-      defaultRow={{ status_id: facilityOptions[0]?.value || '', override_date: new Date().toISOString().slice(0, 10), is_closed: false, opens_at: null, closes_at: null, closes_at_dusk: false, members_only: false, reason: '' }}
+      defaultRow={{
+        status_id: '',
+        override_date: new Date().toISOString().slice(0, 10),
+        is_closed: true,  // most common reason to add an override is to close
+        opens_at: null, closes_at: null, closes_at_dusk: false,
+        members_only: false, reason: '',
+      }}
+      beforeSave={(form) => {
+        // Translate the UI empty-string sentinel back to NULL for the
+        // DB. Unique indexes (per migration 23) enforce one all-
+        // facilities row per date and one per facility per date.
+        if (form.status_id === '' || form.status_id == null) {
+          form.status_id = null;
+        }
+        return form;
+      }}
       fields={[
-        { key: 'status_id', label: 'Facility', type: 'select', options: facilityOptions.length ? facilityOptions : [{ value: '', label: '(no facilities)' }] },
+        { key: 'status_id', label: 'Facility', type: 'select', options: facilityOptions },
         { key: 'override_date', label: 'Date', type: 'date' },
         { key: 'is_closed', label: 'Closed all day', type: 'checkbox' },
         { key: 'opens_at', label: 'Opens At (if open)', type: 'time' },

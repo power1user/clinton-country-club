@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAuth } from './useAuth.jsx';
-import { clubLocalParts, DEFAULT_TIMEZONE } from '../lib/timezone.js';
+import { clubLocalParts, DEFAULT_TIMEZONE, todayInClubTz } from '../lib/timezone.js';
 
 // All content is database-driven. Hooks return empty defaults until rows
 // arrive from Supabase. Consuming screens must render a loading or empty
@@ -26,17 +26,33 @@ export function useClubStatus() {
 
     let cancelled = false;
     const load = async () => {
-      const { data: rows, error } = await supabase
-        .from('club_status')
-        .select(`
-          id, category, label, sort_order, state, hours_note, staff_note,
-          opens_at, closes_at,
-          hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed, members_only)
-        `)
-        .eq('club_id', club.id)
-        .order('sort_order', { ascending: true });
+      const [{ data: rows, error }, { data: overrides }] = await Promise.all([
+        supabase
+          .from('club_status')
+          .select(`
+            id, category, label, sort_order, state, hours_note, staff_note,
+            opens_at, closes_at,
+            hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed, members_only)
+          `)
+          .eq('club_id', club.id)
+          .order('sort_order', { ascending: true }),
+        // Today's date in CLUB local time — overrides are keyed by override_date
+        supabase
+          .from('schedule_overrides')
+          .select('status_id, opens_at, closes_at, closes_at_dusk, is_closed, members_only, reason')
+          .eq('club_id', club.id)
+          .eq('override_date', todayInClubTz(club.timezone)),
+      ]);
       if (cancelled) return;
       if (error) { setLoading(false); return; }
+
+      // Build override lookup. status_id NULL = "all facilities" override
+      // that takes precedence over per-facility weekly hours but loses to
+      // a more specific per-facility override on the same date.
+      const allFacOverride = (overrides || []).find(o => o.status_id == null);
+      const byStatus = new Map(
+        (overrides || []).filter(o => o.status_id).map(o => [o.status_id, o])
+      );
 
       setData(rows.map(r => {
         const byDay = {};
@@ -49,17 +65,21 @@ export function useClubStatus() {
             members_only: h.members_only,
           };
         }
+        const specific = byStatus.get(r.id);
+        const todayOverride = specific || allFacOverride || null;
         return {
           id: r.category,
           statusId: r.id,                          // needed for admin per-day writes
           label: r.label,
           st: r.state,
           note: r.staff_note || '',
-          // legacy single-row fallback (still used by some old screens)
           opens_at:  r.opens_at,
           closes_at: r.closes_at,
-          // per-day hours
           hoursByDay: byDay,
+          // Today's override (per-facility wins over all-facilities; null
+          // if none for today). pickToday() uses this in preference to
+          // hoursByDay when present.
+          todayOverride,
         };
       }));
       setLoading(false);
@@ -72,9 +92,13 @@ export function useClubStatus() {
         { event: '*', schema: 'public', table: 'club_status', filter: `club_id=eq.${club.id}` },
         () => load(),
       )
-      // also reload when daily hours change
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'club_status_hours' },
+        () => load(),
+      )
+      // Today's override changes (admin adds/removes a date closure)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'schedule_overrides', filter: `club_id=eq.${club.id}` },
         () => load(),
       )
       .subscribe();
@@ -565,8 +589,13 @@ export function effectiveState(pill, now = new Date(), duskTime = null, timezone
 }
 
 // Returns today's hours row for a pill, or null if no per-day schedule.
+// Precedence:
+//   1. pill.todayOverride (per-facility OR all-facilities override for today)
+//   2. pill.hoursByDay[dow] (weekly schedule)
+//   3. legacy single-row opens_at / closes_at
 // `today` is decided by the club's local day-of-week, not the browser's.
 export function pickToday(pill, now = new Date(), timezone = DEFAULT_TIMEZONE) {
+  if (pill?.todayOverride) return pill.todayOverride;
   const { dayOfWeek } = clubLocalParts(now, timezone);
   if (pill?.hoursByDay && pill.hoursByDay[dayOfWeek]) return pill.hoursByDay[dayOfWeek];
   // Fallback to legacy single-row hours

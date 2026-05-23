@@ -174,8 +174,16 @@ export default function StatusPill({ item, column = 0, colCount = 3, large = fal
           {hoursDisplay && (
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.5, margin: '0 0 6px' }}>{hoursDisplay}</p>
           )}
+          {/* Today's schedule override reason — surfaced front-and-center
+              when a manager has added an "all facilities" or per-facility
+              override for today (e.g. tournament, holiday). */}
+          {today && today === item.todayOverride && today.reason && (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11.5, color: G.brass, lineHeight: 1.55, margin: '0 0 4px' }}>
+              {today.reason}
+            </p>
+          )}
           {/* Helpful context when the closure is time-based */}
-          {effSt === 'closed' && isOutsideSchedule && !isManualClosure && (
+          {effSt === 'closed' && isOutsideSchedule && !isManualClosure && !item.todayOverride && (
             <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 4px' }}>
               Outside scheduled hours.
             </p>
