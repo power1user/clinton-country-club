@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { G, gCfg } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
-import { markThreadRead } from '../hooks/useInbox.js';
+import { markThreadRead, hideThread } from '../hooks/useInbox.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 
 const ORDER_STATUS_LABEL = {
@@ -21,6 +22,7 @@ const ORDER_STATUS_LABEL = {
 export default function Thread({ params }) {
   const threadId = params?.threadId;
   const { session, member, canMemberWrite } = useAuth();
+  const { pop } = useNav();
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [context, setContext] = useState(null);    // e.g. food_orders row
@@ -29,7 +31,10 @@ export default function Thread({ params }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);   // header kebab menu
+  const [confirmHide, setConfirmHide] = useState(false);
   const scrollRef = useRef(null);
+  const menuRef = useRef(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -104,7 +109,7 @@ export default function Thread({ params }) {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || !threadId || !session?.user?.id) return;
+    if (!body || !threadId || !session?.user?.id || sending) return;
     setSending(true); setErr(null);
     setDraft('');                          // optimistic clear
     const { error } = await supabase.from('messages').insert({
@@ -115,7 +120,14 @@ export default function Thread({ params }) {
     });
     setSending(false);
     if (error) {
-      setErr(error.message);
+      // Friendly error — Supabase errors can be cryptic ("new row violates
+      // row-level security policy") so surface a generic line and keep the
+      // raw message tucked behind it for debugging.
+      setErr(
+        error.message?.includes('row-level security')
+          ? "You don't have permission to reply here."
+          : (error.message || "Couldn't send. Tap to retry.")
+      );
       setDraft(body);                      // restore so user can retry
     }
   };
@@ -127,6 +139,31 @@ export default function Thread({ params }) {
     }
   };
 
+  // Close the kebab menu on outside tap / Esc
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown, { passive: true });
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  const handleHide = async () => {
+    if (!threadId || !session?.user?.id) return;
+    await hideThread(threadId, session.user.id);
+    setConfirmHide(false);
+    setMenuOpen(false);
+    pop();                                   // back to inbox
+  };
+
   // ── Header title (kind-specific)
   const headerTitle =
     !thread                  ? 'Thread' :
@@ -134,10 +171,71 @@ export default function Thread({ params }) {
     thread.kind === 'dm'     ? (otherMember?.members?.name || 'Direct message') :
                                (thread.subject || 'Clubhouse');
 
+  // ── Empty-state copy depends on the conversation kind so it doesn't
+  // feel canned. Order threads usually already have a system message,
+  // so this only really fires for DMs and fresh clubhouse threads.
+  const emptyStateCopy =
+    !thread                  ? '' :
+    thread.kind === 'dm'     ? `Say hi to ${otherMember?.members?.name || 'them'}.`
+                             : 'No messages yet. Send the first one.';
+
+  // ── Header right-action: kebab menu w/ Hide. Only show when we have
+  // a real loaded thread — no point letting users hide a 404.
+  const headerRight = thread ? (
+    <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
+      <div
+        onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
+        data-tap
+        aria-label="Conversation options"
+        style={{
+          width: 36, height: 36, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+          background: menuOpen ? 'rgba(255,255,255,0.10)' : 'transparent',
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#A8D8B8">
+          <circle cx="12" cy="5"  r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="12" cy="19" r="1.7" />
+        </svg>
+      </div>
+      {menuOpen && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            minWidth: 200,
+            background: '#F8F4EC',
+            borderRadius: 6,
+            boxShadow: '0 14px 36px rgba(0,0,0,0.32), 0 3px 8px rgba(0,0,0,0.16)',
+            border: `1px solid ${G.border}`,
+            padding: '4px 0',
+            zIndex: 100,
+          }}
+        >
+          <div
+            onClick={() => { setMenuOpen(false); setConfirmHide(true); }}
+            data-tap
+            role="menuitem"
+            style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+            </svg>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>Hide conversation</span>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-      <BackHeader title={headerTitle} />
+      <BackHeader title={headerTitle} right={headerRight} />
 
       {/* Context strip */}
       {!loading && thread && (
@@ -153,7 +251,7 @@ export default function Thread({ params }) {
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>Thread not found.</p>
         )}
         {!loading && thread && messages.length === 0 && (
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>No messages yet. Say something.</p>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>{emptyStateCopy}</p>
         )}
         {messages.map(m => (
           <MessageBubble key={m.id} message={m} ownUserId={session?.user?.id} />
@@ -162,23 +260,44 @@ export default function Thread({ params }) {
 
       {/* Compose */}
       {thread && !canMemberWrite && (
-        <div style={{ padding: '12px', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
+        <div style={{ padding: '10px 12px max(14px, calc(env(safe-area-inset-bottom) + 8px))', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
           <PendingGuard action="reply to messages" inline />
         </div>
       )}
       {thread && canMemberWrite && (
-        <div style={{ padding: '10px 12px 14px', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
-          {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, margin: '0 0 6px' }}>{err}</p>}
+        <div style={{ padding: '8px 10px max(12px, calc(env(safe-area-inset-bottom) + 6px))', borderTop: `1px solid ${G.border}`, background: G.bg, flexShrink: 0 }}>
+          {err && (
+            <div
+              onClick={() => setErr(null)}
+              data-tap
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 10px', marginBottom: 6,
+                background: 'rgba(224,84,84,0.10)',
+                border: `1px solid ${G.clsDot}`,
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, flex: 1, lineHeight: 1.4 }}>{err}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>Tap to dismiss</span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea
               value={draft}
               onChange={e => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Type a message…"
+              placeholder={sending ? 'Sending…' : 'Type a message…'}
               rows={1}
+              disabled={sending}
               style={{
                 flex: 1,
-                padding: '10px 12px',
+                padding: '9px 12px',
                 border: `1px solid ${G.border}`,
                 borderRadius: 18,
                 fontFamily: '"Lora",serif',
@@ -190,24 +309,72 @@ export default function Thread({ params }) {
                 maxHeight: 110,
                 lineHeight: 1.4,
                 boxSizing: 'border-box',
+                opacity: sending ? 0.6 : 1,
               }}
             />
             <div
               onClick={send}
               data-tap
               style={{
-                width: 40, height: 40,
+                width: 38, height: 38,
                 borderRadius: '50%',
                 background: draft.trim() && !sending ? G.green : G.border,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: draft.trim() && !sending ? 'pointer' : 'not-allowed',
                 flexShrink: 0,
+                transition: 'background 0.15s',
               }}
               aria-label="Send"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={draft.trim() && !sending ? '#F2EDE0' : G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={draft.trim() && !sending ? '#F2EDE0' : G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
               </svg>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm-hide modal */}
+      {confirmHide && (
+        <div
+          onClick={() => setConfirmHide(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 200, padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: G.bg,
+              borderRadius: 8,
+              maxWidth: 340, width: '100%',
+              padding: '18px 18px 14px',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.32)',
+              border: `1px solid ${G.border}`,
+            }}
+          >
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Hide this conversation?</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.55 }}>
+              It will disappear from your inbox. If someone sends a new message it'll come back.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <div
+                onClick={() => setConfirmHide(false)}
+                data-tap
+                style={{ padding: '8px 14px', cursor: 'pointer' }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>Cancel</span>
+              </div>
+              <div
+                onClick={handleHide}
+                data-tap
+                style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Hide</span>
+              </div>
             </div>
           </div>
         </div>

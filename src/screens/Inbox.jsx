@@ -19,6 +19,7 @@ export default function Inbox() {
   const { session, member } = useAuth();
   const { threads, notifications, loading } = useInbox();
   const [expanded, setExpanded] = useState({});      // notification id → bool
+  const [pendingHide, setPendingHide] = useState(null);  // thread item awaiting confirm
   const [pushState, setPushState] = useState(() => pushPermission());
   const [pushBusy, setPushBusy] = useState(false);
   const [pushErr, setPushErr] = useState(null);
@@ -137,10 +138,62 @@ export default function Inbox() {
             item={item}
             expanded={!!expanded[item.notificationId]}
             onTap={() => handleTap(item)}
-            onHide={item.type === 'thread' ? () => hideThread(item.threadId, session?.user?.id) : undefined}
+            onHide={item.type === 'thread' ? () => setPendingHide(item) : undefined}
           />
         ))}
       </div>
+
+      {/* Confirm-hide modal — same pattern as inside Thread so members
+          who came in via the row's x button get the same safety net. */}
+      {pendingHide && (
+        <div
+          onClick={() => setPendingHide(null)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 200, padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: G.bg,
+              borderRadius: 8,
+              maxWidth: 340, width: '100%',
+              padding: '18px 18px 14px',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.32)',
+              border: `1px solid ${G.border}`,
+            }}
+          >
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Hide this conversation?</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.55 }}>
+              {pendingHide.title ? <><em>{pendingHide.title}</em> — </> : null}
+              it will disappear from your inbox. If someone sends a new message it'll come back.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <div
+                onClick={() => setPendingHide(null)}
+                data-tap
+                style={{ padding: '8px 14px', cursor: 'pointer' }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>Cancel</span>
+              </div>
+              <div
+                onClick={async () => {
+                  const id = pendingHide.threadId;
+                  setPendingHide(null);
+                  await hideThread(id, session?.user?.id);
+                }}
+                data-tap
+                style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Hide</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
