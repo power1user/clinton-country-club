@@ -128,8 +128,34 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
   const [err, setErr] = useState(null);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  // Translate the common Postgres error codes Supabase surfaces into
+  // plain English. The default messages ("null value in column X
+  // violates not-null constraint") are unreadable to a club manager.
+  const friendlyError = (e) => {
+    const raw = e?.message || 'Save failed.';
+    if (e?.code === '23502' || /violates not-null constraint/i.test(raw)) {
+      const m = raw.match(/column "([^"]+)"/);
+      return m ? `Missing required value: ${m[1].replace(/_/g, ' ')}.` : 'A required field is empty.';
+    }
+    if (e?.code === '23505' || /duplicate key/i.test(raw)) return 'That entry already exists.';
+    if (e?.code === '42501' || /row-level security/i.test(raw)) return "You don't have permission to make this change.";
+    return raw;
+  };
+
   const save = async () => {
-    setBusy(true); setErr(null);
+    setErr(null);
+    // Client-side required-field check — saves a server round-trip and
+    // points at the actual empty field instead of a Postgres constraint
+    // message. A field is required if its definition says so OR if the
+    // option `required` is true.
+    const missing = fields
+      .filter(f => f.required && (form[f.key] == null || form[f.key] === ''))
+      .map(f => f.label);
+    if (missing.length) {
+      setErr(`Please fill in: ${missing.join(', ')}.`);
+      return;
+    }
+    setBusy(true);
     const payload = beforeSave ? beforeSave({ ...form }) : { ...form };
     payload.club_id = club.id;
     let error;
@@ -139,7 +165,7 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
       ({ error } = await supabase.from(table).update(payload).eq('id', row.id));
     }
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(friendlyError(error)); return; }
     onSaved?.();
     onClose();
   };
@@ -168,7 +194,18 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
           <FieldInput key={f.key} field={f} value={form[f.key]} onChange={v => set(f.key, v)} />
         ))}
 
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+        {/* Bigger, harder-to-miss error banner — the old single-line
+            grey-on-cream text was so subtle that schema errors looked
+            like the form just "froze." */}
+        {err && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 10, background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.45, flex: 1 }}>{err}</p>
+          </div>
+        )}
 
         {canEdit ? (
           <>
@@ -192,10 +229,12 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
 }
 
 function FieldInput({ field, value, onChange }) {
-  const { key, label, type = 'text', options, placeholder } = field;
+  const { key, label, type = 'text', options, placeholder, required } = field;
   const wrap = { marginBottom: 10 };
   const labelEl = (
-    <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>{label}</label>
+    <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+      {label}{required && <span style={{ color: G.clsDot, marginLeft: 4 }}>*</span>}
+    </label>
   );
   const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
 
@@ -237,10 +276,24 @@ function FieldInput({ field, value, onChange }) {
       </div>
     );
   }
+  // Text/url/date/etc. Keep empty string as empty string; only convert
+  // to null when the field is explicitly nullable (i.e. NOT required).
+  // Previously this always coerced '' → null, which crashed NOT NULL
+  // text columns (news.headline, news.body, menus.item_name) if the
+  // user typed-then-deleted before saving.
   return (
     <div style={wrap}>
       {labelEl}
-      <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value || null)} placeholder={placeholder} style={input} />
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={e => {
+          const v = e.target.value;
+          onChange(v === '' && !required ? null : v);
+        }}
+        placeholder={placeholder}
+        style={input}
+      />
     </div>
   );
 }

@@ -30,7 +30,7 @@ export function MenuCategoriesAdmin() {
       secondaryFn={r => `Sort ${r.sort_order ?? 0} · ${r.is_active === false ? 'Inactive' : 'Active'}`}
       defaultRow={{ name: '', sort_order: 0, is_active: true }}
       fields={[
-        { key: 'name', label: 'Category Name', type: 'text', placeholder: 'Lunch, Dinner, Bar…' },
+        { key: 'name', label: 'Category Name', type: 'text', placeholder: 'Lunch, Dinner, Bar…', required: true },
         { key: 'sort_order', label: 'Sort Order', type: 'number', placeholder: '0' },
         { key: 'is_active', label: 'Active (visible in menus)', type: 'checkbox' },
       ]}
@@ -52,7 +52,7 @@ export function ProShopItemsAdmin() {
       secondaryFn={r => [r.category, r.price != null ? `$${Number(r.price).toFixed(2)}` : null, r.in_stock === false ? 'Out of stock' : null].filter(Boolean).join(' · ')}
       defaultRow={{ name: '', description: '', category: '', price: null, image_url: '', in_stock: true, sort_order: 0 }}
       fields={[
-        { key: 'name', label: 'Item Name', type: 'text' },
+        { key: 'name', label: 'Item Name', type: 'text', required: true },
         { key: 'description', label: 'Description', type: 'textarea' },
         { key: 'category', label: 'Category', type: 'text', placeholder: 'Apparel, Equipment, etc.' },
         { key: 'price', label: 'Price (USD)', type: 'number', placeholder: '129.00' },
@@ -81,7 +81,7 @@ export function LessonProsAdmin() {
       secondaryFn={r => [r.title, r.rate, r.active === false ? 'Inactive' : null].filter(Boolean).join(' · ')}
       defaultRow={{ name: '', title: '', photo_url: '', bio: '', rate: '', sort_order: 0, active: true }}
       fields={[
-        { key: 'name',       label: 'Name',           type: 'text',     placeholder: 'James Thornton, PGA' },
+        { key: 'name',       label: 'Name',           type: 'text',     placeholder: 'James Thornton, PGA', required: true },
         { key: 'title',      label: 'Title',          type: 'text',     placeholder: 'Head Professional' },
         { key: 'rate',       label: 'Rate (display)', type: 'text',     placeholder: '$125 / 45 min' },
         { key: 'photo_url',  label: 'Photo URL',      type: 'url',      placeholder: 'https://…' },
@@ -107,7 +107,7 @@ export function HoleSponsorsAdmin() {
       secondaryFn={r => `Hole ${r.hole_number} · ${r.active === false ? 'Inactive' : 'Active'}`}
       defaultRow={{ hole_number: 1, sponsor_name: '', logo_url: '', link_url: '', active: true, sort_order: 0 }}
       fields={[
-        { key: 'sponsor_name', label: 'Sponsor Name', type: 'text' },
+        { key: 'sponsor_name', label: 'Sponsor Name', type: 'text', required: true },
         { key: 'hole_number', label: 'Hole #', type: 'number', placeholder: '1' },
         { key: 'logo_url', label: 'Logo URL', type: 'url' },
         { key: 'link_url', label: 'Link URL', type: 'url' },
@@ -132,10 +132,10 @@ export function SponsorBannersAdmin() {
       secondaryFn={r => `${r.location} · ${r.active === false ? 'Inactive' : 'Active'}`}
       defaultRow={{ sponsor_name: '', image_url: '', link_url: '', location: 'home', active_from: null, active_to: null, active: true, sort_order: 0 }}
       fields={[
-        { key: 'sponsor_name', label: 'Sponsor Name', type: 'text' },
+        { key: 'sponsor_name', label: 'Sponsor Name', type: 'text', required: true },
         { key: 'image_url', label: 'Banner Image URL', type: 'url' },
         { key: 'link_url', label: 'Click-through URL', type: 'url' },
-        { key: 'location', label: 'Location', type: 'select', options: ['home', 'news', 'menu', 'events', 'bulletin'] },
+        { key: 'location', label: 'Location', type: 'select', options: ['home', 'news', 'menu', 'events', 'bulletin'], required: true },
         { key: 'active_from', label: 'Active From', type: 'datetime-local' },
         { key: 'active_to', label: 'Active To', type: 'datetime-local' },
         { key: 'active', label: 'Active', type: 'checkbox' },
@@ -963,9 +963,9 @@ export function NewsAdminFull() {
       secondaryFn={r => `${r.category || 'General'} · ${r.date_label || (r.published_at ? new Date(r.published_at).toLocaleDateString() : '')}`}
       defaultRow={{ category: 'Events', headline: '', body: '', date_label: 'Today', published_at: new Date().toISOString() }}
       fields={[
-        { key: 'category',   label: 'Category', type: 'select', options: ['Events', 'Course', 'Dining', 'Club', 'General'] },
-        { key: 'headline',   label: 'Headline', type: 'text' },
-        { key: 'body',       label: 'Body',     type: 'textarea' },
+        { key: 'category',   label: 'Category', type: 'select', options: ['Events', 'Course', 'Dining', 'Club', 'General'], required: true },
+        { key: 'headline',   label: 'Headline', type: 'text', required: true },
+        { key: 'body',       label: 'Body',     type: 'textarea', required: true },
         { key: 'date_label', label: 'Date label (what members see)', type: 'text', placeholder: 'Today, May 14, etc.' },
       ]}
     />
@@ -1037,9 +1037,17 @@ export function MenuItemsAdmin() {
         return [cat?.name || r.category, r.price, r.is_special && 'Special', r.available_today === false && 'Hidden'].filter(Boolean).join(' · ');
       }}
       defaultRow={{ category_id: catOptions[0]?.value || null, item_name: '', description: '', price: '', tag: '', is_special: false, available_today: true, sort_order: 0 }}
+      // menus.category (text, NOT NULL) is a legacy column from before
+      // we added menu_categories. The DB still requires it, so mirror
+      // the category NAME from the selected category_id at save time.
+      // Without this every Add Menu Item hit a 23502 silently.
+      beforeSave={(form) => {
+        const cat = cats.find(c => c.id === form.category_id);
+        return { ...form, category: cat?.name || form.category || 'uncategorized' };
+      }}
       fields={[
-        { key: 'category_id',     label: 'Category', type: 'select', options: catOptions },
-        { key: 'item_name',       label: 'Item Name', type: 'text' },
+        { key: 'category_id',     label: 'Category', type: 'select', options: catOptions, required: true },
+        { key: 'item_name',       label: 'Item Name', type: 'text', required: true },
         { key: 'description',     label: 'Description', type: 'textarea' },
         { key: 'price',           label: 'Price (display string)', type: 'text', placeholder: '$12 or "Market"' },
         { key: 'tag',             label: 'Tag (optional)', type: 'text', placeholder: 'Chef Special, Gluten Free…' },
@@ -1078,7 +1086,7 @@ export function EventsAdmin() {
         return form;
       }}
       fields={[
-        { key: 'title',       label: 'Title', type: 'text' },
+        { key: 'title',       label: 'Title', type: 'text', required: true },
         { key: 'category',    label: 'Category', type: 'select', options: ['Golf', 'Social', 'Dining'] },
         { key: 'event_date',  label: 'Date', type: 'date' },
         { key: 'event_time',  label: 'Time (display string)', type: 'text', placeholder: '7:30am shotgun · 6:00pm – 9:00pm' },
