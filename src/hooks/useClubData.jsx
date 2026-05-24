@@ -380,9 +380,12 @@ export function useBulletinPosts() {
     if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
     (async () => {
+      // Pull author name + tier + member_since so cards can attribute
+      // posts richly. user_id is included so the reply/DM affordances
+      // (added v0.5.x) can call get_or_create_dm against the right user.
       const { data: rows } = await supabase
         .from('bulletin_posts')
-        .select('id, category, title, body, hidden, created_at, member_id, members(name)')
+        .select('id, category, title, body, hidden, created_at, member_id, members(name, tier, member_since, user_id)')
         .eq('club_id', club.id)
         .eq('hidden', false)
         .order('created_at', { ascending: false });
@@ -391,7 +394,14 @@ export function useBulletinPosts() {
         setData(rows.map(r => ({
           id: r.id,
           cat: r.category,
-          author: r.members?.name || 'Member',
+          // "Anonymous" rather than "Member" for orphan posts — makes
+          // it obvious this is a deleted/missing author, not a real
+          // person named Member.
+          author: r.members?.name || 'Anonymous',
+          authorTier: r.members?.tier || null,
+          authorSince: r.members?.member_since || null,
+          authorUserId: r.members?.user_id || null,
+          memberId: r.member_id,
           date: relativeDate(r.created_at),
           title: r.title,
           body: r.body,
@@ -420,15 +430,20 @@ export function usePartnerPosts() {
     (async () => {
       const { data: rows } = await supabase
         .from('partner_posts')
-        .select('id, category, title, body, hcp, is_open, created_at, member_id, members(name)')
+        .select('id, category, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id)')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
       if (cancelled) return;
       if (rows) {
         setData(rows.map(r => ({
           id: r.id,
-          author: r.members?.name || 'Member',
+          author: r.members?.name || 'Anonymous',
+          authorTier: r.members?.tier || null,
+          authorSince: r.members?.member_since || null,
+          authorUserId: r.members?.user_id || null,
+          memberId: r.member_id,
           hcp: r.hcp,
+          dateWanted: r.date_wanted,
           date: relativeDate(r.created_at),
           title: r.title,
           body: r.body,

@@ -112,14 +112,33 @@ export default function BulletinBoard() {
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {filtered.map(post => (
           <div key={post.id} style={{ marginBottom: 10, padding: '14px 14px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+            {/* Top row: category chip + posted-on date */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, color: tagColors[post.cat] || G.muted, textTransform: 'uppercase', letterSpacing: '0.08em', background: 'rgba(155,122,30,0.09)', padding: '2px 8px', borderRadius: 2 }}>{post.cat}</span>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{post.date}</span>
             </div>
+            {/* Author row — visible up front so members know who's
+                posting before they read the body. Tier and "since"
+                shown when known; the orphan-post fallback is
+                "Anonymous" so it's obvious when a member is missing. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', fontWeight: 700 }}>
+                  {(post.author || '?').trim().charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.author}</p>
+                {(post.authorTier || post.authorSince) && (
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>
+                    {[post.authorTier, post.authorSince && `Member since ${post.authorSince}`].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+            </div>
             <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '0 0 5px', lineHeight: 1.25 }}>{post.title}</h3>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: '0 0 10px' }}>{post.body}</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, fontWeight: 500 }}>{post.author}</span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{ padding: '5px 14px', border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 500, color: G.text }}>Reply</span>
               </div>

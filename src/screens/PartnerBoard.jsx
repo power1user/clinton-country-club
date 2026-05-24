@@ -31,23 +31,43 @@ export default function PartnerBoard() {
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 80px' }}>
         {filtered.map(p => (
           <div key={p.id} style={{ marginBottom: 12, padding: '14px 16px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, color: G.brass, textTransform: 'uppercase', letterSpacing: '0.08em', background: 'rgba(155,122,30,0.1)', padding: '2px 8px', borderRadius: 2 }}>{p.cat}</span>
                 {!p.open && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.1)', padding: '2px 8px', borderRadius: 2 }}>Filled</span>}
               </div>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{p.date}</span>
             </div>
+            {/* Author row: prominent name + tier/since + handicap so a
+                member browsing knows who's asking before reading the
+                pitch. Hcp from the post snapshot rather than current
+                members.hcp (which can change after posting). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#A8D8B8', fontWeight: 700 }}>
+                  {(p.author || '?').trim().charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.author}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>
+                  {[
+                    p.authorTier,
+                    p.authorSince && `Member since ${p.authorSince}`,
+                    p.hcp != null && `Hcp ${p.hcp}`,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            </div>
             <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px', lineHeight: 1.25 }}>{p.title}</h3>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: '0 0 10px' }}>{p.body}</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, fontWeight: 500 }}>{p.author} <span style={{ color: G.muted, fontWeight: 400 }}>· Hcp {p.hcp}</span></span>
-              {p.open && (
+            {p.open && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <div onClick={() => setContact(p)} data-tap style={{ padding: '5px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
                   <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 500 }}>Contact</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

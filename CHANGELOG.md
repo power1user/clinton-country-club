@@ -23,6 +23,15 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.9** — Author attribution surfaced on Bulletin + Partner
+  board cards. Audit confirmed the queries were already joining
+  `members(name)` and rendering it — the issue was visibility (small
+  text at the bottom). Expanded the join to also pull `tier` and
+  `member_since`, then added a prominent author row with a circle
+  initial + name + "Tier · Member since YYYY" subline near the top
+  of each card. Partner cards also keep the post-snapshot Hcp on
+  that subline. Fallback for orphan posts is now "Anonymous" instead
+  of the misleading "Member" so a missing author is visually obvious.
 - **v0.4.8** — Fix Thread expanding past viewport on iPhone after
   typing. Root cause was iOS Safari auto-zooming any focused input
   with font-size < 16px — the textarea was 14px. Bumped to 16. Added
