@@ -23,6 +23,24 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.10** — Partner Board overhaul: wired Contact button + card
+  redesign + DM-disabled fallback. The Contact button used to be a
+  dead end (opened a sheet that just closed itself). Now it routes
+  intelligently:
+  · If DMs are enabled at the club AND the post has a known author
+    user_id → calls `get_or_create_dm` and drops the member into
+    the DM thread.
+  · Otherwise (DMs off or orphan/anonymous post) → creates a
+    clubhouse thread with subject "Golf Partner Inquiry: <title>"
+    so front office can route. The button label changes to "Contact
+    via clubhouse" so the path is obvious before tapping.
+  · Suppressed on the member's own posts (replaced with a small
+    "Your post" label).
+  Card redesign surfaces all the at-a-glance info in chips: game
+  type, the date the member wants to play (`date_wanted` is now in
+  the NewPartnerSheet form + displayed as an emerald chip), filled
+  status, posted-on. Errors during contact open a dismissible
+  banner under the category nav.
 - **v0.4.9** — Author attribution surfaced on Bulletin + Partner
   board cards. Audit confirmed the queries were already joining
   `members(name)` and rendering it — the issue was visibility (small
