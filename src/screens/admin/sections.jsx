@@ -1611,8 +1611,15 @@ export function AllClubsAdmin() {
 
 function CreateClubModal({ onClose, onCreated }) {
   const [form, setForm] = useState({ name: '', slug: '', address: '', city: '', state: '', founded: '', par: '', yardage: '', holes: '18', lat: '', lng: '', timezone: 'America/Chicago' });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);          // overall busy
+  const [stage, setStage] = useState(null);         // 'db' | 'dns' | 'done'
   const [err, setErr] = useState(null);
+  // DNS-stage result is tracked separately because we don't want a DNS
+  // failure to block the user from proceeding — the DB row is created
+  // and they can manually add the Custom Domain in Cloudflare if the
+  // automated path failed.
+  const [dnsResult, setDnsResult] = useState(null); // { ok, hostname?, error?, alreadyExisted? }
+  const [createdClub, setCreatedClub] = useState(null);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const autoSlugFromName = (name) => {
@@ -1620,11 +1627,29 @@ function CreateClubModal({ onClose, onCreated }) {
     set('slug', s);
   };
 
+  // Two-stage create:
+  //   1. INSERT the clubs row (cannot proceed without this)
+  //   2. Call provision-club-domain Edge Function to add the subdomain
+  //      as a Custom Domain on the the-grounds Pages project. Cloudflare
+  //      auto-creates the DNS Worker route + TLS cert.
+  // Stage 2 failure is non-fatal — manager sees an error + the manual
+  // instructions in the result block.
+  const provisionDomain = async (slug) => {
+    setStage('dns');
+    try {
+      const { data, error } = await supabase.functions.invoke('provision-club-domain', { body: { slug } });
+      if (error) return { ok: false, error: error.message || 'Edge function error' };
+      return data;
+    } catch (e) {
+      return { ok: false, error: e.message || 'Network error invoking Edge Function' };
+    }
+  };
+
   const create = async () => {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setStage('db'); setDnsResult(null);
     const slug = form.slug.trim().toLowerCase();
     if (!/^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$/.test(slug)) {
-      setBusy(false);
+      setBusy(false); setStage(null);
       setErr('Slug must be 2–30 chars, lowercase letters/digits/hyphens, and start+end alphanumeric.');
       return;
     }
@@ -1642,9 +1667,28 @@ function CreateClubModal({ onClose, onCreated }) {
       lng: form.lng ? Number(form.lng) : null,
       timezone: form.timezone || 'America/Chicago',
     }).select().single();
+    if (error) {
+      setBusy(false); setStage(null);
+      setErr(error.message);
+      return;
+    }
+    setCreatedClub(data);
+
+    // Stage 2 — try to provision the DNS / Custom Domain.
+    const result = await provisionDomain(slug);
+    setDnsResult(result);
+    setStage('done');
     setBusy(false);
-    if (error) { setErr(error.message); return; }
-    onCreated?.(data);
+    // If DNS succeeded outright, auto-proceed; otherwise let the manager
+    // read the result and click Continue manually.
+    if (result?.ok) {
+      // brief pause so the success state is visible
+      setTimeout(() => onCreated?.(data), 700);
+    }
+  };
+
+  const continueAnyway = () => {
+    if (createdClub) onCreated?.(createdClub);
   };
 
   const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
@@ -1724,9 +1768,64 @@ function CreateClubModal({ onClose, onCreated }) {
 
         {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
-        <div onClick={create} data-tap style={{ padding: 12, background: form.name && form.slug && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: form.name && form.slug && !busy ? 'pointer' : 'not-allowed' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: form.name && form.slug && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Creating…' : 'Create Club'}</span>
-        </div>
+        {/* Two-stage status display. While creating, show the current
+            stage. When done, show the DNS result so the manager knows
+            whether the subdomain is live or needs manual setup. */}
+        {stage && stage !== 'done' && (
+          <div style={{ padding: '10px 12px', marginBottom: 10, background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.5 }}>
+              {stage === 'db'  && 'Creating club row…'}
+              {stage === 'dns' && 'Provisioning subdomain on Cloudflare…'}
+            </p>
+          </div>
+        )}
+
+        {stage === 'done' && dnsResult?.ok && (
+          <div style={{ padding: '12px 14px', marginBottom: 10, background: 'rgba(82,193,120,0.10)', border: `1px solid ${G.openDot}`, borderRadius: 4 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>
+              ✓ Live{dnsResult.alreadyExisted ? ' — already configured' : ''}
+            </p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.5, wordBreak: 'break-all' }}>
+              https://{dnsResult.hostname}
+              {!dnsResult.alreadyExisted && (
+                <> — TLS cert provisions in 1–5 min, then it's reachable.</>
+              )}
+            </p>
+          </div>
+        )}
+
+        {stage === 'done' && dnsResult && !dnsResult.ok && (
+          <div style={{ padding: '12px 14px', marginBottom: 10, background: 'rgba(232,184,64,0.12)', border: `1px solid ${G.brass}`, borderRadius: 4 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>
+              Club created — subdomain needs manual setup
+            </p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px', lineHeight: 1.55 }}>
+              The DB row is in. Cloudflare's automated path failed:
+            </p>
+            <p style={{ fontFamily: 'monospace', fontSize: 10.5, color: G.clsDot, margin: '0 0 8px', wordBreak: 'break-word', lineHeight: 1.4 }}>
+              {dnsResult.error}
+            </p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+              Manual fix: Cloudflare → Workers &amp; Pages → the-grounds → Domains → Add Domain →
+              <code style={{ fontFamily: 'monospace', background: G.card, padding: '1px 4px', borderRadius: 2, margin: '0 2px' }}>{form.slug}.groundslive.com</code>
+            </p>
+          </div>
+        )}
+
+        {stage === 'done' && dnsResult && !dnsResult.ok ? (
+          <div onClick={continueAnyway} data-tap style={{ padding: 12, background: G.green, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>Continue to Club Settings</span>
+          </div>
+        ) : (
+          <div onClick={busy || stage === 'done' ? undefined : create} data-tap style={{ padding: 12, background: form.name && form.slug && !busy && stage !== 'done' ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: form.name && form.slug && !busy && stage !== 'done' ? 'pointer' : 'not-allowed' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: form.name && form.slug && !busy && stage !== 'done' ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+              {stage === 'db'  ? 'Creating…' :
+               stage === 'dns' ? 'Provisioning…' :
+               stage === 'done' ? 'Done' :
+               'Create Club'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

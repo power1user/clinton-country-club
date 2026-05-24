@@ -23,6 +23,20 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.4** — Cloudflare DNS automation on new-club onboarding. Super
+  admin → Platform → All Clubs → Onboard New Club now does two stages:
+  (1) INSERT the clubs row, (2) call new `provision-club-domain` Edge
+  Function which POSTs to Cloudflare's Pages Custom Domains API. CF
+  auto-creates the DNS Worker route + provisions the TLS cert. Modal
+  surfaces success ("Live at https://slug.groundslive.com") or
+  failure (with the manual fallback steps). Stage 2 is non-fatal —
+  manager can continue and add the Custom Domain in the dashboard if
+  the automated path errored. Idempotent: re-running on an existing
+  hostname returns success ("already configured").
+  Requires three Supabase Edge Function secrets:
+  `CLOUDFLARE_API_TOKEN` (Account.Cloudflare Pages.Edit scope),
+  `CLOUDFLARE_ACCOUNT_ID`, optional `CLOUDFLARE_PAGES_PROJECT` +
+  `CLOUDFLARE_ROOT_DOMAIN` (defaults: "the-grounds", "groundslive.com").
 - **v0.4.3** — Message deletion works for every inbox type. Notifications
   (broadcasts) get the same dismiss-from-my-view affordance threads
   already had — X button on the row, confirmation modal, view-only
