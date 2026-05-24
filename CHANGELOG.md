@@ -15,6 +15,21 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.3** — Reply pattern audit, no code changes. Confirmed every
+  public member-generated content surface has the two-option pattern
+  wired:
+    · Bulletin Board — Replies + DM button (v0.5.0)
+    · Partner Board — Replies (v0.5.1) + Contact-or-clubhouse fallback (v0.4.10)
+    · Event Detail — Replies, default-open (v0.5.1)
+  Documented exemptions:
+    · Pro Shop inquiries — private by design (member↔staff via clubhouse)
+    · Food orders — private; each has its own kind='order' thread
+    · News + notification broadcasts — staff-generated, out of
+      member-generated scope; could be added later in ~5 min (add
+      values to post_replies.post_table CHECK constraint + drop the
+      <Replies> component into the renderer)
+  Member Directory is a profile surface, not a post surface, so
+  the DM button per row covers the use case.
 - **v0.5.2** — Brightened text/icons on dark green backgrounds for
   legibility. The two main offenders: `#446854` (BottomNav inactive
   labels + icons, ~2:1 contrast against the `#152E24` nav bar) and
