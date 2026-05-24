@@ -281,7 +281,13 @@ export default function Thread({ params }) {
   ) : null;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    // overflow: hidden on BOTH axes — iOS Safari sometimes nudges the
+    // layout wider than the viewport when the on-screen keyboard
+    // shows, and `overflow-y: auto` alone won't clip horizontally.
+    // min-width: 0 lets this flex child shrink below its content's
+    // intrinsic width (otherwise a long unbroken word in a message
+    // bubble could push the column out).
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title={headerTitle} right={headerRight} />
 
@@ -290,8 +296,9 @@ export default function Thread({ params }) {
         <ContextStrip thread={thread} context={context} otherMember={otherMember} />
       )}
 
-      {/* Messages */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 18px 8px', background: G.bg }}>
+      {/* Messages — explicit overflowX hidden so a stray long message
+          can't make the whole panel horizontally scrollable */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 18px 8px', background: G.bg, minWidth: 0 }}>
         {loading && (
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, textAlign: 'center', padding: '40px 0' }}>Loading…</p>
         )}
@@ -335,7 +342,7 @@ export default function Thread({ params }) {
               <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>Tap to dismiss</span>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', minWidth: 0 }}>
             <textarea
               value={draft}
               onChange={e => setDraft(e.target.value)}
@@ -345,11 +352,18 @@ export default function Thread({ params }) {
               disabled={sending}
               style={{
                 flex: 1,
+                // iOS Safari auto-zooms any input with font-size < 16px
+                // on focus, and that zoom is what made the thread look
+                // wider than the viewport "after typing." Keeping the
+                // member-facing typeface at 16px prevents the zoom
+                // without affecting normal pinch-zoom for the rest of
+                // the app.
+                fontSize: 16,
+                minWidth: 0,            // allow flex shrink past intrinsic width
                 padding: '9px 12px',
                 border: `1px solid ${G.border}`,
                 borderRadius: 18,
                 fontFamily: '"Lora",serif',
-                fontSize: 14,
                 color: G.text,
                 background: '#F8F4EC',
                 outline: 'none',

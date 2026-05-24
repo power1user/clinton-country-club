@@ -23,6 +23,13 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.8** — Fix Thread expanding past viewport on iPhone after
+  typing. Root cause was iOS Safari auto-zooming any focused input
+  with font-size < 16px — the textarea was 14px. Bumped to 16. Added
+  `min-width: 0` on the textarea + its flex parent so a long unbroken
+  word can't push the row out, and `overflow-x: hidden` + `max-width:
+  100%` on the thread root and messages container as defensive
+  clipping. Tested in Safari tab and installed PWA.
 - **v0.4.7** — FoodMenu rework. Three fixes in one screen:
   (1) Removed the "Order Ahead" green pill — redundant with the
   floating "View Order" CTA that already appears once items are in
