@@ -276,6 +276,44 @@ function FieldInput({ field, value, onChange }) {
       </div>
     );
   }
+  // Money — strictly numeric prices. Renders an inline $ glyph in the
+  // input gutter, blurs to a 2-decimal display, stores as a Number so
+  // sorts and totals work. For free-form prices that need to support
+  // "Market" or "Half $15 / Full $25", use type='text' instead.
+  if (type === 'money') {
+    const display = value == null || value === ''
+      ? ''
+      : (typeof value === 'number' ? value.toFixed(2) : String(value));
+    return (
+      <div style={wrap}>
+        {labelEl}
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, pointerEvents: 'none' }}>$</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            value={display}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') return onChange(null);
+              const n = Number(raw);
+              if (Number.isFinite(n)) onChange(n);
+            }}
+            onBlur={(e) => {
+              const raw = e.target.value;
+              if (raw === '') return;
+              const n = Number(raw);
+              if (Number.isFinite(n)) onChange(Number(n.toFixed(2)));
+            }}
+            placeholder={placeholder || '0.00'}
+            style={{ ...input, paddingLeft: 24 }}
+          />
+        </div>
+      </div>
+    );
+  }
   // Text/url/date/etc. Keep empty string as empty string; only convert
   // to null when the field is explicitly nullable (i.e. NOT required).
   // Previously this always coerced '' → null, which crashed NOT NULL

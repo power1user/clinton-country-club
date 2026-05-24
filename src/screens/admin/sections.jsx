@@ -55,7 +55,7 @@ export function ProShopItemsAdmin() {
         { key: 'name', label: 'Item Name', type: 'text', required: true },
         { key: 'description', label: 'Description', type: 'textarea' },
         { key: 'category', label: 'Category', type: 'text', placeholder: 'Apparel, Equipment, etc.' },
-        { key: 'price', label: 'Price (USD)', type: 'number', placeholder: '129.00' },
+        { key: 'price', label: 'Price', type: 'money', placeholder: '129.00' },
         { key: 'image_url', label: 'Image URL', type: 'url', placeholder: 'https://…' },
         { key: 'in_stock', label: 'In stock', type: 'checkbox' },
         { key: 'sort_order', label: 'Sort Order', type: 'number' },

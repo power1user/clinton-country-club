@@ -23,6 +23,16 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.6** — UI polish: money fields show `$` + 2 decimals.
+  CrudSection gains a `money` field type that renders an inline `$`
+  glyph in the input gutter, blurs to a 2-decimal display, and stores
+  as Number so sorts and totals stay sane. Applied to
+  pro_shop_items.price (was a bare number input). Menu items and
+  event prices remain text because they support free-form values
+  like "Market" or "$125 / $150 guest"; both already had clear `$…`
+  placeholders. Also audited every date input in the app — all of
+  them already use native HTML date pickers (type="date" or
+  "datetime-local"), no fix needed.
 - **v0.4.5** — Fix Cloudflare Pages deploy that started failing under
   the new unified Workers+Static-Assets backend. Their wrangler
   rejects the canonical SPA pattern `/* /index.html 200` in
