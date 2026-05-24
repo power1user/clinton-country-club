@@ -1,0 +1,19 @@
+# Cloudflare Pages / Workers Static Assets config.
+#
+# Cloudflare migrated Pages projects to the unified Workers + Static
+# Assets backend; the old `_redirects` SPA pattern (/* /index.html 200)
+# now trips an "infinite loop" validator at deploy time. The modern
+# replacement is `not_found_handling = "single-page-application"` here,
+# which tells the runtime: when a request doesn't match a built static
+# file, serve /index.html with a 200 so the in-house client router can
+# take over. Same end result; clean validation.
+#
+# We intentionally DON'T set a top-level `name` -- Cloudflare Pages
+# auto-uses the project name. Setting it here would conflict with the
+# dashboard-configured project.
+
+compatibility_date = "2024-10-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

@@ -23,6 +23,13 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.5** — Fix Cloudflare Pages deploy that started failing under
+  the new unified Workers+Static-Assets backend. Their wrangler
+  rejects the canonical SPA pattern `/* /index.html 200` in
+  `_redirects` with a false-positive "infinite loop" validation
+  (error code 100324). Switched to `wrangler.toml` with
+  `not_found_handling = "single-page-application"`, deleted
+  `public/_redirects`. Same end behavior; passes validation.
 - **v0.4.4** — Cloudflare DNS automation on new-club onboarding. Super
   admin → Platform → All Clubs → Onboard New Club now does two stages:
   (1) INSERT the clubs row, (2) call new `provision-club-domain` Edge
