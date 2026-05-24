@@ -23,6 +23,21 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.7** — FoodMenu rework. Three fixes in one screen:
+  (1) Removed the "Order Ahead" green pill — redundant with the
+  floating "View Order" CTA that already appears once items are in
+  the cart.
+  (2) Removed the hardcoded "Kitchen / Pub / Order to course" info
+  strip — duplicated live status pills on Home and used facility
+  names that didn't match the actual club_status labels (which are
+  per-club: Clinton uses "Restaurant" / "Bar"). Each club's real
+  facility names + status are still authoritative on Home.
+  (3) Replaced the horizontal-scrolling category tabs with a sticky
+  chip nav that anchor-jumps to vertical sections. All categories
+  render in one continuous list. Fixes the conflict with the new
+  swipe-between-tabs gesture (B4). Specials get a brass-accent
+  section header at the top; the active section's chip highlights
+  as the member scrolls.
 - **v0.4.6** — UI polish: money fields show `$` + 2 decimals.
   CrudSection gains a `money` field type that renders an inline `$`
   glyph in the input gutter, blurs to a 2-decimal display, and stores
