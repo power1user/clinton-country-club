@@ -13,26 +13,26 @@ export default function GolfHub() {
   const pace = paceRow?.time_label || '—';
 
   const features = [
-    { id: 'pin',      title: 'Pin Placement', sub: `Daily maps · ${brand.holes} holes`, icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.4"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg> },
-    { id: 'map',      title: 'Course Map',    sub: `Satellite · ${brand.holes} holes`,   icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.4"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg> },
-    { id: 'tee',      title: 'Book Tee Time', sub: 'Up to 7 days ahead',     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.4"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-    { id: 'partners', title: 'Golf Partners', sub: 'Find foursomes',         icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.4"><circle cx="9" cy="7" r="4"/><circle cx="17" cy="7" r="4"/><path d="M1 20c0-3 3.6-5.5 8-5.5s8 2.5 8 5.5"/></svg> },
+    { id: 'pin',      title: 'Pin Placement', sub: `Daily maps · ${brand.holes} holes`, icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.4"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg> },
+    { id: 'map',      title: 'Course Map',    sub: `Satellite · ${brand.holes} holes`,   icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.4"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg> },
+    { id: 'tee',      title: 'Book Tee Time', sub: 'Up to 7 days ahead',     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.4"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { id: 'partners', title: 'Golf Partners', sub: 'Find foursomes',         icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.4"><circle cx="9" cy="7" r="4"/><circle cx="17" cy="7" r="4"/><path d="M1 20c0-3 3.6-5.5 8-5.5s8 2.5 8 5.5"/></svg> },
   ];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
+        <span style={{ color: '#A8D8B8', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
       </div>
       <div style={{ background: G.green, padding: '4px 20px 14px', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Golf</h1>
           </div>
           <BellChip />
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>{formatLongDate(now)}</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#A8D8B8', margin: '6px 0 0' }}>{formatLongDate(now)}</p>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -55,7 +55,7 @@ export default function GolfHub() {
                 <div style={{ width: 40, height: 40, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{f.icon}</div>
                 <div>
                   <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: '#F2EDE0', margin: '0 0 2px' }}>{f.title}</p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#7AAC88', margin: 0 }}>{f.sub}</p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0 }}>{f.sub}</p>
                 </div>
               </div>
             ))}

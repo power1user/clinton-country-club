@@ -15,6 +15,18 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.2** — Brightened text/icons on dark green backgrounds for
+  legibility. The two main offenders: `#446854` (BottomNav inactive
+  labels + icons, ~2:1 contrast against the `#152E24` nav bar) and
+  `#7AAC88` (used everywhere as the sub-head/tagline color on the
+  `#1B3A2D` brand strip). Both swept to `#A8D8B8` — the existing
+  bright sage already in the palette as `G.openTxt` — which gives
+  WCAG-AA-ish contrast and still feels on-brand. Touched 14 files
+  (App.jsx, BellChip, BottomNav, NavIcon, Headers, BulletinBoard,
+  CourseMap, EventDetail, Events, FoodMenu, GolfHub, Home,
+  LessonRequest, Login, MemberCard, MyClub, PartnerBoard, TermsGate).
+  Also documented the major/minor/patch convention explicitly in
+  version.js per user preference (two-digit segments OK).
 - **v0.5.1** — Reply thread extended to Partner Board cards and
   Event Detail. Same `<Replies>` component, no new code path —
   proves the polymorphic design works. Partner posts get the thread

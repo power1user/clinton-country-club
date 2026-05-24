@@ -63,7 +63,7 @@ export default function EventDetail({ params }) {
         <div style={{ background: G.green, padding: '20px 20px 24px' }}>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
             <div style={{ width: 56, height: 60, background: G.greenMid, borderRadius: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 8, color: '#7AAC88', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{ev.dow}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 8, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{ev.dow}</span>
               <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 26, fontWeight: 700, color: '#F2EDE0', lineHeight: 1 }}>{ev.day}</span>
             </div>
             <div>
@@ -74,7 +74,7 @@ export default function EventDetail({ params }) {
           <div style={{ display: 'flex', gap: 20, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             {[['Time', ev.time], ['Date', ev.date], ['Fee', ev.price]].map(([k, v]) => (
               <div key={k}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{k}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{k}</p>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', margin: 0, fontWeight: 500 }}>{v}</p>
               </div>
             ))}

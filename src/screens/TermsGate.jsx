@@ -50,11 +50,11 @@ export default function TermsGate() {
           a totally foreign screen, but no clickable nav. */}
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <div style={{ background: G.green, padding: '6px 24px 18px', flexShrink: 0 }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 2px' }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 2px' }}>
           {PLATFORM_NAME} · {club?.name || 'Your club'}
         </p>
         <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 22, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.15 }}>Terms of Use</h1>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '4px 0 0' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#A8D8B8', margin: '4px 0 0' }}>
           Version {CURRENT_TERMS_VERSION} · effective {CURRENT_TERMS_DATE}
         </p>
       </div>

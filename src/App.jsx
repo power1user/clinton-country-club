@@ -160,7 +160,7 @@ function PendingLockedSplash() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: G.bg }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <div style={{ background: G.green, padding: '20px 24px 28px', flexShrink: 0, textAlign: 'center' }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#7AAC88', letterSpacing: '0.3em', textTransform: 'uppercase', margin: '0 0 4px' }}>{club?.name || 'Your club'}</p>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#A8D8B8', letterSpacing: '0.3em', textTransform: 'uppercase', margin: '0 0 4px' }}>{club?.name || 'Your club'}</p>
         <h1 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0 }}>Awaiting Approval</h1>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center' }}>
@@ -199,11 +199,11 @@ function Gate() {
     // notice it.
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: G.green, padding: 32 }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#7AAC88', letterSpacing: '0.3em', textTransform: 'uppercase', margin: 0 }}>{PLATFORM_NAME}</p>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#A8D8B8', letterSpacing: '0.3em', textTransform: 'uppercase', margin: 0 }}>{PLATFORM_NAME}</p>
         <h1 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 28, fontWeight: 700, color: '#F2EDE0', margin: '8px 0 6px', textAlign: 'center', lineHeight: 1.2 }}>
           {PLATFORM_TAGLINE}
         </h1>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: '#7AAC88', margin: 0 }}>Loading your club…</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: '#A8D8B8', margin: 0 }}>Loading your club…</p>
       </div>
     );
   }

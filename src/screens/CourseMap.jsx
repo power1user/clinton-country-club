@@ -34,7 +34,7 @@ export default function CourseMap() {
             alt={`${brand.full} course layout`}
             style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 320, objectFit: 'contain' }}
           />
-          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 12, color: '#7AAC88', margin: '10px 0 0', letterSpacing: '0.05em', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 12, color: '#A8D8B8', margin: '10px 0 0', letterSpacing: '0.05em', textAlign: 'center' }}>
             {brand.full} · Est. {brand.founded} · Par {totalPar}
           </p>
         </div>

@@ -1,11 +1,14 @@
 // App version — bumped on EVERY commit that ships a fix or feature.
 //
-// Convention:
-//   · MAJOR (X.0.0) — sweeping rewrites / breaking model changes (rare)
-//   · MINOR (0.X.0) — phase rollouts, one per phase ship
-//   · PATCH (0.0.X) — every shipping commit. One CHANGELOG entry per
-//     bump so support conversations can pinpoint exactly which build
-//     a club is running.
+// Convention (confirmed by user; two-digit segments OK — 0.11.14 is fine):
+//   · MAJOR (X.0.0) — sweeping rewrites / breaking model changes. Stays
+//     at 0 until we cut a true 1.0 release.
+//   · MINOR (0.X.0) — "big lifts" and new architectural builds (a new
+//     screen, a new content type, a new schema-ish system). Bump
+//     deliberately, with a "Phase N" name and a CHANGELOG header.
+//   · PATCH (0.0.X) — everything else: bug fixes, UI polish, copy
+//     tweaks, content changes. One CHANGELOG entry per bump so support
+//     conversations can pinpoint exactly which build a club is running.
 //
 // Phase history:
 //   v0.1.x — Phase 1: DB-driven content, admin hub, RLS
@@ -23,7 +26,7 @@
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.5.1';
+export const VERSION = '0.5.2';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

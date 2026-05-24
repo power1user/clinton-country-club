@@ -127,7 +127,7 @@ export default function LessonRequest() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: pro === p.id ? '#F2EDE0' : G.text, margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
                   {p.title && (
-                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? '#7AAC88' : G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: pro === p.id ? '#A8D8B8' : G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
                   )}
                 </div>
                 {p.rate && (

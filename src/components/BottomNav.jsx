@@ -33,7 +33,7 @@ export default function BottomNav() {
           {t.id === 'food' && cartCount > 0 && (
             <span style={{ position: 'absolute', top: 0, right: '18%', background: G.brass, color: '#fff', fontSize: 8, fontFamily: '"Lora",serif', fontWeight: 700, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cartCount}</span>
           )}
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: tab === t.id ? G.brass : '#446854', textAlign: 'center', lineHeight: 1.2 }}>{t.l}</span>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: tab === t.id ? G.brass : '#A8D8B8', textAlign: 'center', lineHeight: 1.2 }}>{t.l}</span>
         </div>
       ))}
     </div>

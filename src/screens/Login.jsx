@@ -40,9 +40,9 @@ export default function Login() {
 
       {/* Brand */}
       <div style={{ flexShrink: 0, padding: '40px 32px 32px', textAlign: 'center' }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 10, color: '#7AAC88', letterSpacing: '0.3em', textTransform: 'uppercase', margin: '0 0 6px' }}>{brand.prefix}</p>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 10, color: '#A8D8B8', letterSpacing: '0.3em', textTransform: 'uppercase', margin: '0 0 6px' }}>{brand.prefix}</p>
         <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 32, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>{brand.tagline || 'Country Club'}</h1>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: '#7AAC88', margin: '10px 0 0' }}>Est. {brand.founded} · {brand.city}, {brand.state === 'IL' ? 'Illinois' : brand.state}</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: '#A8D8B8', margin: '10px 0 0' }}>Est. {brand.founded} · {brand.city}, {brand.state === 'IL' ? 'Illinois' : brand.state}</p>
       </div>
 
       {/* Card */}

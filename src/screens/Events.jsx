@@ -20,12 +20,12 @@ export default function Events() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0, display: 'flex', alignItems: 'flex-end', padding: '0 20px 9px' }}>
-        <span style={{ color: '#7AAC88', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
+        <span style={{ color: '#A8D8B8', fontSize: 11, fontFamily: '"Lora",serif' }}>{formatClockTime(now)}</span>
       </div>
       <div style={{ background: G.green, padding: '4px 20px 14px', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Community</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -35,12 +35,12 @@ export default function Events() {
             <BellChip />
           </div>
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#7AAC88', margin: '6px 0 0' }}>Events &amp; Calendar</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#A8D8B8', margin: '6px 0 0' }}>Events &amp; Calendar</p>
       </div>
       <div style={{ display: 'flex', background: G.greenMid, flexShrink: 0, padding: '0 16px' }}>
         {filters.map(f => (
           <div key={f.id} onClick={() => setFilter(f.id)} data-tap style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: filter === f.id ? `2px solid ${G.brass}` : '2px solid transparent', marginBottom: -1 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: filter === f.id ? '#F2EDE0' : '#7AAC88', fontWeight: filter === f.id ? 600 : 400 }}>{f.l}</span>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: filter === f.id ? '#F2EDE0' : '#A8D8B8', fontWeight: filter === f.id ? 600 : 400 }}>{f.l}</span>
           </div>
         ))}
       </div>
@@ -48,7 +48,7 @@ export default function Events() {
         {shown.map(ev => (
           <div key={ev.id} onClick={() => push('community/event', { event: ev })} data-tap style={{ display: 'flex', gap: 12, padding: '14px 14px', background: G.card, borderRadius: 4, marginBottom: 10, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
             <div style={{ width: 48, height: 52, background: G.green, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 8, color: '#7AAC88', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{ev.dow}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 8, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{ev.dow}</span>
               <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 22, fontWeight: 700, color: '#F2EDE0', lineHeight: 1 }}>{ev.day}</span>
             </div>
             <div style={{ flex: 1 }}>

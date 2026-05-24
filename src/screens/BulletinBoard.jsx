@@ -126,7 +126,7 @@ export default function BulletinBoard() {
       <div style={{ display: 'flex', background: G.greenMid, flexShrink: 0, padding: '0 16px' }}>
         {cats.map(c => (
           <div key={c.id} onClick={() => setCat(c.id)} data-tap style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: cat === c.id ? `2px solid ${G.brass}` : '2px solid transparent', marginBottom: -1 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: cat === c.id ? '#F2EDE0' : '#7AAC88', fontWeight: cat === c.id ? 600 : 400 }}>{c.l}</span>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: cat === c.id ? '#F2EDE0' : '#A8D8B8', fontWeight: cat === c.id ? 600 : 400 }}>{c.l}</span>
           </div>
         ))}
       </div>

@@ -40,20 +40,20 @@ export default function MemberCard() {
             <div style={{ position: 'absolute', right: 12, bottom: -52, width: 172, height: 172, borderRadius: '50%', border: '36px solid rgba(255,255,255,0.03)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
               <div>
-                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 8.5, color: '#7AAC88', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 2px' }}>{club?.name?.replace(/\s+Country\s+Club\s*$/i, '') || 'Clinton'}</p>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 8.5, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 2px' }}>{club?.name?.replace(/\s+Country\s+Club\s*$/i, '') || 'Clinton'}</p>
                 <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: '#F2EDE0', margin: 0 }}>Country Club</p>
               </div>
               <div style={{ width: 34, height: 34, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7AAC88" strokeWidth="1.2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.2">
                   <path d="M12 3L2 8l2 14h16l2-14L12 3z" />
                   <circle cx="12" cy="13" r="3" />
                 </svg>
               </div>
             </div>
             <div style={{ position: 'absolute', bottom: 26, left: 26, right: 26 }}>
-              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 9, color: '#7AAC88', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Member Since {m.since}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Member Since {m.since}</p>
               <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 400, fontStyle: 'italic', color: '#F2EDE0', margin: '0 0 3px', letterSpacing: '0.01em' }}>{m.name}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#7AAC88', margin: 0, letterSpacing: '0.04em' }}>No. {m.number} · {m.type}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0, letterSpacing: '0.04em' }}>No. {m.number} · {m.type}</p>
             </div>
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${G.brass}, ${G.brassLt}, ${G.brass})` }} />
           </div>
@@ -61,8 +61,8 @@ export default function MemberCard() {
           <div style={{ width: '100%', maxWidth: 346, height: 218, background: '#F8F4EC', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${G.border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.1)' }}>
             <svg width="120" height="120" viewBox="0 0 120 120" style={{ marginBottom: 10 }}>
               <rect width="120" height="120" fill={G.green} rx="4" />
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => <rect key={i} x={8 + (i % 3) * 36} y={8 + Math.floor(i / 3) * 36} width={30} height={30} fill="none" stroke="#7AAC88" strokeWidth="2" rx="2" />)}
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => i % 2 === 0 && <rect key={`f${i}`} x={13 + (i % 3) * 36} y={13 + Math.floor(i / 3) * 36} width={20} height={20} fill="#7AAC88" rx="1" />)}
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => <rect key={i} x={8 + (i % 3) * 36} y={8 + Math.floor(i / 3) * 36} width={30} height={30} fill="none" stroke="#A8D8B8" strokeWidth="2" rx="2" />)}
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => i % 2 === 0 && <rect key={`f${i}`} x={13 + (i % 3) * 36} y={13 + Math.floor(i / 3) * 36} width={20} height={20} fill="#A8D8B8" rx="1" />)}
             </svg>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Member No. {m.number}</p>
           </div>
