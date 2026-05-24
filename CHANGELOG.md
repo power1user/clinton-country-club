@@ -1,12 +1,25 @@
 # Changelog
 
-All notable changes to this project. Versions follow semver-ish phasing:
-each major phase ships under a new minor version (`0.x.0`). Manual
-migration steps are called out where applicable.
+All notable changes to this project. Convention:
+- **MAJOR** (X.0.0) — sweeping rewrites / breaking model changes
+- **MINOR** (0.X.0) — phase rollouts (Phase 1 → 0.1.x, Phase 4 → 0.4.x)
+- **PATCH** (0.0.X) — every shipping commit gets a bump + a one-line entry
+  below so support conversations can pinpoint the exact build a club
+  is running. Manual migration steps called out where applicable.
 
 ---
 
-## v0.4.0 — Phase 4: Messaging (current)
+## v0.4.x — Patch releases (after Phase 4 ship)
+
+These are post-Phase-4 ops and quality work. Each line is one commit
+on `main` that bumped `src/lib/version.js`.
+
+- **v0.4.1** — Micro version tracking: bump patch on every commit;
+  CHANGELOG line per bump. Sets the convention going forward.
+
+---
+
+## v0.4.0 — Phase 4: Messaging
 
 Unified messaging stack — order chat, clubhouse inbox, member DMs —
 plus Web Push and the supporting UI. The biggest single phase to date.
