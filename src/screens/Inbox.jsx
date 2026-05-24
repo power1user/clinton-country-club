@@ -8,7 +8,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { useInbox, markNotificationRead, hideThread } from '../hooks/useInbox.js';
+import { useInbox, markNotificationRead, hideThread, hideNotification } from '../hooks/useInbox.js';
 import { isPushSupported, pushPermission, subscribeToPush } from '../lib/push.js';
 
 const PUSH_DISMISSED_KEY = 'inbox.pushBannerDismissed';
@@ -139,7 +139,9 @@ export default function Inbox() {
             item={item}
             expanded={!!expanded[item.notificationId]}
             onTap={() => handleTap(item)}
-            onHide={item.type === 'thread' ? () => setPendingHide(item) : undefined}
+            // Both rows can be dismissed; the confirmation modal below
+            // figures out the right call based on item.type.
+            onHide={() => setPendingHide(item)}
           />
         ))}
       </div>
@@ -167,10 +169,14 @@ export default function Inbox() {
               border: `1px solid ${G.border}`,
             }}
           >
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Hide this conversation?</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>
+              {pendingHide.type === 'thread' ? 'Delete this conversation?' : 'Delete this notification?'}
+            </p>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.55 }}>
               {pendingHide.title ? <><em>{pendingHide.title}</em> — </> : null}
-              it will disappear from your inbox. If someone sends a new message it'll come back.
+              {pendingHide.type === 'thread'
+                ? "it will disappear from your inbox. If someone sends a new message it'll come back."
+                : "it will be removed from your inbox. Other members are unaffected."}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <div
@@ -182,14 +188,18 @@ export default function Inbox() {
               </div>
               <div
                 onClick={async () => {
-                  const id = pendingHide.threadId;
+                  const item = pendingHide;
                   setPendingHide(null);
-                  await hideThread(id, session?.user?.id);
+                  if (item.type === 'thread') {
+                    await hideThread(item.threadId, session?.user?.id);
+                  } else if (item.type === 'notification') {
+                    await hideNotification(item.notificationId, member?.id);
+                  }
                 }}
                 data-tap
-                style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}
+                style={{ padding: '8px 14px', background: G.clsBg, borderRadius: 3, cursor: 'pointer' }}
               >
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Hide</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Delete</span>
               </div>
             </div>
           </div>

@@ -23,6 +23,16 @@ on `main` that bumped `src/lib/version.js`.
   the broadcast (or "The Clubhouse" for system broadcasts). Names
   resolve from `members.name` for members, `user_roles.display_name`
   for staff, falling back to "Staff" / "The Clubhouse" when neither.
+- **v0.4.3** — Message deletion works for every inbox type. Notifications
+  (broadcasts) get the same dismiss-from-my-view affordance threads
+  already had — X button on the row, confirmation modal, view-only
+  removal. Inside an open thread the kebab menu "Hide conversation"
+  was renamed to "Delete conversation" to match member expectations
+  (the underlying behavior is still a per-user hide that resurfaces
+  when a new message lands). Schema: `notification_reads.hidden_at`
+  added in migration 27 with a partial index on visible rows; reuses
+  the existing per-self RLS policy. Admin-side delete of a broadcast
+  via NotificationsAdmin already removed it for everyone — unchanged.
 
 ---
 

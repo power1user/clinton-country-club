@@ -165,13 +165,17 @@ export function useInbox() {
 
         const ids = (ns || []).map(n => n.id);
         let readSet = new Set();
+        let hiddenSet = new Set();
         if (ids.length) {
           const { data: reads } = await supabase
             .from('notification_reads')
-            .select('message_id')
+            .select('message_id, read_at, hidden_at')
             .eq('member_id', member.id)
             .in('message_id', ids);
-          readSet = new Set((reads || []).map(r => r.message_id));
+          (reads || []).forEach(r => {
+            if (r.read_at)   readSet.add(r.message_id);
+            if (r.hidden_at) hiddenSet.add(r.message_id);
+          });
         }
         // Resolve sender labels for every distinct created_by.
         const senderIds = Array.from(new Set((ns || []).map(n => n.created_by).filter(Boolean)));
@@ -191,11 +195,16 @@ export function useInbox() {
             if (!senderMap[m.user_id]) senderMap[m.user_id] = m.name;
           });
         }
-        notifs = (ns || []).map(n => ({
-          ...n,
-          read: readSet.has(n.id),
-          sender_label: n.created_by ? (senderMap[n.created_by] || 'Staff') : 'The Clubhouse',
-        }));
+        // Filter out notifications the member has explicitly hidden.
+        // Mirrors the thread hide flow — row stays in DB so admin still
+        // sees it in their broadcast list; only this member's view loses it.
+        notifs = (ns || [])
+          .filter(n => !hiddenSet.has(n.id))
+          .map(n => ({
+            ...n,
+            read: readSet.has(n.id),
+            sender_label: n.created_by ? (senderMap[n.created_by] || 'Staff') : 'The Clubhouse',
+          }));
       }
 
       if (cancelled) return;
@@ -249,4 +258,21 @@ export async function hideThread(threadId, userId) {
     .update({ hidden_at: new Date().toISOString() })
     .eq('thread_id', threadId)
     .eq('user_id', userId);
+}
+
+// Hide a broadcast notification from the calling member's inbox only.
+// Upsert into notification_reads so a member who never read the message
+// can still hide it (read_at stays null in that case). Other members
+// still see it; an admin's deletion (NotificationsAdmin) removes the
+// underlying row for everyone.
+export async function hideNotification(notificationId, memberId) {
+  if (!notificationId || !memberId) return;
+  await supabase.from('notification_reads').upsert(
+    {
+      message_id: notificationId,
+      member_id: memberId,
+      hidden_at: new Date().toISOString(),
+    },
+    { onConflict: 'message_id,member_id' }
+  );
 }

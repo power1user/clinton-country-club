@@ -273,7 +273,7 @@ export default function Thread({ params }) {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
             </svg>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>Hide conversation</span>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>Delete conversation</span>
           </div>
         </div>
       )}
@@ -404,9 +404,9 @@ export default function Thread({ params }) {
               border: `1px solid ${G.border}`,
             }}
           >
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Hide this conversation?</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Delete this conversation?</p>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.55 }}>
-              It will disappear from your inbox. If someone sends a new message it'll come back.
+              It will disappear from your inbox. If someone sends a new message it'll come back. Other participants are unaffected.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <div
@@ -419,9 +419,9 @@ export default function Thread({ params }) {
               <div
                 onClick={handleHide}
                 data-tap
-                style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}
+                style={{ padding: '8px 14px', background: G.clsBg, borderRadius: 3, cursor: 'pointer' }}
               >
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Hide</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Delete</span>
               </div>
             </div>
           </div>
