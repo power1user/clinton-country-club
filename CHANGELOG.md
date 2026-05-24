@@ -15,6 +15,16 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.1** — Reply thread extended to Partner Board cards and
+  Event Detail. Same `<Replies>` component, no new code path —
+  proves the polymorphic design works. Partner posts get the thread
+  alongside the existing Contact/Message button so members can
+  coordinate publicly ("count me in" / "what tee time?"). Event
+  detail gets a "Member Discussion" panel that defaults open so
+  attendees can coordinate carpools, ask format questions, etc.
+  Pro shop inquiry replies are pending a member-side "My Inquiries"
+  view to render against — the table already supports
+  `post_table='pro_shop_inquiries'` so it's just a UI surface away.
 - **v0.5.0** — Reply system foundation. New `post_replies` table
   (polymorphic: keyed by `post_table` + `post_id` so the same
   scaffolding works for bulletin posts, partner posts, event RSVPs,

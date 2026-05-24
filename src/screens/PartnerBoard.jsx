@@ -21,6 +21,7 @@ import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
+import Replies from '../components/Replies.jsx';
 
 // Pretty short date — "Sat May 24" — for the "when" chip on a card.
 function fmtDateChip(iso) {
@@ -187,6 +188,11 @@ export default function PartnerBoard() {
                   Your post
                 </p>
               )}
+
+              {/* Public reply thread — always available, regardless of
+                  DM availability or whose post it is. Lets members
+                  coordinate publicly ("count me in" / "what tee?") */}
+              <Replies postTable="partner_posts" postId={p.id} />
             </div>
           );
         })}

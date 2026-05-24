@@ -4,6 +4,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import Replies from '../components/Replies.jsx';
 
 export default function EventDetail({ params }) {
   const ev = params?.event;
@@ -121,6 +122,18 @@ export default function EventDetail({ params }) {
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={G.openDot} strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.openTxt, margin: 0, fontWeight: 500 }}>You're registered for {ev.title}</p>
               <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.openTxt, margin: 0, opacity: 0.8 }}>Confirmation sent to your email on file</p>
+            </div>
+          </div>
+        )}
+
+        {/* Discussion thread — coordinate carpools, ask about format,
+            etc. Only meaningful when the event came from the DB (has a
+            real id); prototype/seed events don't get one. */}
+        {typeof ev.id === 'string' && ev.id.length > 10 && (
+          <div style={{ padding: '0 20px 32px' }}>
+            <div style={{ padding: '12px 14px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 4px', fontWeight: 700 }}>Member Discussion</p>
+              <Replies postTable="events" postId={ev.id} defaultOpen />
             </div>
           </div>
         )}
