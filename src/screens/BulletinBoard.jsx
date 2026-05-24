@@ -3,8 +3,11 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useBulletinPosts } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useFlag } from '../hooks/useFlag.js';
+import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
+import Replies from '../components/Replies.jsx';
 
 function NewPostSheet({ onClose, onSubmitted, club, member }) {
   const [title, setTitle] = useState('');
@@ -64,11 +67,11 @@ function NewPostSheet({ onClose, onSubmitted, club, member }) {
             </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Title</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What are you posting about?" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Playfair Display",serif', fontSize: 15, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="What are you posting about?" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Playfair Display",serif', fontSize: 16, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Details</label>
-              <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Describe your item, request, or message…" style={{ width: '100%', height: 90, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+              <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Describe your item, request, or message…" style={{ width: '100%', height: 90, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 16, color: G.text, background: '#F8F4EC', lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
             <div onClick={submit} data-tap style={{ padding: 12, background: title && body && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: title && body && !busy ? 'pointer' : 'not-allowed' }}>
@@ -83,13 +86,31 @@ function NewPostSheet({ onClose, onSubmitted, club, member }) {
 
 export default function BulletinBoard() {
   const { data: posts, refresh } = useBulletinPosts();
-  const { club, member } = useAuth();
+  const { club, member, session } = useAuth();
+  const dmsOn = useFlag('dms');
+  const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
   const [showForm, setShowForm] = useState(false);
+  const [dmBusyId, setDmBusyId] = useState(null);
+  const [dmErr, setDmErr] = useState(null);
   const cats = [{ id: 'all', l: 'All' }, { id: 'Classifieds', l: 'Classifieds' }, { id: 'Wanted', l: 'Wanted' }, { id: 'General', l: 'General' }];
   const tagColors = { Classifieds: G.brass, Wanted: G.limDot, General: G.muted };
   const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);
+
+  // DM the post's author. Hidden when DMs are off, when the post is
+  // anonymous/orphan, or when the viewer is the author. The public
+  // reply thread is always available below the card regardless.
+  const dmAuthor = async (post) => {
+    if (!session?.user?.id || !post.authorUserId || dmBusyId) return;
+    setDmBusyId(post.id); setDmErr(null);
+    const { data: threadId, error } = await supabase.rpc('get_or_create_dm', {
+      p_other_user_id: post.authorUserId,
+    });
+    setDmBusyId(null);
+    if (error) { setDmErr(error.message); return; }
+    push('thread', { threadId });
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -109,6 +130,12 @@ export default function BulletinBoard() {
           </div>
         ))}
       </div>
+      {dmErr && (
+        <div onClick={() => setDmErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', borderBottom: `1px solid ${G.clsDot}`, padding: '8px 16px', cursor: 'pointer' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0 }}>{dmErr} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
+        </div>
+      )}
+
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {filtered.map(post => (
           <div key={post.id} style={{ marginBottom: 10, padding: '14px 14px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
@@ -138,11 +165,33 @@ export default function BulletinBoard() {
             </div>
             <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '0 0 5px', lineHeight: 1.25 }}>{post.title}</h3>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: '0 0 10px' }}>{post.body}</p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ padding: '5px 14px', border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 500, color: G.text }}>Reply</span>
+
+            {/* DM author — only shown when DMs enabled AND post has a
+                known author AND viewer isn't the author. Public reply
+                thread is always available below regardless of this. */}
+            {dmsOn && post.authorUserId && post.authorUserId !== session?.user?.id && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div
+                  onClick={dmBusyId === post.id ? undefined : () => dmAuthor(post)}
+                  data-tap
+                  style={{
+                    padding: '5px 14px',
+                    background: dmBusyId === post.id ? G.muted : G.greenMid,
+                    borderRadius: 3,
+                    cursor: dmBusyId === post.id ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" /></svg>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 500, color: '#F2EDE0' }}>
+                    {dmBusyId === post.id ? 'Opening…' : 'Message'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Public reply thread — always available, no exceptions */}
+            <Replies postTable="bulletin_posts" postId={post.id} />
           </div>
         ))}
       </div>

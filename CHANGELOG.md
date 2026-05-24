@@ -9,6 +9,24 @@ All notable changes to this project. Convention:
 
 ---
 
+## v0.5.x — Phase 5: member-to-member replies + DM affordances
+
+Reusable threaded-reply system on every member-generated content
+surface, paired with DM buttons when DMs are enabled. The point is
+that no post is a dead end anymore.
+
+- **v0.5.0** — Reply system foundation. New `post_replies` table
+  (polymorphic: keyed by `post_table` + `post_id` so the same
+  scaffolding works for bulletin posts, partner posts, event RSVPs,
+  pro shop inquiries — all four covered by the CHECK constraint).
+  RLS: anyone in the club reads, authors write their own, staff can
+  hide. New `<Replies>` component renders a count + expand toggle
+  on the post card with realtime updates and inline compose; iOS
+  zoom prevented via 16px input font. BulletinBoard wires it in:
+  every post now has an always-visible reply thread plus a Message
+  button when DMs are enabled and the poster has a known user_id.
+  Bulletin compose inputs also bumped to 16px.
+
 ## v0.4.x — Patch releases (after Phase 4 ship)
 
 These are post-Phase-4 ops and quality work. Each line is one commit

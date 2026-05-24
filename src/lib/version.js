@@ -15,11 +15,15 @@
 //             plus operational/quality work: Phase A polish, Phase B
 //             (feature flags, lesson pros, ToU, swipe nav), Cloudflare
 //             Pages migration, CRUD bug fixes, and patch-tracking.
+//   v0.5.x — Phase 5: member-to-member communication everywhere.
+//             Reusable post_replies system + DM affordances on
+//             member-generated content (bulletin posts first, then
+//             partner posts / events / pro shop).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.4.10';
+export const VERSION = '0.5.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
