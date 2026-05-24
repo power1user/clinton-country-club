@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
+import { useFlag } from '../hooks/useFlag.js';
 import BellChip from '../components/BellChip.jsx';
 import { useEvents, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -12,10 +13,23 @@ export default function Events() {
   const { data: events } = useEvents();
   const brand = useBrand();
   const now = useNow();
+  const directoryOn = useFlag('member_directory');
   const [filter, setFilter] = useState('all');
   const filters = [{ id: 'all', l: 'All' }, { id: 'Golf', l: 'Golf' }, { id: 'Social', l: 'Social' }, { id: 'Dining', l: 'Dining' }];
   const shown = filter === 'all' ? events : events.filter(e => e.cat === filter);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
+
+  // Section nav cards — always show Bulletin + Partner; show Member
+  // Directory only when the feature flag is on for this club. Each
+  // card is a deep link into its own screen so members can browse
+  // the relevant community surface without poking around for it.
+  const sections = [
+    { id: 'community/bulletin', label: 'Bulletin Board',   sub: 'Classifieds, wanted, general',  icon: <><path d="M3 6h18M3 12h18M3 18h18" strokeWidth="1.4" /></> },
+    { id: 'golf/partners',      label: 'Golf Partners',    sub: 'Find foursomes, singles, cart shares', icon: <><circle cx="9" cy="7" r="3.5" strokeWidth="1.4" fill="none" /><circle cx="17" cy="7" r="3" strokeWidth="1.4" fill="none" /><path d="M2 20c0-3 3.4-5 7-5s7 2 7 5" strokeWidth="1.4" fill="none" /></> },
+    ...(directoryOn ? [
+      { id: 'member-directory', label: 'Member Directory', sub: 'Browse the roster · message members', icon: <><rect x="3" y="4" width="11" height="8" rx="1.5" strokeWidth="1.4" fill="none" /><path d="M6 8h5M6 6h5" strokeWidth="1.4" fill="none" /></> },
+    ] : []),
+  ];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -28,14 +42,12 @@ export default function Events() {
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 1px' }}>{brand.prefix}</p>
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Community</h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div onClick={() => push('community/bulletin')} data-tap style={{ padding: '7px 14px', border: '1px solid rgba(122,172,136,0.4)', borderRadius: 3, cursor: 'pointer' }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8' }}>Bulletin Board</span>
-            </div>
-            <BellChip />
-          </div>
+          {/* Bulletin Board button removed from header — now a proper
+              section card below alongside Partner Board and Directory.
+              Just the Inbox bell remains. */}
+          <BellChip />
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#A8D8B8', margin: '6px 0 0' }}>Events &amp; Calendar</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: '#A8D8B8', margin: '6px 0 0' }}>Events &amp; member channels</p>
       </div>
       <div style={{ display: 'flex', background: G.greenMid, flexShrink: 0, padding: '0 16px' }}>
         {filters.map(f => (
@@ -45,6 +57,42 @@ export default function Events() {
         ))}
       </div>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+        {/* Section nav — opens whichever community surface the member
+            wants. Renders dynamically: directory card only shows when
+            the feature_flags.member_directory flag is on. */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          {sections.map(s => (
+            <div
+              key={s.id}
+              onClick={() => push(s.id)}
+              data-tap
+              style={{
+                flex: '0 0 auto',
+                minWidth: 140,
+                padding: '12px 14px',
+                background: G.card,
+                borderRadius: 4,
+                border: `1px solid ${G.border}`,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ width: 32, height: 32, borderRadius: 4, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeLinecap="round" strokeLinejoin="round">{s.icon}</svg>
+              </div>
+              <div>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.2 }}>{s.label}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', lineHeight: 1.3 }}>{s.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Events section heading + list */}
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '4px 0 8px', fontWeight: 700 }}>Upcoming Events</p>
+
         {shown.map(ev => (
           <div key={ev.id} onClick={() => push('community/event', { event: ev })} data-tap style={{ display: 'flex', gap: 12, padding: '14px 14px', background: G.card, borderRadius: 4, marginBottom: 10, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
             <div style={{ width: 48, height: 52, background: G.green, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

@@ -45,15 +45,19 @@ export const FEATURES = {
   dms: {
     key:             'dms',
     label:           'Member-to-member DMs',
-    description:     'Members can start direct-message conversations with each other from the Member Directory.',
+    description:     'Members can start direct-message conversations with each other from the Member Directory or post Contact buttons.',
     min_tier:        'standard',
     default_enabled: false,
     category:        'Messaging',
   },
-  // Future flags added here. Examples we may add as Phase B progresses:
-  //   lesson_pros: { min_tier: 'basic',    default_enabled: true, ... }
-  //   swipe_nav:   { min_tier: 'basic',    default_enabled: true, ... }
-  //   tee_times:   { min_tier: 'standard', default_enabled: true, ... }
+  member_directory: {
+    key:             'member_directory',
+    label:           'Member Directory',
+    description:     'Members can see a roster of every active member at the club. Required to find someone to DM; can also be on standalone for browsing-only when DMs are off.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Messaging',
+  },
 };
 
 // All flags as an ordered array — used by admin UI to render toggles.

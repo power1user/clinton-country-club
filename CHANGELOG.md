@@ -15,6 +15,21 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.4** — Member Directory exposed in Community tab; split
+  directory visibility from DMs. Two flags now:
+    · `member_directory` (NEW, basic tier, default off) — controls
+      whether the roster is visible at all
+    · `dms` (existing, standard tier) — controls whether per-row
+      Message buttons appear inside the directory
+  Migration 28 grandfathers existing clubs to `member_directory=on`
+  so Clinton + Oakgrove don't lose access mid-deploy.
+  Community tab now has a section-card row at the top (Bulletin
+  Board · Golf Partners · Member Directory when flag is on). The
+  old "Bulletin Board" button in the header is gone — that surface
+  is a proper card now. Header tagline updated from "Events &
+  Calendar" to "Events & member channels" to reflect the broader
+  scope. MyClub directory tile and the MemberDirectory screen
+  gate both moved from the dms flag to the new directory flag.
 - **v0.5.3** — Reply pattern audit, no code changes. Confirmed every
   public member-generated content surface has the two-option pattern
   wired:
