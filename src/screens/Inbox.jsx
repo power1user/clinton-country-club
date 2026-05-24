@@ -70,6 +70,7 @@ export default function Inbox() {
       urgency: n.urgency,
       type: 'notification',
       notificationId: n.id,
+      sender: n.sender_label,
       raw: n,
     })),
   ].sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -238,7 +239,7 @@ function InboxRow({ item, expanded, onTap, onHide }) {
           ...(expanded ? {} : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
         }}>{item.preview}</p>
         <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted }}>
-          {absoluteDate(item.time)} · {relativeTime(item.time)}
+          {item.sender ? `${item.sender} · ` : ''}{absoluteDate(item.time)} · {relativeTime(item.time)}
         </span>
       </div>
       {onHide && (

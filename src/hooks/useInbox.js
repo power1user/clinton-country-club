@@ -148,12 +148,15 @@ export function useInbox() {
         return { ...t, preview: lastMsg, unread: count || 0 };
       }));
 
-      // Notification broadcasts
+      // Notification broadcasts — pull created_by so we can attribute
+      // each broadcast to the staff member or super-admin who sent it.
+      // Falls back to "The Clubhouse" when the row has no created_by
+      // (older seed rows, or scripted system-sent notifications).
       let notifs = [];
       if (member?.id) {
         const { data: ns } = await supabase
           .from('notification_messages')
-          .select('id, title, body, urgency, published_at')
+          .select('id, title, body, urgency, published_at, created_by')
           .eq('club_id', club.id)
           .not('published_at', 'is', null)
           .lte('published_at', new Date().toISOString())
@@ -170,7 +173,29 @@ export function useInbox() {
             .in('message_id', ids);
           readSet = new Set((reads || []).map(r => r.message_id));
         }
-        notifs = (ns || []).map(n => ({ ...n, read: readSet.has(n.id) }));
+        // Resolve sender labels for every distinct created_by.
+        const senderIds = Array.from(new Set((ns || []).map(n => n.created_by).filter(Boolean)));
+        const senderMap = {};
+        if (senderIds.length) {
+          const [mb, rl] = await Promise.all([
+            supabase.from('members').select('user_id, name')
+              .eq('club_id', club.id).in('user_id', senderIds),
+            supabase.from('user_roles').select('user_id, role, display_name')
+              .in('user_id', senderIds)
+              .or(`club_id.eq.${club.id},club_id.is.null`),
+          ]);
+          (rl.data || []).forEach(r => {
+            senderMap[r.user_id] = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
+          });
+          (mb.data || []).forEach(m => {
+            if (!senderMap[m.user_id]) senderMap[m.user_id] = m.name;
+          });
+        }
+        notifs = (ns || []).map(n => ({
+          ...n,
+          read: readSet.has(n.id),
+          sender_label: n.created_by ? (senderMap[n.created_by] || 'Staff') : 'The Clubhouse',
+        }));
       }
 
       if (cancelled) return;

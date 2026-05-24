@@ -63,6 +63,54 @@ export default function Thread({ params }) {
         .order('created_at', { ascending: true })
         .limit(200);
 
+      // Resolve sender display names for every non-system message.
+      // Strategy: collect unique sender_user_ids, look up members
+      // (for that club) and user_roles (any role for any club, since
+      // a staff member without a member row should still get a name).
+      // Build a map user_id → { name, kind } and attach sender_label
+      // to each message so MessageBubble can render it inline.
+      const senderIds = Array.from(new Set((msgs || [])
+        .map(m => m.sender_user_id).filter(Boolean)));
+      let senderMap = {};
+      if (senderIds.length) {
+        const [mb, rl] = await Promise.all([
+          supabase.from('members').select('user_id, name')
+            .eq('club_id', t.club_id).in('user_id', senderIds),
+          supabase.from('user_roles').select('user_id, role, display_name')
+            .in('user_id', senderIds)
+            .or(`club_id.eq.${t.club_id},club_id.is.null`),
+        ]);
+        // Staff takes precedence — if a sender is staff for this club,
+        // label them as staff (display_name preferred, role as fallback).
+        // Otherwise fall back to the member name.
+        (rl.data || []).forEach(r => {
+          const label = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
+          senderMap[r.user_id] = { name: label, kind: 'staff' };
+        });
+        (mb.data || []).forEach(m => {
+          if (!senderMap[m.user_id]) senderMap[m.user_id] = { name: m.name, kind: 'member' };
+        });
+      }
+      const enrichedMsgs = (msgs || []).map(m => {
+        if (m.is_system) {
+          // System messages get a kind-aware attribution:
+          //   · order threads → "The Grounds" (status notifications)
+          //   · clubhouse threads → "The Clubhouse"
+          //   · DMs → no attribution (system msgs don't really happen here)
+          const label =
+            t.kind === 'order'     ? 'The Grounds' :
+            t.kind === 'clubhouse' ? 'The Clubhouse' :
+                                     'System';
+          return { ...m, sender_label: label, sender_kind: 'system' };
+        }
+        const s = senderMap[m.sender_user_id];
+        return {
+          ...m,
+          sender_label: s?.name || 'Unknown',
+          sender_kind:  s?.kind || 'unknown',
+        };
+      });
+
       // Kind-specific context loads
       let ctx = null;
       let other = null;
@@ -84,7 +132,7 @@ export default function Thread({ params }) {
 
       if (cancelled) return;
       setThread(t);
-      setMessages(msgs || []);
+      setMessages(enrichedMsgs);
       setContext(ctx);
       setOtherMember(other);
       setLoading(false);
@@ -435,10 +483,18 @@ function ContextStrip({ thread, context, otherMember }) {
 }
 
 // ── Message bubble ─────────────────────────────────────────────────────────
+// Every non-own message renders with the sender's name above the bubble so
+// you can tell who's talking — important in clubhouse threads where multiple
+// staff may answer, in DMs where the partner's name disappears as you scroll,
+// and in order threads where "The Grounds" should be visibly distinct from a
+// human reply. System messages render as a chip with the same attribution.
 function MessageBubble({ message, ownUserId }) {
   if (message.is_system) {
     return (
       <div style={{ textAlign: 'center', margin: '10px 0' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 3px' }}>
+          {message.sender_label || 'System'}
+        </p>
         <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, background: G.card, padding: '4px 10px', borderRadius: 10 }}>
           {message.body}
         </span>
@@ -447,7 +503,12 @@ function MessageBubble({ message, ownUserId }) {
   }
   const own = message.sender_user_id === ownUserId;
   return (
-    <div style={{ display: 'flex', justifyContent: own ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+      {!own && message.sender_label && (
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 6px 3px', fontWeight: 600 }}>
+          {message.sender_label}
+        </p>
+      )}
       <div style={{
         maxWidth: '78%',
         padding: '8px 12px',

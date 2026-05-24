@@ -16,6 +16,13 @@ on `main` that bumped `src/lib/version.js`.
 
 - **v0.4.1** — Micro version tracking: bump patch on every commit;
   CHANGELOG line per bump. Sets the convention going forward.
+- **v0.4.2** — Sender identity on every message surface. Thread messages
+  show the sender name above the bubble for non-own messages; system
+  messages display "The Grounds" (orders) or "The Clubhouse" (clubhouse
+  threads). Inbox notification rows surface the staff member who sent
+  the broadcast (or "The Clubhouse" for system broadcasts). Names
+  resolve from `members.name` for members, `user_roles.display_name`
+  for staff, falling back to "Staff" / "The Clubhouse" when neither.
 
 ---
 
