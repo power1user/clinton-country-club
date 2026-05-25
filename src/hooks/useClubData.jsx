@@ -48,14 +48,14 @@ export function useClubStatus() {
           .select(`
             id, category, label, sort_order, state, hours_note, staff_note,
             opens_at, closes_at,
-            hours:club_status_hours (day_of_week, opens_at, closes_at, closes_at_dusk, is_closed, members_only)
+            hours:club_status_hours (day_of_week, opens_at, opens_at_dawn, closes_at, closes_at_dusk, is_closed, members_only)
           `)
           .eq('club_id', club.id)
           .order('sort_order', { ascending: true }),
         // Today's date in CLUB local time — overrides are keyed by override_date
         supabase
           .from('schedule_overrides')
-          .select('status_id, opens_at, closes_at, closes_at_dusk, is_closed, members_only, reason')
+          .select('status_id, opens_at, opens_at_dawn, closes_at, closes_at_dusk, is_closed, members_only, reason')
           .eq('club_id', club.id)
           .eq('override_date', todayInClubTz(club.timezone)),
       ]);
@@ -75,6 +75,7 @@ export function useClubStatus() {
         for (const h of (r.hours || [])) {
           byDay[h.day_of_week] = {
             opens_at: h.opens_at,
+            opens_at_dawn: h.opens_at_dawn,
             closes_at: h.closes_at,
             closes_at_dusk: h.closes_at_dusk,
             is_closed: h.is_closed,
@@ -629,21 +630,25 @@ export function useWeather() {
 // ────────────────────────────────────────────────────────────────────────────
 
 // Decides what state to actually show given the admin's stored state, the
-// pill's day-of-week hours, dusk time (for "closes at dusk" facilities), and
-// the current time. Times are evaluated in the club's local timezone (IANA),
-// passed in via the `timezone` arg — e.g. 'America/Chicago' for Clinton.
+// pill's day-of-week hours, dusk/dawn times, and the current time.
+// Times are evaluated in the club's local timezone (IANA), passed in via
+// the `timezone` arg — e.g. 'America/Chicago' for Clinton.
 //
 //   - admin manually set 'closed' → always closed
 //   - today is_closed → closed
 //   - has hours AND we're outside them → closed
 //   - otherwise → admin's state ('open' or 'limited')
-export function effectiveState(pill, now = new Date(), duskTime = null, timezone = DEFAULT_TIMEZONE) {
+//
+// v0.7.2: `duskTime` arg can now be EITHER a Date (legacy — treated as
+// dusk only) OR a { dusk, dawn } object. Keeps back-compat for any
+// caller that only knows about dusk.
+export function effectiveState(pill, now = new Date(), duskOrTimes = null, timezone = DEFAULT_TIMEZONE) {
   if (!pill) return 'closed';
   if (pill.st === 'closed') return 'closed';
   const today = pickToday(pill, now, timezone);
   if (today) {
     if (today.is_closed) return 'closed';
-    const within = withinDailyHours(today, now, duskTime, timezone);
+    const within = withinDailyHours(today, now, duskOrTimes, timezone);
     if (within === false) return 'closed';
     // Within hours + members-only flag on → 'members' state
     if (today.members_only) return pill.st === 'limited' ? 'limited' : 'members';
@@ -663,15 +668,38 @@ export function pickToday(pill, now = new Date(), timezone = DEFAULT_TIMEZONE) {
   if (pill?.hoursByDay && pill.hoursByDay[dayOfWeek]) return pill.hoursByDay[dayOfWeek];
   // Fallback to legacy single-row hours
   if (pill?.opens_at || pill?.closes_at) {
-    return { opens_at: pill.opens_at, closes_at: pill.closes_at, closes_at_dusk: false, is_closed: false };
+    return { opens_at: pill.opens_at, opens_at_dawn: false, closes_at: pill.closes_at, closes_at_dusk: false, is_closed: false };
   }
   return null;
 }
 
-export function withinDailyHours(day, now = new Date(), duskTime = null, timezone = DEFAULT_TIMEZONE) {
+// Normalize the dusk/dawn argument. Back-compat: accepts a single Date
+// (treated as dusk only) OR a { dusk, dawn } object. Returns
+// { dusk: Date|null, dawn: Date|null }.
+function _sunArg(arg) {
+  if (!arg) return { dusk: null, dawn: null };
+  if (arg instanceof Date) return { dusk: arg, dawn: null };
+  return { dusk: arg.dusk || null, dawn: arg.dawn || null };
+}
+
+export function withinDailyHours(day, now = new Date(), duskOrTimes = null, timezone = DEFAULT_TIMEZONE) {
   if (!day) return null;
   if (day.is_closed) return false;
-  if (!day.opens_at) return null;
+  const { dusk: duskTime, dawn: dawnTime } = _sunArg(duskOrTimes);
+  // Open time: fixed clock time OR computed dawn (v0.7.2). When opens_at_dawn
+  // is true and dawn hasn't loaded yet, say "closed" until we know — opposite
+  // of the dusk fallback because being conservative on the open boundary is
+  // safer than telling a member "we're open" when we don't actually know.
+  let openMinutes;
+  if (day.opens_at_dawn && dawnTime) {
+    openMinutes = clubLocalParts(dawnTime, timezone).minutesOfDay;
+  } else if (day.opens_at_dawn && !dawnTime) {
+    return null;  // unknown — caller treats as "not enough info"
+  } else if (day.opens_at) {
+    openMinutes = toMinutes(day.opens_at);
+  } else {
+    return null;
+  }
   // Close time: either fixed clock time or computed dusk (converted to club tz)
   let closeMinutes;
   if (day.closes_at_dusk && duskTime) {
@@ -685,7 +713,6 @@ export function withinDailyHours(day, now = new Date(), duskTime = null, timezon
   } else {
     return null;
   }
-  const openMinutes = toMinutes(day.opens_at);
   if (openMinutes == null || closeMinutes == null) return null;
   const cur = clubLocalParts(now, timezone).minutesOfDay;
   if (closeMinutes < openMinutes) return cur >= openMinutes || cur < closeMinutes;
@@ -726,44 +753,75 @@ export function formatLongDate(d = new Date()) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// useDusk — today's civil twilight end (dusk) at the club's coords.
-// Cached in module-scope per (lat,lng) since we only need this once per day.
+// useDawn / useDusk — civil twilight at the club's coords. One fetch, two
+// values: civil_twilight_begin (dawn) and civil_twilight_end (dusk).
+// Cached in module-scope per (lat,lng,date) — we only need each pair once
+// per day, and both useDawn() and useDusk() in the same screen share the
+// same network call.
 // ────────────────────────────────────────────────────────────────────────────
-const _duskCache = new Map();
+const _sunCache = new Map();        // key → { dawn: Date|null, dusk: Date|null }
+const _sunPending = new Map();      // key → in-flight Promise (dedupe concurrent fetches)
 
-export function useDusk() {
+function _sunCacheKey(club) {
+  const today = new Date().toISOString().slice(0, 10);
+  return `${club.lat}:${club.lng}:${today}`;
+}
+
+async function _fetchSunTimes(club, key) {
+  if (_sunPending.has(key)) return _sunPending.get(key);
+  const p = (async () => {
+    const url = `https://api.sunrise-sunset.org/json?lat=${club.lat}&lng=${club.lng}&date=today&formatted=0`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`sunrise-sunset ${r.status}`);
+    const j = await r.json();
+    const dawnIso = j.results?.civil_twilight_begin || j.results?.sunrise;
+    const duskIso = j.results?.civil_twilight_end   || j.results?.sunset;
+    const pair = {
+      dawn: dawnIso ? new Date(dawnIso) : null,
+      dusk: duskIso ? new Date(duskIso) : null,
+    };
+    _sunCache.set(key, pair);
+    return pair;
+  })();
+  _sunPending.set(key, p);
+  try { return await p; } finally { _sunPending.delete(key); }
+}
+
+// Shared loader used by both useDawn and useDusk so two hooks on one
+// screen don't double-fire the API. Returns { dawn, dusk } (either may
+// be null until the fetch lands).
+function useSunTimes() {
   const { club } = useAuth();
-  const [dusk, setDusk] = useState(null);
+  const [times, setTimes] = useState({ dawn: null, dusk: null });
 
   useEffect(() => {
     if (!club?.lat || !club?.lng) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const key = `${club.lat}:${club.lng}:${today}`;
-    if (_duskCache.has(key)) {
-      setDusk(_duskCache.get(key));
+    const key = _sunCacheKey(club);
+    if (_sunCache.has(key)) {
+      setTimes(_sunCache.get(key));
       return;
     }
     let cancelled = false;
-    (async () => {
-      try {
-        const url = `https://api.sunrise-sunset.org/json?lat=${club.lat}&lng=${club.lng}&date=today&formatted=0`;
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`sunrise-sunset ${r.status}`);
-        const j = await r.json();
-        const iso = j.results?.civil_twilight_end || j.results?.sunset;
-        if (!iso) return;
-        const d = new Date(iso);
-        if (cancelled) return;
-        _duskCache.set(key, d);
-        setDusk(d);
-      } catch (e) {
-        if (!cancelled) console.warn('[dusk] failed:', e.message);
-      }
-    })();
+    _fetchSunTimes(club, key)
+      .then(pair => { if (!cancelled) setTimes(pair); })
+      .catch(e => { if (!cancelled) console.warn('[sun] failed:', e.message); });
     return () => { cancelled = true; };
   }, [club?.lat, club?.lng]);
 
-  return dusk;
+  return times;
+}
+
+export function useDusk() {
+  return useSunTimes().dusk;
+}
+
+// v0.7.2: returns today's civil dawn at the club's coords. Same fetch +
+// cache as useDusk — calling both on the same screen is a single network
+// hit. Returns null until the fetch lands; consumers should fall back to
+// the configured opens_at clock time (or "Closed" if opens_at_dawn was
+// set without a valid coord pair on the club row).
+export function useDawn() {
+  return useSunTimes().dawn;
 }
 
 function toMinutes(t) {

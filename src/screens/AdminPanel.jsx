@@ -583,7 +583,10 @@ function summarizeWeek(hoursByDay) {
     const h = hoursByDay[d];
     const sig = !h ? 'unset' :
       h.is_closed ? 'closed' :
-      `${h.opens_at || ''}-${h.closes_at_dusk ? 'dusk' : (h.closes_at || '')}|m=${!!h.members_only}`;
+      // v0.7.2: include opens_at_dawn in the signature so a "dawn" day
+      // isn't grouped with a fixed-time day that happens to share its
+      // close time.
+      `${h.opens_at_dawn ? 'dawn' : (h.opens_at || '')}-${h.closes_at_dusk ? 'dusk' : (h.closes_at || '')}|m=${!!h.members_only}`;
     const last = groups[groups.length - 1];
     if (last && last.sig === sig) last.end = d;
     else groups.push({ sig, start: d, end: d, h });
@@ -592,7 +595,7 @@ function summarizeWeek(hoursByDay) {
     const days = g.start === g.end ? dayNames[g.start] : `${dayNames[g.start]}–${dayNames[g.end]}`;
     if (g.sig === 'unset')  return `${days} ?`;
     if (g.sig === 'closed') return `${days} closed`;
-    const o = fmt12(g.h.opens_at);
+    const o = g.h.opens_at_dawn  ? 'Dawn' : fmt12(g.h.opens_at);
     const c = g.h.closes_at_dusk ? 'Dusk' : fmt12(g.h.closes_at);
     const mem = g.h.members_only ? ' · members' : '';
     return `${days} ${o}–${c}${mem}`;
@@ -610,12 +613,13 @@ function WeeklyHoursModal({ pill, onClose }) {
       init[d] = existing
         ? {
             opens_at:  trim5(existing.opens_at) || '',
+            opens_at_dawn: !!existing.opens_at_dawn,
             closes_at: trim5(existing.closes_at) || '',
             closes_at_dusk: !!existing.closes_at_dusk,
             is_closed: !!existing.is_closed,
             members_only: !!existing.members_only,
           }
-        : { opens_at: '', closes_at: '', closes_at_dusk: false, is_closed: true, members_only: false };
+        : { opens_at: '', opens_at_dawn: false, closes_at: '', closes_at_dusk: false, is_closed: true, members_only: false };
     }
     return init;
   });
@@ -640,7 +644,11 @@ function WeeklyHoursModal({ pill, onClose }) {
       rows.push({
         status_id: pill.statusId,
         day_of_week: d,
-        opens_at:  blankToNull(v.opens_at),
+        // v0.7.2: when opens_at_dawn is on, null out opens_at so we don't
+        // store a stale clock-time hiding behind the dawn flag. Same
+        // pattern closes_at follows for dusk.
+        opens_at:  v.opens_at_dawn  ? null : blankToNull(v.opens_at),
+        opens_at_dawn:  v.opens_at_dawn,
         closes_at: v.closes_at_dusk ? null : blankToNull(v.closes_at),
         closes_at_dusk: v.closes_at_dusk,
         is_closed: v.is_closed,
@@ -695,7 +703,19 @@ function WeeklyHoursModal({ pill, onClose }) {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                     <div style={{ flex: 1 }}>
                       <label style={smLabel}>Opens</label>
-                      <input type="time" value={v.opens_at} onChange={e => setDay(d, 'opens_at', e.target.value)} style={smInput} />
+                      {v.opens_at_dawn ? (
+                        // Mirror of the dusk display below — time inputs can't show "Dawn"
+                        // so swap to a styled label that matches the input chrome.
+                        <div style={{ ...smInput, display: 'flex', alignItems: 'center', gap: 6, color: G.muted, fontStyle: 'italic', background: '#EFE9DA' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8">
+                            <circle cx="12" cy="14" r="4"/>
+                            <path d="M12 4v2M4 12h2M18 12h2M6.4 6.4L7.8 7.8M16.2 7.8L17.6 6.4"/>
+                          </svg>
+                          <span>Dawn</span>
+                        </div>
+                      ) : (
+                        <input type="time" value={v.opens_at} onChange={e => setDay(d, 'opens_at', e.target.value)} style={smInput} />
+                      )}
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={smLabel}>Closes</label>
@@ -718,6 +738,10 @@ function WeeklyHoursModal({ pill, onClose }) {
                     </div>
                   </div>
                   <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={v.opens_at_dawn} onChange={e => setDay(d, 'opens_at_dawn', e.target.checked)} />
+                    Opens at dawn (auto-computed from the club's coordinates)
+                  </label>
+                  <label style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginTop: 4 }}>
                     <input type="checkbox" checked={v.closes_at_dusk} onChange={e => setDay(d, 'closes_at_dusk', e.target.checked)} />
                     Closes at dusk (auto-computed from the club's coordinates)
                   </label>

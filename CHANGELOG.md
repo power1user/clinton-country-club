@@ -22,6 +22,65 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.2** — "Opens at dawn" — perfect mirror of "Closes at dusk."
+  Some clubs (especially in the Midwest where Clinton lives) genuinely
+  open at first light rather than a fixed clock time, and members
+  already understood the dusk pattern so dawn is the obvious other
+  bookend.
+
+  Schema (migration 41): two new columns, mirroring exactly where
+  closes_at_dusk already lives —
+    · `club_status_hours.opens_at_dawn boolean not null default false`
+    · `schedule_overrides.opens_at_dawn boolean not null default false`
+  Defaults preserve current behavior — every existing row stays at
+  its saved opens_at clock time until a manager opts in to dawn.
+
+  Hooks (`useClubData.jsx`):
+    · Refactored `useDusk` internals into a shared `useSunTimes()`
+      with a `_sunCache` keyed by `lat:lng:date` storing
+      `{ dawn, dusk }`. Both `useDusk()` (back-compat) and the new
+      `useDawn()` read from the same fetch — calling both on one
+      screen is a single network hit. `_sunPending` dedupes
+      concurrent first-paint fetches across mounting components.
+    · `civil_twilight_begin` is preferred for dawn with `sunrise` as
+      a fallback — mirrors the dusk pattern of
+      `civil_twilight_end` → `sunset`.
+    · `withinDailyHours` and `effectiveState` now accept either a
+      Date (back-compat, dusk only) OR a `{ dusk, dawn }` object as
+      their third arg. When `opens_at_dawn` is true and dawn hasn't
+      loaded yet, returns `null` (caller treats as "not enough
+      info") — opposite of the dusk fallback because being
+      conservative on the open boundary is safer.
+    · `pickToday` legacy single-row fallback returns
+      `opens_at_dawn: false` for shape consistency.
+    · `useClubStatus`'s SELECTs now pull `opens_at_dawn` from both
+      `club_status_hours` and `schedule_overrides`, and the per-day
+      map (`byDay`) includes it so consumers see it on the pill row.
+
+  Member surface (`StatusPill.jsx`): `formatTodayHours` now renders
+  both bookends symmetrically — "Dawn (5:42am) – 9pm",
+  "Dawn (5:42am) – Dusk (8:42pm)", "7am – Dusk (8:42pm)", etc.
+  Dawn time is formatted in the CLUB's local timezone (not the
+  browsing member's) so the displayed minute is meaningful.
+
+  Admin surfaces (`AdminPanel.jsx` + `admin/sections.jsx`):
+    · `WeeklyHoursModal` (Status → Edit hours): new "Opens at dawn"
+      checkbox alongside "Closes at dusk." When checked, the Opens
+      time-input swaps to a styled "Dawn" label (matches the dusk
+      treatment), and save() nulls out `opens_at` so we don't
+      persist a stale clock-time hidden behind the dawn flag.
+    · `summarizeWeek` (the one-line summary shown on the Status
+      card) recognizes dawn and includes it in the day signature so
+      a dawn-day isn't grouped with a fixed-time day that happens
+      to share its close time.
+    · `ScheduleOverridesAdmin` (Course → Schedule Overrides): new
+      `opens_at_dawn` field appears in the form alongside
+      `closes_at_dusk`, in the columns list, and in the row
+      summary ("All Facilities · Dawn–Dusk · Frost delay").
+
+  No flag for dawn itself — it's part of the existing schedule
+  system, not a per-feature toggle. Pace of Play / Course Map /
+  etc. stay independently flag-controlled (v0.7.0).
 - **v0.7.1** — Pull-to-refresh re-audit + one realtime gap closed.
   Background: v0.5.7 explicitly decided AGAINST pull-to-refresh on the
   grounds that every member-facing screen was already realtime. v0.7.1

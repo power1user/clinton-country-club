@@ -164,20 +164,23 @@ export function ScheduleOverridesAdmin() {
       table="schedule_overrides"
       title="Schedule Override"
       emptyMsg="No date overrides set."
-      columns={['id', 'status_id', 'override_date', 'is_closed', 'opens_at', 'closes_at', 'closes_at_dusk', 'members_only', 'reason']}
+      columns={['id', 'status_id', 'override_date', 'is_closed', 'opens_at', 'opens_at_dawn', 'closes_at', 'closes_at_dusk', 'members_only', 'reason']}
       order={{ column: 'override_date', ascending: true }}
       primaryField="override_date"
       secondaryFn={r => {
         const facLabel = r.status_id == null
           ? 'All Facilities'
           : (facilities.find(x => x.statusId === r.status_id)?.label || '(facility)');
-        return `${facLabel} · ${r.is_closed ? 'Closed' : `${r.opens_at || ''}–${r.closes_at_dusk ? 'Dusk' : (r.closes_at || '')}`}${r.reason ? ' · ' + r.reason : ''}`;
+        const openLabel  = r.opens_at_dawn ? 'Dawn' : (r.opens_at  || '');
+        const closeLabel = r.closes_at_dusk ? 'Dusk' : (r.closes_at || '');
+        return `${facLabel} · ${r.is_closed ? 'Closed' : `${openLabel}–${closeLabel}`}${r.reason ? ' · ' + r.reason : ''}`;
       }}
       defaultRow={{
         status_id: '',
         override_date: new Date().toISOString().slice(0, 10),
         is_closed: true,  // most common reason to add an override is to close
-        opens_at: null, closes_at: null, closes_at_dusk: false,
+        opens_at: null, opens_at_dawn: false,
+        closes_at: null, closes_at_dusk: false,
         members_only: false, reason: '',
       }}
       beforeSave={(form) => {
@@ -194,6 +197,7 @@ export function ScheduleOverridesAdmin() {
         { key: 'override_date', label: 'Date', type: 'date' },
         { key: 'is_closed', label: 'Closed all day', type: 'checkbox' },
         { key: 'opens_at', label: 'Opens At (if open)', type: 'time' },
+        { key: 'opens_at_dawn', label: 'Opens at dawn', type: 'checkbox' },
         { key: 'closes_at', label: 'Closes At (if open)', type: 'time' },
         { key: 'closes_at_dusk', label: 'Closes at dusk', type: 'checkbox' },
         { key: 'members_only', label: 'Members only', type: 'checkbox' },
