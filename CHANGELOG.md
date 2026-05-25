@@ -22,6 +22,42 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.12** — Settings About section + ProShop dead-card removal.
+  Final cleanup pass from the UI audit batch.
+
+  **Settings → About (NEW).** Five rows at the bottom of Settings:
+    · **Terms of Use** — tappable row with a chevron that rotates
+      to a downward triangle on expand. Inline reveals the full
+      ToU rendered via the existing `termsSections()` from
+      `src/lib/terms.js` (the same body shown on first-accept by
+      TermsGate). Subline notes "Includes privacy policy · last
+      updated YYYY-MM-DD" so a member searching for "privacy"
+      lands here without us needing a separate stub.
+    · **App version** — `vX.Y.Z` in monospace. Matches the
+      version on the MyClub footer; surfacing it in Settings
+      means a support call doesn't require navigating to MyClub
+      first.
+    · **Powered by** — "The Grounds" in Playfair italic + brass,
+      consistent with the MyClub footer and the Login splash.
+    · **Contact support** — `mailto:` link that prefers
+      `club.contact_email` (per-club office address) and falls
+      back to `support@thegrounds.app`. Works on every device
+      including installed PWAs via the OS mailto handler.
+
+  No "Privacy Policy" as a separate row — privacy is a section
+  inside the ToU and the row caption surfaces that so members
+  searching for it find the right place. If a club ever asks for
+  a separate privacy document, the ToU expander pattern is
+  trivially copyable.
+
+  **ProShop "Schedule a Fitting" card removed.** Was a decorative
+  card at the bottom of the catalog with a green "Schedule a
+  Fitting" button that had no onClick handler — taps did
+  nothing. Dead buttons train members to distrust the UI. If a
+  club wants to offer fittings they can use the Bulletin Board,
+  Push Notifications, or list it as a Lesson Pro service. No
+  replacement; the catalog list now ends with whatever the last
+  pro shop item is.
 - **v0.7.11** — Community tab redesign + Calendar to its own screen.
   Per Marc's feedback during UI-audit review: "the calendar should
   be a selection card (like bulletin board and member directory)…

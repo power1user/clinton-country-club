@@ -72,13 +72,12 @@ export default function ProShop() {
             </div>
           </div>
         ))}
-        <div style={{ marginTop: 16, padding: '14px 16px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
-          <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>Club Fitting Available</p>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 10px', lineHeight: 1.55 }}>Schedule a complimentary fitting session with our PGA professionals. Available Tuesday–Sunday, 8am–5pm.</p>
-          <div data-tap style={{ padding: '9px 16px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-block' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0' }}>Schedule a Fitting</span>
-          </div>
-        </div>
+        {/* v0.7.12: removed the "Club Fitting Available" decorative
+            card. Had a "Schedule a Fitting" button that did nothing
+            (no onClick wired) — dead buttons train members to
+            distrust the UI. If a club wants to offer fittings they
+            can post about it on the Bulletin Board, broadcast a
+            Notification, or list it as a Lesson Pro service. */}
       </div>
     </div>
   );

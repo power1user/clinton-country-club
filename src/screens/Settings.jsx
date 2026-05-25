@@ -11,7 +11,7 @@
 // Each section renders only when it's relevant for the member: e.g.
 // the display-mode picker hides when the club hasn't enabled the
 // display_mode feature flag.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
@@ -22,11 +22,19 @@ import InstallEntry from '../components/InstallEntry.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { PLATFORM_NAME, VERSION } from '../lib/version.js';
+import { termsSections, CURRENT_TERMS_DATE } from '../lib/terms.js';
 
 export default function Settings() {
   const { member, club } = useAuth();
   const displayModeOn = useFlag('display_mode');
   const profilePhotosOn = useFlag('profile_photos');
+  // v0.7.12: About section's collapsible Terms re-view. Default
+  // collapsed so the section stays short; expanding renders the
+  // full terms inline (no separate screen / modal needed —
+  // termsSections() returns the same body TermsGate uses on first
+  // accept).
+  const [termsOpen, setTermsOpen] = useState(false);
 
   // v0.7.10: once a member visits Settings, they know the persistent
   // Install entry lives here — no need to keep showing the MyClub
@@ -99,6 +107,74 @@ export default function Settings() {
         <div style={{ marginTop: 18 }} />
         <SectionHeading>App</SectionHeading>
         <InstallEntry />
+
+        {/* About — v0.7.12. Five rows, all read-only:
+              · Review Terms of Use (expand inline)
+              · Privacy is covered in the ToU — surfaced as a sub-
+                line under the ToU row so members searching for
+                "privacy" land here without a separate stub
+              · App version (matches MyClub footer)
+              · Powered by The Grounds
+              · Support contact — club email if set, otherwise the
+                platform's support inbox
+            Keeps members from having to dig elsewhere for legal /
+            version / contact info. */}
+        <div style={{ marginTop: 18 }} />
+        <SectionHeading>About</SectionHeading>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {/* Terms of Use — expandable */}
+          <div onClick={() => setTermsOpen(o => !o)} data-tap style={{ padding: '12px 14px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Terms of Use</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                  Includes privacy policy · last updated {CURRENT_TERMS_DATE}
+                </p>
+              </div>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"
+                style={{ transform: termsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.18s' }}
+              ><path d="M9 18l6-6-6-6" /></svg>
+            </div>
+          </div>
+          {termsOpen && (
+            <div style={{ borderTop: `1px solid ${G.border}`, padding: '14px 16px', background: G.bg, maxHeight: 360, overflowY: 'auto' }}>
+              {termsSections(club?.name || 'your club').map((s, i) => (
+                <div key={i} style={{ marginBottom: 12 }}>
+                  {s.heading && (
+                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 12, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{s.heading}</p>
+                  )}
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.6, margin: 0 }}>{s.paragraph}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* App version */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}` }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500 }}>App version</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 12, color: G.muted }}>v{VERSION}</span>
+          </div>
+
+          {/* Powered by */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}` }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500 }}>Powered by</span>
+            <span style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.brass }}>{PLATFORM_NAME}</span>
+          </div>
+
+          {/* Support contact — prefer the club's email, fall back to
+              a platform support address. mailto: works on every
+              device including PWAs. */}
+          <a
+            href={`mailto:${club?.contact_email || 'support@thegrounds.app'}`}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}`, textDecoration: 'none' }}
+          >
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500 }}>Contact support</span>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+              {club?.contact_email || 'support@thegrounds.app'}
+            </span>
+          </a>
+        </div>
       </div>
     </div>
   );
