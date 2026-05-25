@@ -14,6 +14,7 @@
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
+import DmOptOutToggle from '../components/DmOptOutToggle.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 export default function Settings() {
@@ -47,12 +48,14 @@ export default function Settings() {
         <SectionHeading>Notifications</SectionHeading>
         <NotificationsToggle />
 
-        {/* Placeholders for v0.6.3+ — kept inline as comments so the
-            shape of this screen is obvious to anyone reading the
-            file before those commits land.
+        {/* Privacy — DM opt-out auto-hides itself when the club's
+            dms flag is off, so no manual condition needed here. */}
+        <div style={{ marginTop: 18 }} />
+        <SectionHeading>Privacy</SectionHeading>
+        <DmOptOutToggle />
 
-            <SectionHeading>Privacy</SectionHeading>
-            <DmOptOutToggle />
+        {/* Placeholders for v0.6.4+ — kept inline as comments so the
+            shape of this screen is obvious before those commits land.
 
             <SectionHeading>Appearance</SectionHeading>
             {displayModeOn && <DisplayModePicker />}

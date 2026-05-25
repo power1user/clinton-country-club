@@ -34,11 +34,14 @@ export default function MemberDirectory() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      // allow_dms pulled so the per-row Message button can hide for
+      // members who've opted out (v0.6.3). user_id filter keeps
+      // out members who haven't claimed their account yet.
       const { data, error } = await supabase
         .from('members')
-        .select('id, user_id, name, membership_number, tier, status')
+        .select('id, user_id, name, membership_number, tier, status, allow_dms')
         .eq('club_id', club.id)
-        .not('user_id', 'is', null)    // only members with accounts can be messaged
+        .not('user_id', 'is', null)
         .neq('status', 'inactive')
         .order('name', { ascending: true });
       if (cancelled) return;
@@ -131,9 +134,13 @@ export default function MemberDirectory() {
                 {m.membership_number ? `#${m.membership_number} · ` : ''}{m.tier || 'Member'}
               </p>
             </div>
-            {/* Message button only when DMs are enabled — directory
-                can be visible standalone for browsing-only clubs. */}
-            {dmsOn && (
+            {/* Message button only when:
+                · DMs are enabled at the club level (dmsOn), AND
+                · This target hasn't opted out (m.allow_dms !== false)
+                The RPC server-side enforces the same two checks, so
+                a hand-crafted call to get_or_create_dm against an
+                opted-out member also fails. */}
+            {dmsOn && m.allow_dms !== false && (
               <div
                 onClick={() => message(m)}
                 data-tap

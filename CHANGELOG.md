@@ -15,6 +15,22 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.3** — Member-level DM opt-out. Lands in Settings under a
+  new "Privacy" section. Schema: members.allow_dms boolean (default
+  true, migration 29). When a member turns it off:
+    · Their Message button is hidden from every other member's
+      directory row (client-side gate)
+    · get_or_create_dm RPC raises "This member has turned off direct
+      messages" before creating a thread (server-side gate; defense
+      in depth)
+    · Existing threads stay accessible to both parties — the opt-out
+      only blocks NEW thread creation
+  Toggle hides itself entirely when the club's dms flag is off
+  (no point letting a member toggle a flag that won't matter).
+  Bonus: get_or_create_dm now checks feature_flags->>'dms' instead
+  of the deprecated enable_member_dms column (the column was being
+  mirrored as a safety net since v0.4.1; this is the first place
+  the new path is used directly server-side).
 - **v0.6.2** — Settings screen scaffold + Add-to-Wallet removed. New
   `/myclub/settings` screen accessible via a gear icon in the MyClub
   header. Houses the push-notifications toggle (moved out of MyClub);
