@@ -30,6 +30,7 @@ import ProShop from './screens/ProShop.jsx';
 import LessonRequest from './screens/LessonRequest.jsx';
 import OnboardingGuide from './screens/OnboardingGuide.jsx';
 import AdminPanel from './screens/AdminPanel.jsx';
+import Settings from './screens/Settings.jsx';
 import TermsGate from './screens/TermsGate.jsx';
 
 const SCREENS = {
@@ -56,6 +57,7 @@ const SCREENS = {
   'myclub/lessons': LessonRequest,
   'myclub/onboarding': OnboardingGuide,
   'myclub/admin': AdminPanel,
+  'myclub/settings': Settings,
 };
 
 // Ordered list — used for tab swipe to figure out next/prev.

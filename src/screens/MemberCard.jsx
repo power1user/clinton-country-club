@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
-import { Brass, GhostBtn } from '../components/Buttons.jsx';
+import { GhostBtn } from '../components/Buttons.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 const STATE_NAMES = {
@@ -67,9 +67,12 @@ export default function MemberCard() {
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Member No. {m.number}</p>
           </div>
         )}
+        {/* Add-to-Wallet button removed in v0.6.2 — deferred until we
+            have Apple Developer + Google Wallet API credentials in
+            hand. Tracked as a future item; do not re-add a stub
+            button (a button that says "Coming soon" reads as broken). */}
         <div style={{ marginTop: 22, display: 'flex', gap: 10, width: '100%', maxWidth: 346 }}>
           <GhostBtn onPress={() => setShowQR(!showQR)} style={{ flex: 1 }}>{showQR ? 'Show Card' : 'QR Code'}</GhostBtn>
-          <Brass style={{ flex: 1 }}>Add to Wallet</Brass>
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, marginTop: 16, textAlign: 'center' }}>
           {[founded && `Est. ${founded}`, cityState].filter(Boolean).join(' · ')}

@@ -15,6 +15,17 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.2** — Settings screen scaffold + Add-to-Wallet removed. New
+  `/myclub/settings` screen accessible via a gear icon in the MyClub
+  header. Houses the push-notifications toggle (moved out of MyClub);
+  scaffolded with comment-stubbed slots for Privacy (DM opt-out),
+  Appearance (display mode), Profile (photo), and App (install) —
+  each landing in v0.6.3 through v0.6.6.
+  Removed the "Add to Wallet" button from MemberCard since neither
+  Apple Developer nor Google Wallet credentials are in hand yet.
+  Tracked as future work; explicitly not leaving a "Coming soon"
+  stub (reads as broken). When credentials arrive the wallet
+  feature lands as v0.7.0 or later.
 - **v0.6.1** — Directional slide transitions on tab switches. Tapping
   a tab to the right (or swiping left) slides the new screen in
   from the right; tapping to the left slides in from the left.
