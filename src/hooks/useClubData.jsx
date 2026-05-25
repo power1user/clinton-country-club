@@ -379,10 +379,10 @@ export function useBulletinPosts() {
   useEffect(() => {
     if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
-    (async () => {
-      // Pull author name + tier + member_since so cards can attribute
-      // posts richly. user_id is included so the reply/DM affordances
-      // (added v0.5.x) can call get_or_create_dm against the right user.
+    // Pull author name + tier + member_since so cards can attribute
+    // posts richly. user_id is included so the reply/DM affordances
+    // (added v0.5.x) can call get_or_create_dm against the right user.
+    const load = async () => {
       const { data: rows } = await supabase
         .from('bulletin_posts')
         .select('id, category, title, body, hidden, created_at, member_id, members(name, tier, member_since, user_id)')
@@ -408,7 +408,18 @@ export function useBulletinPosts() {
         })));
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    // Realtime — a member posting from a different device shows up
+    // without a refresh. Cheap; bulletin_posts is already in the
+    // supabase_realtime publication.
+    const channel = supabase
+      .channel(`bulletin_posts:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bulletin_posts', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id, version]);
 
   return { data, loading, refresh };
@@ -427,7 +438,7 @@ export function usePartnerPosts() {
   useEffect(() => {
     if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       const { data: rows } = await supabase
         .from('partner_posts')
         .select('id, category, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id)')
@@ -452,7 +463,18 @@ export function usePartnerPosts() {
         })));
       }
       setLoading(false);
-    })();
+    };
+    load();
+
+    // Realtime — partner posts come and go quickly during a busy
+    // weekend morning; live updates keep the board honest without
+    // members having to refresh.
+    const channel = supabase
+      .channel(`partner_posts:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_posts', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id, version]);
 
   return { data, loading, refresh };
