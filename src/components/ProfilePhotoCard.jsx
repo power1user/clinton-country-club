@@ -57,24 +57,39 @@ export default function ProfilePhotoCard() {
   const handleFile = async (file) => {
     if (!file || busy) return;
     setBusy(true); setErr(null);
+    // v0.6.15: unique filename per upload — `avatar-<timestamp>.jpg`.
+    // Eliminates the "already exists" conflict that bit us when an
+    // upload was retried on a stale PWA cache or across devices.
+    // Old files in the member folder get cleaned up below before the
+    // new one lands so storage doesn't accumulate orphans.
+    //
     // Path uses the auth user_id (not members.id) so the storage RLS
     // policy verifies ownership with auth.uid() — no cross-table
-    // subquery, no chance of "permission denied" from a subtle RLS
-    // interaction (see migration 32).
-    const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
+    // subquery, no permission-denied surprises (see migration 32).
+    const folder = `${club.id}/members/${session.user.id}`;
+    const filename = `avatar-${Date.now()}.jpg`;
+    const path = `${folder}/${filename}`;
     try {
       const blob = await resizeToBlob(file);
 
-      // Step 1 — upload to storage. v0.6.13: switched to upload-then-
-      // remove-old instead of upsert. The supabase-js `upsert: true`
-      // path was returning HTTP 400 + body { statusCode: 404, error:
-      // not_found } even though no row existed — looks like a client
-      // bug where upsert tries to UPDATE first and 404s when there's
-      // nothing to update, instead of falling back to INSERT.
-      //
-      // Workaround: delete any existing avatar first (idempotent), then
-      // insert fresh. Two requests instead of one, but reliable.
-      await supabase.storage.from('club-assets').remove([path]).catch(() => {});
+      // Step 1a — list + remove any existing files in the member's
+      // folder so we don't accumulate orphans. Best-effort: failures
+      // here are ignored because the unique new filename guarantees
+      // the next step won't conflict regardless.
+      try {
+        const { data: existing } = await supabase.storage
+          .from('club-assets')
+          .list(folder, { limit: 50 });
+        if (existing && existing.length) {
+          const old = existing.map(f => `${folder}/${f.name}`);
+          await supabase.storage.from('club-assets').remove(old);
+        }
+      } catch (cleanupErr) {
+        console.warn('[avatar] cleanup of old files failed (non-fatal)', cleanupErr);
+      }
+
+      // Step 1b — upload the new file at the unique path. No upsert,
+      // no conflict path — always a fresh INSERT into storage.
       const { error: upErr } = await supabase.storage
         .from('club-assets')
         .upload(path, blob, { cacheControl: '3600', contentType: 'image/jpeg' });
@@ -112,10 +127,24 @@ export default function ProfilePhotoCard() {
     if (busy || !confirm('Remove your profile photo?')) return;
     setBusy(true); setErr(null);
     try {
-      const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
-      // Best-effort delete; don't block on storage failures (file may
-      // not exist after a previous failed upload).
-      await supabase.storage.from('club-assets').remove([path]);
+      // v0.6.15: file names are unique-per-upload now (avatar-<ts>.jpg)
+      // so we list the folder and remove whatever's there rather than
+      // hard-coding avatar.jpg. Best-effort on the storage side — a
+      // failed delete leaves an orphan file but doesn't block the
+      // members.photo_url=null update, which is what actually hides
+      // the photo across the app.
+      const folder = `${club.id}/members/${session.user.id}`;
+      try {
+        const { data: existing } = await supabase.storage
+          .from('club-assets')
+          .list(folder, { limit: 50 });
+        if (existing && existing.length) {
+          const paths = existing.map(f => `${folder}/${f.name}`);
+          await supabase.storage.from('club-assets').remove(paths);
+        }
+      } catch (storageErr) {
+        console.warn('[avatar] remove of storage files failed (non-fatal)', storageErr);
+      }
       const { error } = await supabase.from('members').update({ photo_url: null }).eq('id', member.id);
       if (error) throw error;
       await refreshMember?.();

@@ -15,6 +15,21 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.15** — Photo upload robustness + cleanup of the diagnostic
+  policy. Two changes:
+  1. **Unique filename per upload.** Was `avatar.jpg` (fixed path
+     that conflicted on re-upload from a stale PWA cache or a
+     second device). Now `avatar-<timestamp>.jpg` — every upload is
+     a guaranteed-new path, no "already exists" conflicts possible.
+     Pre-upload step lists the member's folder and removes any
+     existing files so storage doesn't accumulate orphans.
+     `removePhoto` similarly lists+removes-all rather than
+     hardcoding the old single filename.
+  2. **Dropped the diagnostic "totally open" policy** from
+     migration 35/36/37 (migration 38). It was only there to prove
+     RLS wasn't the bottleneck; v0.6.14 confirmed the real issue
+     was apikey, not RLS. The tight per-member policy
+     (`members upload own avatar`) stays as the production rule.
 - **v0.6.14** — Profile photo upload — finally pinned the actual
   cause. Server response body was:
     `{ "message": "No API key found in request",
