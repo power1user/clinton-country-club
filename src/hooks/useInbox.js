@@ -95,6 +95,28 @@ export function useInboxUnread() {
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id, session?.user?.id, member?.id]);
 
+  // v0.7.3: mirror the unread count to the OS-level app badge. Wired
+  // directly into useInboxUnread so it stays in sync with the bell
+  // chip automatically — anything that already updates the bell will
+  // also update the badge. Feature-detected, so iOS Safari (no Badging
+  // API), older browsers, or sandboxed contexts no-op silently. The
+  // .catch swallows the rejection that fires on installed iOS PWAs
+  // that have the API but haven't been granted notification permission
+  // (badge requires a granted push permission on iOS 16.4+).
+  //
+  // Visible payoff is on installed Android PWAs (Chrome / Edge / Brave
+  // on Android, plus desktop Chrome / Edge): the launcher icon gets a
+  // small unread count badge, same UX members get from native messaging
+  // apps. Idempotent — calling with the same count is cheap.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    if (unread > 0) {
+      navigator.setAppBadge(unread).catch(() => { /* permission not granted / unsupported context */ });
+    } else {
+      navigator.clearAppBadge?.().catch(() => { /* same */ });
+    }
+  }, [unread]);
+
   return unread;
 }
 

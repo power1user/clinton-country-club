@@ -22,6 +22,34 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.3** — Android (and desktop Chrome / Edge) PWA app-icon badge
+  wired to the existing unread count. When an installed PWA member
+  has unread thread messages or unread notification broadcasts, the
+  launcher icon now shows the same number the in-app bell chip
+  shows. Mark a thread or notification read, the badge ticks down.
+  Hit zero, badge clears.
+
+  Implementation: a single `useEffect` inside `useInboxUnread` —
+  the source of truth for the bell — fires `navigator.setAppBadge(n)`
+  on every count change, or `navigator.clearAppBadge()` when count
+  hits zero. Feature-detected (`'setAppBadge' in navigator`) so iOS
+  Safari, older browsers, and non-PWA contexts no-op silently. The
+  `.catch(() => {})` swallows the rejection that fires on installed
+  iOS PWAs that have the API but no granted notification permission
+  (badge requires a granted push permission on iOS 16.4+).
+
+  Why inline in `useInboxUnread` rather than a separate hook: there
+  is exactly one source of truth for the unread count; piggybacking
+  the badge sync there means any future change to the count
+  automatically updates the badge with zero extra plumbing. No call
+  sites change; `BellChip` continues to read the count exactly as
+  before.
+
+  Foreground behavior is correct: `setAppBadge` while the app is in
+  the foreground still updates the OS-level value, so the badge is
+  ready and visible the moment the user backgrounds the app. No
+  cleanup needed on unmount — the user navigating between tabs
+  should keep the badge; only an unread count of 0 clears it.
 - **v0.7.2** — "Opens at dawn" — perfect mirror of "Closes at dusk."
   Some clubs (especially in the Midwest where Clinton lives) genuinely
   open at first light rather than a fixed clock time, and members
