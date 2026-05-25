@@ -251,6 +251,23 @@ function InboxRow({ item, expanded, onTap, onHide }) {
         <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted }}>
           {item.sender ? `${item.sender} · ` : ''}{absoluteDate(item.time)} · {relativeTime(item.time)}
         </span>
+        {/* In-message Delete (v0.6.8) — only shown for notifications
+            when expanded. Threads have their own kebab inside Thread
+            view; the X button at the row level still works for both. */}
+        {expanded && item.type === 'notification' && onHide && (
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+            <div
+              onClick={(e) => { e.stopPropagation(); onHide(); }}
+              data-tap
+              style={{ padding: '5px 12px', border: `1px solid ${G.border}`, borderRadius: 3, background: G.bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              </svg>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, fontWeight: 500 }}>Delete</span>
+            </div>
+          </div>
+        )}
       </div>
       {onHide && (
         <div
