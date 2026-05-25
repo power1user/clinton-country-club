@@ -17,6 +17,7 @@ import NotificationsToggle from '../components/NotificationsToggle.jsx';
 import DmOptOutToggle from '../components/DmOptOutToggle.jsx';
 import DisplayModePicker from '../components/DisplayModePicker.jsx';
 import ProfilePhotoCard from '../components/ProfilePhotoCard.jsx';
+import InstallEntry from '../components/InstallEntry.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
@@ -80,10 +81,13 @@ export default function Settings() {
           </>
         )}
 
-        {/* App placeholder for v0.6.6 (PWA install entry):
-            <SectionHeading>App</SectionHeading>
-            <InstallEntry />
-        */}
+        {/* App — install affordance. Always shows unless already
+            standalone (handled inside InstallEntry). iOS gets a
+            step-by-step instructions card; Android tap triggers the
+            native prompt. */}
+        <div style={{ marginTop: 18 }} />
+        <SectionHeading>App</SectionHeading>
+        <InstallEntry />
       </div>
     </div>
   );

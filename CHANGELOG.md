@@ -15,6 +15,23 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.6** — Persistent "Install App" entry in Settings → App.
+  Different from the existing InstallCard (session-dismissible, on
+  MyClub + Login): this one always renders unless the app is
+  already running standalone, so members who dismissed an earlier
+  prompt can come back to install when they're ready.
+  Platform branching:
+    · Already standalone → renders nothing
+    · iOS Safari (no install API) → step-by-step instruction list:
+      1. Tap Share, 2. Tap Add to Home Screen, 3. Tap Add. Each
+      step has a hint icon (share / plus / check).
+    · Android Chrome / Edge / Brave → tappable "Install" button
+      that fires the deferred beforeinstallprompt event
+    · Anything else → small italic note explaining the browser
+      doesn't support installs (no dead button)
+  The MyClub InstallCard stays in place — it already auto-hides
+  when standalone per the spec's "follow same logic" note. Settings
+  InstallEntry is the persistent backstop alongside it.
 - **v0.6.5** — Member profile photos. Lands across every surface
   the spec called out: Settings (upload/camera/remove), Membership
   Card (52px next to name), Member Directory (34px per row),
