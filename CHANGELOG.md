@@ -15,6 +15,19 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.10** — Better diagnostics on profile photo upload failures.
+  The v0.6.9 fix didn't resolve the user's "permission denied"
+  error in production, and the friendly error message hid which
+  step actually failed (storage upload vs members table update vs
+  something else entirely). This commit:
+    · Tags each step with a specific failure prefix in the UI:
+      "Storage upload failed: …" or "Saving photo to your profile
+      failed: …"
+    · Logs structured debug info to the browser console for each
+      failure (path attempted, error object)
+    · Surfaces the raw underlying error message in the UI instead
+      of a friendly summary, so the user can copy/paste it
+  No behavior change for successful uploads.
 - **v0.6.9** — Fix "You don't have permission to update your photo"
   on profile photo upload. The v0.6.5 storage policy did a subquery
   on `public.members` to map auth.uid() → members.id, then compared

@@ -57,31 +57,45 @@ export default function ProfilePhotoCard() {
   const handleFile = async (file) => {
     if (!file || busy) return;
     setBusy(true); setErr(null);
+    // Path uses the auth user_id (not members.id) so the storage RLS
+    // policy verifies ownership with auth.uid() — no cross-table
+    // subquery, no chance of "permission denied" from a subtle RLS
+    // interaction (see migration 32).
+    const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
     try {
       const blob = await resizeToBlob(file);
-      // Path uses the auth user_id (not members.id) so the storage
-      // RLS policy can verify ownership with a one-line auth.uid()
-      // check — no cross-table subquery, no chance of "permission
-      // denied" from a subtle RLS interaction (see migration 32).
-      const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
+
+      // Step 1 — upload to storage. If THIS errors, it's a storage
+      // bucket RLS issue or a network problem. Tag the message so we
+      // can tell upload-vs-db failures apart in the UI.
       const { error: upErr } = await supabase.storage
         .from('club-assets')
         .upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
-      if (upErr) throw upErr;
+      if (upErr) {
+        console.error('[avatar] storage.upload failed', { path, error: upErr });
+        throw new Error(`Storage upload failed: ${upErr.message || JSON.stringify(upErr)}`);
+      }
+
+      // Step 2 — write the public URL to members. If this errors, it's
+      // the members UPDATE RLS (should never happen — user_id =
+      // auth.uid() is in the policy) or a network problem.
       const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
-      // Cache-bust on every update so the new image shows immediately
-      // (otherwise the browser/CF cache serves the old one for an hour).
       const url = `${pub.publicUrl}?v=${Date.now()}`;
       const { error: dbErr } = await supabase
         .from('members')
         .update({ photo_url: url })
         .eq('id', member.id);
-      if (dbErr) throw dbErr;
+      if (dbErr) {
+        console.error('[avatar] members.update failed', { memberId: member.id, error: dbErr });
+        throw new Error(`Saving photo to your profile failed: ${dbErr.message || JSON.stringify(dbErr)}`);
+      }
+
       await refreshMember?.();
     } catch (e) {
-      setErr(e?.message?.includes('row-level security')
-        ? "You don't have permission to update your photo."
-        : (e?.message || 'Upload failed. Try again.'));
+      // Surface the actual message so we can debug. Friendly summary
+      // up top + the raw underlying message below.
+      const raw = e?.message || String(e);
+      setErr(raw);
     } finally {
       setBusy(false);
     }
