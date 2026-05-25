@@ -22,6 +22,62 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.4** — Bulletin / Partner author attribution edge cases —
+  audited, documented, one display-string tweak. The behavior the
+  spec asked for already held in production; this commit makes the
+  contract explicit so future refactors don't accidentally regress
+  it.
+
+  DB audit (verified via `information_schema`):
+    · `bulletin_posts.member_id` — NULLABLE, FK ON DELETE SET NULL
+    · `partner_posts.member_id`  — NULLABLE, FK ON DELETE SET NULL
+
+  Net effect: deleting a member detaches their posts (member_id
+  becomes NULL) but the posts themselves survive. Combined with
+  PostgREST's embedded-resource LEFT JOIN default (`members(...)`,
+  no `!inner`), a post with NULL or stale member_id still comes
+  back from the query with `members: null` — it does NOT vanish
+  from the feed.
+
+  JS audit (`src/hooks/useClubData.jsx`):
+    · `useBulletinPosts` + `usePartnerPosts` already had a
+      `r.members?.name || 'Anonymous'` fallback. Bumped the label
+      to "Anonymous Member" (spec wording, clearer than the bare
+      "Anonymous"). Added a block comment in both hooks
+      documenting the orphan contract — FK rules, LEFT JOIN
+      assumption, fallback string, the renderer's DM-button
+      gating — so the next person to touch the SELECT doesn't
+      switch to `members!inner` and lose orphan posts.
+
+  Renderer audit (`BulletinBoard.jsx`, `PartnerBoard.jsx`):
+    · Both pass `post.author` into `<Avatar name={...} />` — for
+      orphans this becomes "Anonymous Member" and the avatar
+      shows an "A" initial circle, same shape as every other
+      member. No special-case styling needed.
+    · DM affordances gate on `post.authorUserId` (BulletinBoard
+      line 176, PartnerBoard line 63 + 183) — when null,
+      Bulletin hides the Message button entirely and Partner
+      falls back to "Contact via clubhouse." Already correct,
+      no change.
+
+  Cases the contract covers, explicitly:
+    1. Member deleted via Admin → Members → Remove → posts stay,
+       attribution becomes "Anonymous Member"
+    2. Member deactivated (status = 'inactive') → still has a
+       valid row, name still resolves; no change in display
+    3. CSV bulk import where the member row was created without a
+       linked auth user → member_id is valid and `members.name`
+       resolves normally; just no DM affordance because
+       authorUserId is null
+    4. SQL/admin-tool insert with null member_id → "Anonymous
+       Member"
+    5. SQL/admin-tool insert with mismatched member_id (points to
+       a row in a different club, or an id that never existed) →
+       PostgREST LEFT JOIN returns null, falls to "Anonymous
+       Member"
+
+  No data migration needed; no UI redesign needed; just a string
+  bump + a comment block to lock the contract in.
 - **v0.7.3** — Android (and desktop Chrome / Edge) PWA app-icon badge
   wired to the existing unread count. When an installed PWA member
   has unread thread messages or unread notification broadcasts, the

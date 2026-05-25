@@ -407,6 +407,28 @@ export function useBulletinPosts() {
     // Pull author name + tier + member_since so cards can attribute
     // posts richly. user_id is included so the reply/DM affordances
     // (added v0.5.x) can call get_or_create_dm against the right user.
+    //
+    // Orphan-author contract (v0.7.4):
+    //   · `members(...)` is PostgREST's embedded-resource syntax →
+    //     LEFT JOIN by default. A post with NULL member_id, or a
+    //     member_id whose row no longer exists, comes back with
+    //     `members: null` rather than dropping the post from the
+    //     feed. To force INNER JOIN here we'd write `members!inner`;
+    //     we deliberately don't.
+    //   · `bulletin_posts.member_id` is NULLABLE, FK ON DELETE SET
+    //     NULL — deleting a member detaches their posts without
+    //     destroying them (see DB constraint
+    //     bulletin_posts_member_id_fkey).
+    //   · Display fallback is "Anonymous Member" — keeps the row
+    //     visible, obvious it's not a real name, and matches the
+    //     phrasing used everywhere we surface a missing-author
+    //     state. Avatar falls back to the 'A' initial circle.
+    //   · DM/reply affordances in the renderer check
+    //     `authorUserId` before showing — orphan posts get the
+    //     reply thread + the "Contact via clubhouse" fallback only.
+    //   · Covers: deactivated members, CSV bulk-import where the
+    //     member row lacks a linked auth user (still has a name),
+    //     SQL/admin-tool inserts with null or mismatched member_id.
     const load = async () => {
       const { data: rows } = await supabase
         .from('bulletin_posts')
@@ -419,10 +441,7 @@ export function useBulletinPosts() {
         setData(rows.map(r => ({
           id: r.id,
           cat: r.category,
-          // "Anonymous" rather than "Member" for orphan posts — makes
-          // it obvious this is a deleted/missing author, not a real
-          // person named Member.
-          author: r.members?.name || 'Anonymous',
+          author: r.members?.name || 'Anonymous Member',
           authorTier: r.members?.tier || null,
           authorSince: r.members?.member_since || null,
           authorUserId: r.members?.user_id || null,
@@ -464,6 +483,11 @@ export function usePartnerPosts() {
   useEffect(() => {
     if (!isConfigured || !club) { setData([]); setLoading(false); return; }
     let cancelled = false;
+    // Orphan-author contract — same as useBulletinPosts above. Embedded
+    // `members(...)` is a LEFT JOIN; partner_posts.member_id is nullable
+    // with FK ON DELETE SET NULL; missing/deleted-author rows display
+    // as "Anonymous Member" and lose the DM affordance but keep the
+    // "Contact via clubhouse" fallback in the PartnerBoard renderer.
     const load = async () => {
       const { data: rows } = await supabase
         .from('partner_posts')
@@ -474,7 +498,7 @@ export function usePartnerPosts() {
       if (rows) {
         setData(rows.map(r => ({
           id: r.id,
-          author: r.members?.name || 'Anonymous',
+          author: r.members?.name || 'Anonymous Member',
           authorTier: r.members?.tier || null,
           authorSince: r.members?.member_since || null,
           authorUserId: r.members?.user_id || null,
