@@ -96,9 +96,12 @@ export default function MemberCard() {
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Member No. {m.number || '—'}</p>
           </div>
         )}
-        {/* Add-to-Wallet button removed in v0.6.2 — deferred until we
-            have Apple Developer + Google Wallet API credentials in
-            hand. Tracked as a future item; do not re-add a stub
+        {/* Add-to-Wallet button removed in v0.6.2 and PERMANENTLY parked
+            as of v0.7.5 — no longer on the roadmap. Apple Developer +
+            Google Wallet API credentials cost real money and engineering
+            time; we'll only build this when an actual country club asks
+            for it. At that point it goes on the roadmap with the
+            requesting club's name attached. Do NOT re-add a stub
             button (a button that says "Coming soon" reads as broken). */}
         <div style={{ marginTop: 22, display: 'flex', gap: 10, width: '100%', maxWidth: 346 }}>
           <GhostBtn onPress={() => setShowQR(!showQR)} style={{ flex: 1 }}>{showQR ? 'Show Card' : 'QR Code'}</GhostBtn>

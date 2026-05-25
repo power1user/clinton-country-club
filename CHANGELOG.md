@@ -22,6 +22,27 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.5** — Roadmap update: Digital Wallet Integration is
+  permanently parked, off the roadmap. Was previously listed as
+  "deferred to v0.8.0+ pending Apple Developer + Google Wallet
+  credentials" (v0.6.2 commit message), which implied an active
+  intent to build. New stance: we won't spend engineering or
+  credential-acquisition time on it until an actual country club
+  asks for it as a customer-requested feature. When (and if) a
+  club asks, it goes on the roadmap with their name attached.
+  Changes in this commit are all comments / docs:
+    · `MemberCard.jsx` — the existing comment explaining why the
+      Add-to-Wallet button isn't there now says PERMANENTLY parked,
+      and explicitly forbids re-adding a "Coming soon" stub. Same
+      stance as v0.6.2 (no broken-looking placeholder), just
+      stronger language because the deferral is no longer a
+      timeline; it's a customer-pull decision.
+    · `CHANGELOG.md` — v0.7.0 "Not in this commit" section was
+      pointing at "Wallet stays parked at v0.8.0+ pending
+      Apple/Google credentials." Updated to point here so anyone
+      asking "what about Apple Wallet?" lands on the right answer.
+  No code behavior change. No new flag in the catalog (the
+  feature has no surface; nothing to gate).
 - **v0.7.4** — Bulletin / Partner author attribution edge cases —
   audited, documented, one display-string tweak. The behavior the
   spec asked for already held in production; this commit makes the
@@ -273,8 +294,9 @@ default to ON in the catalog.
   **Not in this commit (next four v0.7.x patches):** pull-to-
   refresh re-audit (v0.7.1), dawn flag mirroring dusk (v0.7.2),
   Android PWA badge via `navigator.setAppBadge` (v0.7.3), bulletin
-  /partner author attribution edge cases (v0.7.4). Wallet stays
-  parked at v0.8.0+ pending Apple/Google credentials.
+  /partner author attribution edge cases (v0.7.4). Wallet is
+  permanently parked as of v0.7.5 — see that entry for the new
+  stance (off the roadmap until a real club asks).
 
   **Heads-up for managers:** every previously-visible feature is
   ON by default, so nothing disappears for members on upgrade.
