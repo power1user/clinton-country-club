@@ -19,13 +19,13 @@ export default function Events() {
   const shown = filter === 'all' ? events : events.filter(e => e.cat === filter);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
 
-  // Section nav cards — always show Bulletin + Partner; show Member
-  // Directory only when the feature flag is on for this club. Each
-  // card is a deep link into its own screen so members can browse
-  // the relevant community surface without poking around for it.
+  // Section nav cards in Community — member-to-member general
+  // surfaces only. Golf Partners deliberately NOT here even though it
+  // uses the same pattern: it's golf-coordination, so it lives in the
+  // Golf tab's GolfHub tile (avoiding the "is it golf or community?"
+  // confusion of having it in both places).
   const sections = [
     { id: 'community/bulletin', label: 'Bulletin Board',   sub: 'Classifieds, wanted, general',  icon: <><path d="M3 6h18M3 12h18M3 18h18" strokeWidth="1.4" /></> },
-    { id: 'golf/partners',      label: 'Golf Partners',    sub: 'Find foursomes, singles, cart shares', icon: <><circle cx="9" cy="7" r="3.5" strokeWidth="1.4" fill="none" /><circle cx="17" cy="7" r="3" strokeWidth="1.4" fill="none" /><path d="M2 20c0-3 3.4-5 7-5s7 2 7 5" strokeWidth="1.4" fill="none" /></> },
     ...(directoryOn ? [
       { id: 'member-directory', label: 'Member Directory', sub: 'Browse the roster · message members', icon: <><rect x="3" y="4" width="11" height="8" rx="1.5" strokeWidth="1.4" fill="none" /><path d="M6 8h5M6 6h5" strokeWidth="1.4" fill="none" /></> },
     ] : []),

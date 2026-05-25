@@ -15,6 +15,12 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.5** — Removed Golf Partners card from Community section nav
+  (added by mistake in v0.5.4). Golf-coordination already lives in
+  GolfHub's Partners tile; duplicating it in Community blurred the
+  "is this a golf thing or a community thing" line. Community now
+  shows only what's genuinely member-to-member general: Bulletin
+  Board, and Member Directory when the flag is on.
 - **v0.5.4** — Member Directory exposed in Community tab; split
   directory visibility from DMs. Two flags now:
     · `member_directory` (NEW, basic tier, default off) — controls
