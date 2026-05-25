@@ -137,7 +137,15 @@ function ScreenRenderer() {
       </div>
     );
   }
-  const animClass = dir === 'forward' ? 'screen-forward' : dir === 'back' ? 'screen-back' : 'screen-tab';
+  // 'tab-forward' / 'tab-back' get a lighter, shorter slide than full
+  // forward/back drill-downs — keeps the lateral move feeling sideways
+  // rather than nested. Plain 'tab' (same tab) falls back to fade.
+  const animClass =
+    dir === 'forward'     ? 'screen-forward' :
+    dir === 'back'        ? 'screen-back' :
+    dir === 'tab-forward' ? 'screen-tab-forward' :
+    dir === 'tab-back'    ? 'screen-tab-back' :
+                            'screen-tab';
 
   return (
     <div

@@ -95,7 +95,17 @@ export function NavProvider({ children }) {
   };
 
   const goTab = (t, opts = {}) => {
-    setDir('tab');
+    // Pick a directional slide based on where the new tab sits in
+    // TABS relative to the current. Right-ward (e.g. Home → Golf)
+    // gets 'tab-forward' (slides in from the right, matching a
+    // swipe-left gesture). Left-ward (Community → Home) gets
+    // 'tab-back'. Same tab → generic fade.
+    const fromIdx = TABS.indexOf(tab);
+    const toIdx = TABS.indexOf(t);
+    const tabDir = toIdx > fromIdx ? 'tab-forward' :
+                   toIdx < fromIdx ? 'tab-back' :
+                                     'tab';
+    setDir(tabDir);
     setAnimKey(k => k + 1);
     if (opts.reset) {
       setStacks(p => ({ ...p, [t]: [] }));

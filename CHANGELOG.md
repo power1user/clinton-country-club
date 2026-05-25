@@ -15,6 +15,20 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.1** — Directional slide transitions on tab switches. Tapping
+  a tab to the right (or swiping left) slides the new screen in
+  from the right; tapping to the left slides in from the left.
+  Matches the swipe gesture's mental model. Implementation is pure
+  CSS keyframes on `transform: translateX` — no animation library,
+  no double-render. Tab slide is 18px / 200ms (lighter than the
+  28px / 220ms drill-down slide) so lateral moves don't feel like
+  nested ones. Falls back to a quick fade for users with
+  `prefers-reduced-motion`.
+  Direction picked in `useNav.goTab` by comparing TABS-array index
+  of the source and target tab. Outgoing screen doesn't co-animate
+  (would require double-rendering during transition + brings
+  keyboard / scroll-position complications); incoming-only slide
+  delivers ~80% of the perceived improvement at much lower risk.
 - **v0.6.0** — Calendar view in Community + optional News date.
   New `<Calendar>` component (`src/components/Calendar.jsx`):
   standard 7-col month grid with prev/next nav + "Today" shortcut,

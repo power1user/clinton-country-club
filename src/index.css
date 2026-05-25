@@ -63,14 +63,38 @@ html, body, #root {
   }
 }
 
-/* ── Screen transitions ── */
-@keyframes slideInRight { from { transform: translateX(28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes slideInLeft  { from { transform: translateX(-28px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes fadeIn       { from { opacity: 0; } to { opacity: 1; } }
+/* ── Screen transitions ──
+ * Two flavors of slide:
+ *   · Drill-down (push / pop) uses ~28px to feel like a card landing
+ *     on top of the previous one. opacity 0 → 1 for hierarchy.
+ *   · Tab switch uses a shorter ~18px slide that doesn't dip past
+ *     opacity 0.6 — it should feel lateral, not nested. Direction is
+ *     set by useNav.goTab based on tab order (tab-forward = new
+ *     screen slides in from the right, matching a swipe-left).
+ * 200-280ms range on both keeps things snappy without feeling rushed
+ * on older iPhones. Falls back to fade if the runtime can't paint the
+ * transform smoothly (browsers handle this automatically). */
+@keyframes slideInRight     { from { transform: translateX(28px);  opacity: 0;   } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideInLeft      { from { transform: translateX(-28px); opacity: 0;   } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideTabFromRight{ from { transform: translateX(18px);  opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideTabFromLeft { from { transform: translateX(-18px); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeIn           { from { opacity: 0; } to { opacity: 1; } }
 
-.screen-forward { animation: slideInRight 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.screen-back    { animation: slideInLeft  0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.screen-tab     { animation: fadeIn       0.18s ease both; }
+.screen-forward     { animation: slideInRight      0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-back        { animation: slideInLeft       0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-tab-forward { animation: slideTabFromRight 0.20s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-tab-back    { animation: slideTabFromLeft  0.20s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.screen-tab         { animation: fadeIn            0.18s ease both; }
+
+/* Respect users with reduced-motion preferences — kill the transforms,
+ * keep a quick fade so the screen change is still perceptible. */
+@media (prefers-reduced-motion: reduce) {
+  .screen-forward,
+  .screen-back,
+  .screen-tab-forward,
+  .screen-tab-back,
+  .screen-tab { animation: fadeIn 0.12s ease both; }
+}
 
 /* ── Form resets ── */
 input, textarea, select {
