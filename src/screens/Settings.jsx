@@ -16,12 +16,15 @@ import { BackHeader } from '../components/Headers.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
 import DmOptOutToggle from '../components/DmOptOutToggle.jsx';
 import DisplayModePicker from '../components/DisplayModePicker.jsx';
+import ProfilePhotoCard from '../components/ProfilePhotoCard.jsx';
+import Avatar from '../components/Avatar.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 
 export default function Settings() {
   const { member, club } = useAuth();
   const displayModeOn = useFlag('display_mode');
+  const profilePhotosOn = useFlag('profile_photos');
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -31,14 +34,12 @@ export default function Settings() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 32px' }}>
         {/* Member identity strip — small reminder of whose settings
             we're editing. Useful when the member shares a device with
-            family and wants to confirm they're in their own account. */}
+            family and wants to confirm they're in their own account.
+            Shows the profile photo when the club has the flag on;
+            falls back to initials otherwise (Avatar handles both). */}
         {member && (
           <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, color: '#A8D8B8', fontWeight: 700 }}>
-                {(member.name || '?').trim().charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <Avatar photoUrl={profilePhotosOn ? member.photo_url : null} name={member.name} size={38} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.2 }}>{member.name || '—'}</p>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
@@ -69,12 +70,17 @@ export default function Settings() {
           </>
         )}
 
-        {/* Placeholders for v0.6.5+ — kept inline as comments so the
-            shape of this screen is obvious before those commits land.
-
+        {/* Profile — upload/change/remove the member's avatar. Auto-
+            hides when the club has profile_photos off (heading too). */}
+        {profilePhotosOn && (
+          <>
+            <div style={{ marginTop: 18 }} />
             <SectionHeading>Profile</SectionHeading>
-            {profilePhotosOn && <ProfilePhotoCard />}
+            <ProfilePhotoCard />
+          </>
+        )}
 
+        {/* App placeholder for v0.6.6 (PWA install entry):
             <SectionHeading>App</SectionHeading>
             <InstallEntry />
         */}

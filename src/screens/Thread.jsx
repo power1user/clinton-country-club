@@ -6,7 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { G, gCfg } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
+import Avatar from '../components/Avatar.jsx';
 import { supabase } from '../lib/supabase.js';
 import { markThreadRead, hideThread } from '../hooks/useInbox.js';
 import PendingGuard from '../components/PendingGuard.jsx';
@@ -22,6 +24,7 @@ const ORDER_STATUS_LABEL = {
 export default function Thread({ params }) {
   const threadId = params?.threadId;
   const { session, member, canMemberWrite } = useAuth();
+  const profilePhotosOn = useFlag('profile_photos');
   const { pop } = useNav();
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -74,21 +77,27 @@ export default function Thread({ params }) {
       let senderMap = {};
       if (senderIds.length) {
         const [mb, rl] = await Promise.all([
-          supabase.from('members').select('user_id, name')
+          supabase.from('members').select('user_id, name, photo_url')
             .eq('club_id', t.club_id).in('user_id', senderIds),
           supabase.from('user_roles').select('user_id, role, display_name')
             .in('user_id', senderIds)
             .or(`club_id.eq.${t.club_id},club_id.is.null`),
         ]);
-        // Staff takes precedence — if a sender is staff for this club,
-        // label them as staff (display_name preferred, role as fallback).
-        // Otherwise fall back to the member name.
+        // Staff takes precedence on NAME (display_name → role label) but
+        // photo always comes from the members row (staff don't have
+        // photo_url on user_roles — they have a member row too).
         (rl.data || []).forEach(r => {
           const label = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
-          senderMap[r.user_id] = { name: label, kind: 'staff' };
+          senderMap[r.user_id] = { name: label, kind: 'staff', photoUrl: null };
         });
         (mb.data || []).forEach(m => {
-          if (!senderMap[m.user_id]) senderMap[m.user_id] = { name: m.name, kind: 'member' };
+          if (!senderMap[m.user_id]) {
+            senderMap[m.user_id] = { name: m.name, kind: 'member', photoUrl: m.photo_url || null };
+          } else {
+            // Staff that's also a member of this club — keep the staff
+            // label but bring in their photo.
+            senderMap[m.user_id].photoUrl = m.photo_url || null;
+          }
         });
       }
       const enrichedMsgs = (msgs || []).map(m => {
@@ -106,8 +115,9 @@ export default function Thread({ params }) {
         const s = senderMap[m.sender_user_id];
         return {
           ...m,
-          sender_label: s?.name || 'Unknown',
-          sender_kind:  s?.kind || 'unknown',
+          sender_label:    s?.name     || 'Unknown',
+          sender_kind:     s?.kind     || 'unknown',
+          sender_photo_url: s?.photoUrl || null,
         };
       });
 
@@ -309,7 +319,7 @@ export default function Thread({ params }) {
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>{emptyStateCopy}</p>
         )}
         {messages.map(m => (
-          <MessageBubble key={m.id} message={m} ownUserId={session?.user?.id} />
+          <MessageBubble key={m.id} message={m} ownUserId={session?.user?.id} showPhotos={profilePhotosOn} />
         ))}
       </div>
 
@@ -502,7 +512,7 @@ function ContextStrip({ thread, context, otherMember }) {
 // staff may answer, in DMs where the partner's name disappears as you scroll,
 // and in order threads where "The Grounds" should be visibly distinct from a
 // human reply. System messages render as a chip with the same attribution.
-function MessageBubble({ message, ownUserId }) {
+function MessageBubble({ message, ownUserId, showPhotos = false }) {
   if (message.is_system) {
     return (
       <div style={{ textAlign: 'center', margin: '10px 0' }}>
@@ -516,26 +526,34 @@ function MessageBubble({ message, ownUserId }) {
     );
   }
   const own = message.sender_user_id === ownUserId;
+  // For non-own messages, render an avatar in the left gutter when
+  // profile photos are enabled at the club level (showPhotos prop).
+  // Falls back to initials. Own bubbles don't need a photo — the
+  // member knows what they look like.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-      {!own && message.sender_label && (
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 6px 3px', fontWeight: 600 }}>
-          {message.sender_label}
-        </p>
+    <div style={{ display: 'flex', justifyContent: own ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
+      {!own && showPhotos && (
+        <Avatar photoUrl={message.sender_photo_url} name={message.sender_label} size={26} />
       )}
-      <div style={{
-        maxWidth: '78%',
-        padding: '8px 12px',
-        borderRadius: 14,
-        background: own ? G.green : G.card,
-        border: own ? 'none' : `1px solid ${G.border}`,
-        borderBottomRightRadius: own ? 4 : 14,
-        borderBottomLeftRadius:  own ? 14 : 4,
-      }}>
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: own ? '#F2EDE0' : G.text, margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.body}</p>
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: own ? '#A8D8B8' : G.muted, margin: '4px 0 0', opacity: 0.75, textAlign: 'right' }}>
-          {new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-        </p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: own ? 'flex-end' : 'flex-start', flex: '0 1 auto', minWidth: 0, maxWidth: '78%' }}>
+        {!own && message.sender_label && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 6px 3px', fontWeight: 600 }}>
+            {message.sender_label}
+          </p>
+        )}
+        <div style={{
+          padding: '8px 12px',
+          borderRadius: 14,
+          background: own ? G.green : G.card,
+          border: own ? 'none' : `1px solid ${G.border}`,
+          borderBottomRightRadius: own ? 4 : 14,
+          borderBottomLeftRadius:  own ? 14 : 4,
+        }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: own ? '#F2EDE0' : G.text, margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.body}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: own ? '#A8D8B8' : G.muted, margin: '4px 0 0', opacity: 0.75, textAlign: 'right' }}>
+            {new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </p>
+        </div>
       </div>
     </div>
   );

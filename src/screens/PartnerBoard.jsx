@@ -22,6 +22,7 @@ import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 import Replies from '../components/Replies.jsx';
+import Avatar from '../components/Avatar.jsx';
 
 // Pretty short date — "Sat May 24" — for the "when" chip on a card.
 function fmtDateChip(iso) {
@@ -34,6 +35,7 @@ export default function PartnerBoard() {
   const { data: posts, refresh } = usePartnerPosts();
   const { club, member, session, canMemberWrite } = useAuth();
   const dmsOn = useFlag('dms');
+  const profilePhotosOn = useFlag('profile_photos');
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
@@ -142,11 +144,7 @@ export default function PartnerBoard() {
 
               {/* Author row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#A8D8B8', fontWeight: 700 }}>
-                    {(p.author || '?').trim().charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <Avatar photoUrl={profilePhotosOn ? p.authorPhotoUrl : null} name={p.author} size={28} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.author}</p>
                   <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>

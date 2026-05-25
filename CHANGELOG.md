@@ -15,6 +15,30 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.5** — Member profile photos. Lands across every surface
+  the spec called out: Settings (upload/camera/remove), Membership
+  Card (52px next to name), Member Directory (34px per row),
+  Bulletin + Partner board author rows (26-28px), Thread message
+  bubbles (26px next to non-own bubbles).
+  Schema (migration 31):
+    · members.photo_url text
+    · Storage policies on club-assets for the path
+      `<club_id>/members/<member_id>/avatar.jpg` — members can
+      insert/update/delete only their own avatar; reads stay public
+  Catalog: new `profile_photos` flag (basic tier, default off).
+  When off, the upload card hides AND every consumer falls back to
+  the initials avatar even if a photo exists (member's earlier
+  upload preserved, just not shown).
+  Components:
+    · `<Avatar>` — single source of truth used everywhere; takes
+      photoUrl + name + size; falls back to initials circle
+    · `<ProfilePhotoCard>` — Settings widget with two file inputs
+      (upload + camera w/ capture="user"). Canvas-resizes to 800px
+      max edge at 0.85 JPEG quality (~50-120KB typical). Cache-busts
+      via `?v=timestamp` on update.
+  Hooks: useBulletinPosts + usePartnerPosts pull photo_url; Thread
+  sender map merges photo_url from members onto staff records (staff
+  are also members of the club).
 - **v0.6.4** — Display Mode personalization. Three brightness-shifted
   palettes — Light, Medium, Dark — that stay inside the club's
   brand family (no off-palette color introduced).

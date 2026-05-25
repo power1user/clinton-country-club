@@ -409,7 +409,7 @@ export function useBulletinPosts() {
     const load = async () => {
       const { data: rows } = await supabase
         .from('bulletin_posts')
-        .select('id, category, title, body, hidden, created_at, member_id, members(name, tier, member_since, user_id)')
+        .select('id, category, title, body, hidden, created_at, member_id, members(name, tier, member_since, user_id, photo_url)')
         .eq('club_id', club.id)
         .eq('hidden', false)
         .order('created_at', { ascending: false });
@@ -425,6 +425,7 @@ export function useBulletinPosts() {
           authorTier: r.members?.tier || null,
           authorSince: r.members?.member_since || null,
           authorUserId: r.members?.user_id || null,
+          authorPhotoUrl: r.members?.photo_url || null,
           memberId: r.member_id,
           date: relativeDate(r.created_at),
           title: r.title,
@@ -465,7 +466,7 @@ export function usePartnerPosts() {
     const load = async () => {
       const { data: rows } = await supabase
         .from('partner_posts')
-        .select('id, category, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id)')
+        .select('id, category, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id, photo_url)')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
       if (cancelled) return;
@@ -476,6 +477,7 @@ export function usePartnerPosts() {
           authorTier: r.members?.tier || null,
           authorSince: r.members?.member_since || null,
           authorUserId: r.members?.user_id || null,
+          authorPhotoUrl: r.members?.photo_url || null,
           memberId: r.member_id,
           hcp: r.hcp,
           dateWanted: r.date_wanted,

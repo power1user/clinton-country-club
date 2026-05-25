@@ -13,6 +13,7 @@ import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import Avatar from '../components/Avatar.jsx';
 
 export default function MemberDirectory() {
   const { club, member, session, canMemberWrite } = useAuth();
@@ -22,6 +23,7 @@ export default function MemberDirectory() {
   // roster by enabling directory while keeping DMs off.
   const directoryOn = useFlag('member_directory');
   const dmsOn = useFlag('dms');
+  const profilePhotosOn = useFlag('profile_photos');
   const { push } = useNav();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export default function MemberDirectory() {
       // out members who haven't claimed their account yet.
       const { data, error } = await supabase
         .from('members')
-        .select('id, user_id, name, membership_number, tier, status, allow_dms')
+        .select('id, user_id, name, membership_number, tier, status, allow_dms, photo_url')
         .eq('club_id', club.id)
         .not('user_id', 'is', null)
         .neq('status', 'inactive')
@@ -128,6 +130,7 @@ export default function MemberDirectory() {
         )}
         {filtered.map(m => (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, gap: 10 }}>
+            <Avatar photoUrl={profilePhotosOn ? m.photo_url : null} name={m.name} size={34} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

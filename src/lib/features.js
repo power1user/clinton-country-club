@@ -66,6 +66,14 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Appearance',
   },
+  profile_photos: {
+    key:             'profile_photos',
+    label:           'Member profile photos',
+    description:     'Members can upload a photo to show on their membership card, in the directory, on bulletin / partner posts, and in chat bubbles. When off, the default initials avatar shows regardless of whether members have uploaded photos.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Profile',
+  },
 };
 
 // All flags as an ordered array — used by admin UI to render toggles.

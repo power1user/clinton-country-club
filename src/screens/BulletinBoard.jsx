@@ -8,6 +8,7 @@ import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 import Replies from '../components/Replies.jsx';
+import Avatar from '../components/Avatar.jsx';
 
 function NewPostSheet({ onClose, onSubmitted, club, member }) {
   const [title, setTitle] = useState('');
@@ -88,6 +89,7 @@ export default function BulletinBoard() {
   const { data: posts, refresh } = useBulletinPosts();
   const { club, member, session } = useAuth();
   const dmsOn = useFlag('dms');
+  const profilePhotosOn = useFlag('profile_photos');
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
@@ -147,13 +149,11 @@ export default function BulletinBoard() {
             {/* Author row — visible up front so members know who's
                 posting before they read the body. Tier and "since"
                 shown when known; the orphan-post fallback is
-                "Anonymous" so it's obvious when a member is missing. */}
+                "Anonymous" so it's obvious when a member is missing.
+                Photo shows when the club has profile_photos on AND
+                the author uploaded one; falls back to initials. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', fontWeight: 700 }}>
-                  {(post.author || '?').trim().charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <Avatar photoUrl={profilePhotosOn ? post.authorPhotoUrl : null} name={post.author} size={26} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.author}</p>
                 {(post.authorTier || post.authorSince) && (

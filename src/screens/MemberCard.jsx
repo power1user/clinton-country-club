@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { GhostBtn } from '../components/Buttons.jsx';
+import Avatar from '../components/Avatar.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 
 const STATE_NAMES = {
@@ -20,12 +22,14 @@ const STATE_NAMES = {
 export default function MemberCard() {
   const [showQR, setShowQR] = useState(false);
   const { member, club } = useAuth();
+  const profilePhotosOn = useFlag('profile_photos');
   const m = member ? {
     name: member.name,
     number: member.membership_number,
     type: member.tier || 'Member',
     since: member.member_since || '—',
-  } : { name: '—', number: '—', type: 'Member', since: '—' };
+    photoUrl: profilePhotosOn ? member.photo_url : null,
+  } : { name: '—', number: '—', type: 'Member', since: '—', photoUrl: null };
   const cityState = club ? `${club.city || ''}, ${STATE_NAMES[club.state] || club.state || ''}`.replace(/^, |, $/g, '') : '';
   const founded = club?.founded || null;
   return (
@@ -50,10 +54,23 @@ export default function MemberCard() {
                 </svg>
               </div>
             </div>
-            <div style={{ position: 'absolute', bottom: 26, left: 26, right: 26 }}>
-              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Member Since {m.since}</p>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 400, fontStyle: 'italic', color: '#F2EDE0', margin: '0 0 3px', letterSpacing: '0.01em' }}>{m.name}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0, letterSpacing: '0.04em' }}>No. {m.number} · {m.type}</p>
+            <div style={{ position: 'absolute', bottom: 26, left: 26, right: 26, display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+              {/* Member photo when uploaded; initials circle otherwise.
+                  Sits to the left of the name/since stack so the card
+                  reads as a personal credential rather than a generic
+                  club artifact. */}
+              <Avatar
+                photoUrl={m.photoUrl}
+                name={m.name}
+                size={52}
+                bgColor="rgba(255,255,255,0.10)"
+                fgColor="#F2EDE0"
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Member Since {m.since}</p>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 400, fontStyle: 'italic', color: '#F2EDE0', margin: '0 0 3px', letterSpacing: '0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0, letterSpacing: '0.04em' }}>No. {m.number} · {m.type}</p>
+              </div>
             </div>
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${G.brass}, ${G.brassLt}, ${G.brass})` }} />
           </div>
