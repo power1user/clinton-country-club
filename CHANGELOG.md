@@ -15,6 +15,27 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.4** — Display Mode personalization. Three brightness-shifted
+  palettes — Light, Medium, Dark — that stay inside the club's
+  brand family (no off-palette color introduced).
+  Schema: members.display_mode text with check constraint
+  (light|medium|dark, default medium; migration 30). New
+  display_mode feature flag in features.js (basic tier, default off
+  — manager opts in via Subscription & Features).
+  Theme plumbing:
+    · theme.js: G.bg, G.card, G.border, G.text, G.muted now route
+      through CSS custom properties (`var(--g-bg, …)` etc) with the
+      medium values as fallbacks
+    · index.css: `:root` / `[data-theme='medium']` define the
+      defaults; `[data-theme='light']` shifts to brighter beige
+      backgrounds; `[data-theme='dark']` to a deeper beige (NOT a
+      true black dark-theme — that's a bigger redesign)
+    · useAuth: applies `data-theme` on `<html>` from the member's
+      saved value, forced to 'medium' when the club has the flag off
+      (so a member can't be stuck on a half-broken theme if the club
+      later disables the feature)
+  UI: DisplayModePicker in Settings → Appearance section. Segmented
+  control with three options. Auto-hides when club flag off.
 - **v0.6.3** — Member-level DM opt-out. Lands in Settings under a
   new "Privacy" section. Schema: members.allow_dms boolean (default
   true, migration 29). When a member turns it off:

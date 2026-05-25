@@ -21,17 +21,23 @@ export const PALETTE_DEFAULTS = {
 // `var(--g-primary, <fallback>)` is a valid value for any CSS color
 // property, including inline styles like style={{ background: G.green }}.
 // Components don't need to change.
+//
+// bg / card / border / text / muted ALSO route through CSS vars as of
+// v0.6.4 so the [data-theme="light|medium|dark"] attribute on <html>
+// can shift background brightness without recompiling components. The
+// fallback hex matches the medium (default) value so any unmounted
+// preview environment still renders sensibly.
 export const G = {
-  bg: '#F2EDE0',
-  card: '#EAE4D0',
-  green:    `var(--g-primary, ${PALETTE_DEFAULTS.primary})`,
-  greenMid: `var(--g-secondary, ${PALETTE_DEFAULTS.secondary})`,
+  bg:       `var(--g-bg,       #F2EDE0)`,
+  card:     `var(--g-card,     #EAE4D0)`,
+  green:    `var(--g-primary,  ${PALETTE_DEFAULTS.primary})`,
+  greenMid: `var(--g-secondary,${PALETTE_DEFAULTS.secondary})`,
   greenDk:  '#152E24',
-  text: '#1A180F',
-  muted: '#786E5C',
-  brass:    `var(--g-accent, ${PALETTE_DEFAULTS.accent})`,
-  brassLt: '#C4A040',
-  border: '#D4CCB8',
+  text:     `var(--g-text,     #1A180F)`,
+  muted:    `var(--g-muted,    #786E5C)`,
+  brass:    `var(--g-accent,   ${PALETTE_DEFAULTS.accent})`,
+  brassLt:  '#C4A040',
+  border:   `var(--g-border,   #D4CCB8)`,
   // Functional state colors — NOT club-configurable (they signal open/closed)
   openBg: '#1A5C34', openDot: '#52C178', openTxt: '#A8D8B8',
   limBg: '#6B4A10',  limDot: '#E8B840',  limTxt: '#D8C080',

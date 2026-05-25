@@ -58,6 +58,14 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Messaging',
   },
+  display_mode: {
+    key:             'display_mode',
+    label:           'Display mode personalization',
+    description:     'Members can pick a light, medium, or dark variant of the club palette in their personal Settings. Modes shift background brightness without changing your brand colors.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Appearance',
+  },
 };
 
 // All flags as an ordered array — used by admin UI to render toggles.

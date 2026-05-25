@@ -15,10 +15,13 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
 import DmOptOutToggle from '../components/DmOptOutToggle.jsx';
+import DisplayModePicker from '../components/DisplayModePicker.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 
 export default function Settings() {
   const { member, club } = useAuth();
+  const displayModeOn = useFlag('display_mode');
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -54,11 +57,20 @@ export default function Settings() {
         <SectionHeading>Privacy</SectionHeading>
         <DmOptOutToggle />
 
-        {/* Placeholders for v0.6.4+ — kept inline as comments so the
-            shape of this screen is obvious before those commits land.
-
+        {/* Appearance — only shown when the club has the display_mode
+            feature flag enabled. The picker has its own internal flag
+            check too, but skipping the heading when off keeps the
+            section list tidy. */}
+        {displayModeOn && (
+          <>
+            <div style={{ marginTop: 18 }} />
             <SectionHeading>Appearance</SectionHeading>
-            {displayModeOn && <DisplayModePicker />}
+            <DisplayModePicker />
+          </>
+        )}
+
+        {/* Placeholders for v0.6.5+ — kept inline as comments so the
+            shape of this screen is obvious before those commits land.
 
             <SectionHeading>Profile</SectionHeading>
             {profilePhotosOn && <ProfilePhotoCard />}

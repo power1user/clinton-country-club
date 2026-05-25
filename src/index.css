@@ -2,6 +2,37 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Display Mode (v0.6.4) ──
+ * Three brightness-shifted palettes that stay inside the club's brand
+ * family. Default is 'medium' (matches what we shipped pre-v0.6.4).
+ * Switching is just <html data-theme="…"> — components read the
+ * CSS vars via theme.js. Club brand colors (primary/secondary/accent)
+ * are NOT redefined here — those are member's club brand and stay
+ * constant across modes. */
+:root,
+[data-theme='medium'] {
+  --g-bg:     #F2EDE0;   /* current cream */
+  --g-card:   #EAE4D0;
+  --g-border: #D4CCB8;
+  --g-text:   #1A180F;
+  --g-muted:  #786E5C;
+}
+[data-theme='light'] {
+  --g-bg:     #FAF6EC;   /* brighter cream — feels airier in daylight */
+  --g-card:   #F2EDE0;
+  --g-border: #DCD4C0;
+  --g-text:   #1A180F;
+  --g-muted:  #6E6450;
+}
+[data-theme='dark'] {
+  --g-bg:     #E0D7C2;   /* darker beige — easier on the eyes at night */
+  --g-card:   #D2C8B0;
+  --g-border: #B8AE96;
+  --g-text:   #1A1810;
+  --g-muted:  #5E5440;
+}
+
+
 html, body, #root {
   width: 100%;
   height: 100%;

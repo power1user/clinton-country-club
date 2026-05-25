@@ -3,6 +3,7 @@ import { supabase, isConfigured, CLUB_SLUG } from '../lib/supabase.js';
 import { highestRole, userHasPerm } from '../lib/permissions.js';
 import { applyClubPalette } from '../theme.js';
 import { needsTerms } from '../lib/terms.js';
+import { isFeatureOn } from '../lib/features.js';
 
 const AuthCtx = createContext(null);
 
@@ -138,6 +139,19 @@ export function AuthProvider({ children }) {
   const pendingAccess = club?.pending_member_access || 'read_only';
   const isPendingLocked    = isPending && pendingAccess === 'locked';
   const canMemberWrite     = !isPending || pendingAccess === 'full';
+
+  // Display mode (v0.6.4): apply the member's saved choice to the
+  // <html> data-theme attribute so CSS vars in index.css swap in.
+  // Honored only when the club has enabled the display_mode flag —
+  // otherwise we force 'medium' so a member who set their preference
+  // before the club disabled the feature doesn't see a half-broken
+  // theme. SSR-safe (skips when document isn't defined).
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const allowed = isFeatureOn(club, 'display_mode');
+    const mode = allowed ? (member?.display_mode || 'medium') : 'medium';
+    document.documentElement.setAttribute('data-theme', mode);
+  }, [member?.display_mode, club?.feature_flags, club?.subscription_tier]);
 
   // Terms of use gating. Member needs to accept the current ToU version
   // before any in-app screen is shown. We only gate when we have a real
