@@ -5,6 +5,7 @@ import { GhostBtn } from '../components/Buttons.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { QRCodeSVG } from 'qrcode.react';
 
 const STATE_NAMES = {
   AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
@@ -75,13 +76,24 @@ export default function MemberCard() {
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${G.brass}, ${G.brassLt}, ${G.brass})` }} />
           </div>
         ) : (
-          <div style={{ width: '100%', maxWidth: 346, height: 218, background: '#F8F4EC', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${G.border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.1)' }}>
-            <svg width="120" height="120" viewBox="0 0 120 120" style={{ marginBottom: 10 }}>
-              <rect width="120" height="120" fill={G.green} rx="4" />
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => <rect key={i} x={8 + (i % 3) * 36} y={8 + Math.floor(i / 3) * 36} width={30} height={30} fill="none" stroke="#A8D8B8" strokeWidth="2" rx="2" />)}
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => i % 2 === 0 && <rect key={`f${i}`} x={13 + (i % 3) * 36} y={13 + Math.floor(i / 3) * 36} width={20} height={20} fill="#A8D8B8" rx="1" />)}
-            </svg>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Member No. {m.number}</p>
+          // Real scannable QR (v0.6.7) — encodes the member's
+          // membership_number as a plain string. Any QR reader will
+          // surface the number. 160px on the card keeps it readable
+          // at arm's length on a phone screen even in moderate
+          // glare. Falls back to a dash if for some reason the
+          // member has no membership_number set.
+          <div style={{ width: '100%', maxWidth: 346, height: 218, background: '#F8F4EC', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${G.border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.1)', padding: 16 }}>
+            <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginBottom: 10, lineHeight: 0 }}>
+              <QRCodeSVG
+                value={String(m.number || '-')}
+                size={160}
+                bgColor="#ffffff"
+                fgColor="#000000"
+                level="M"
+                marginSize={0}
+              />
+            </div>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Member No. {m.number || '—'}</p>
           </div>
         )}
         {/* Add-to-Wallet button removed in v0.6.2 — deferred until we
