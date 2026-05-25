@@ -14,22 +14,82 @@ import {
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
-// Two-level admin hub: 6 area cards at the top, each opens a sub-hub of
+// Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
 // section-content router can stay flat.
+//
+// v0.7.13 reorg (per Marc-approved UI audit recommendations):
+//   · Order: Communications → Events → Golf Course → Pro Shop →
+//     Dining → People → Club Setup → Platform. Marketing /
+//     content-heavy stuff up top, ops in the middle, setup at the
+//     bottom, super-admin last. Matches the daily-touch frequency
+//     for the average club manager.
+//   · "Course" renamed to "Golf Course" (less ambiguous when a
+//     manager is searching for "course" vs "discourse" vs etc.).
+//   · Hole Sponsors moved Course → Comms (consolidates sponsorship
+//     surfaces alongside Sponsor Banners).
+//   · Clubhouse Inbox moved People → Comms (it's a staff↔member
+//     comms surface, conceptually belongs with News/Notifications).
+//   · Moderate Posts (renamed from "Member Posts") moved Comms →
+//     People (the posts are FROM members; moderation is about
+//     people, not staff-generated content).
+//   · Club Settings moved People → new "Club Setup" area.
+//   · Features (was its own 1-section area) folded into Club Setup
+//     alongside Club Settings. Two-section area kills the
+//     wasted-click problem from the v0.7.0 single-section design.
+//   · Section relabels per audit: Schedule Overrides → Date
+//     Overrides; Pace of Play → Pace; Pin Positions → Daily Pins;
+//     Holes → Hole Details; Notifications → Push Broadcasts;
+//     Club Guide → Member Guide; Lesson Requests → Lesson Queue.
+//   · Section IDs preserved everywhere (routing is keyed by id, so
+//     nothing breaks; only labels and parent areas change).
 const AREAS = [
   {
+    id: 'comms',
+    l: 'Communications',
+    d: 'News, broadcasts, clubhouse, sponsors, member guide',
+    icon: IconNews,
+    sections: [
+      { id: 'news',            permKey: 'can_post_news',            l: 'News',             d: 'List, edit, publish announcements',         icon: IconNews      },
+      { id: 'notifs',          permKey: 'can_send_notifications',   l: 'Push Broadcasts',  d: 'Send push alerts to all members',           icon: IconBell      },
+      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox',  d: 'Member messages routed to staff',           icon: IconBell      },
+      { id: 'banners',         permKey: 'can_manage_sponsors',      l: 'Sponsor Banners',  d: 'Rotating sponsor banners',                  icon: IconBanner    },
+      { id: 'holespons',       permKey: 'can_manage_sponsors',      l: 'Hole Sponsors',    d: 'Local sponsor per hole',                    icon: IconHandshake },
+      { id: 'clubguide',       permKey: 'can_post_news',            l: 'Member Guide',     d: 'Onboarding pages members read on first run',icon: IconList      },
+    ],
+  },
+  {
+    id: 'events',
+    l: 'Events',
+    d: 'Calendar + RSVPs',
+    icon: IconCalendar,
+    sections: [
+      { id: 'eventsadmin', permKey: 'can_manage_events', l: 'Events',      d: 'Add, edit, cancel events',     icon: IconCalendar },
+      { id: 'events',      permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations',  icon: IconList },
+    ],
+  },
+  {
     id: 'course',
-    l: 'Course',
-    d: 'Status, pace, pins, holes, sponsors',
+    l: 'Golf Course',
+    d: 'Status, pace, pins, hole details',
     icon: IconFlag,
     sections: [
-      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',        d: 'Hours, open/closed, member-only days',      icon: IconStatus    },
-      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Schedule Overrides', d: 'One-off date closures / tournament hours',  icon: IconCalendar  },
-      { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace of Play',       d: "Set today's pace indicator",                icon: IconClock     },
-      { id: 'pins',      permKey: 'can_edit_pins',          l: 'Pin Positions',      d: "Place today's pin on each green",           icon: IconFlag      },
-      { id: 'holes',     permKey: 'can_edit_pins',          l: 'Holes',              d: 'Par, yardage, names + descriptions',        icon: IconList      },
-      { id: 'holespons', permKey: 'can_manage_sponsors',    l: 'Hole Sponsors',      d: 'Local sponsor per hole',                    icon: IconHandshake },
+      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',     d: 'Hours, open/closed, member-only days',      icon: IconStatus   },
+      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Date Overrides',  d: 'One-off date closures / tournament hours',  icon: IconCalendar },
+      { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace',            d: "Set today's pace indicator",                icon: IconClock    },
+      { id: 'pins',      permKey: 'can_edit_pins',          l: 'Daily Pins',      d: "Place today's pin on each green",           icon: IconFlag     },
+      { id: 'holes',     permKey: 'can_edit_pins',          l: 'Hole Details',    d: 'Par, yardage, names + descriptions',        icon: IconList     },
+    ],
+  },
+  {
+    id: 'proshop',
+    l: 'Pro Shop',
+    d: 'Catalog + lesson queue',
+    icon: IconBag,
+    sections: [
+      { id: 'proitems',   permKey: 'can_manage_proshop',  l: 'Pro Shop Items', d: 'Catalog of items for sale', icon: IconBag    },
+      { id: 'lessonpros', permKey: 'can_manage_proshop',  l: 'Lesson Pros',    d: 'Roster shown when booking', icon: IconPeople },
+      { id: 'lessons',    permKey: 'can_manage_lessons',  l: 'Lesson Queue',   d: 'Member lesson + inquiry requests', icon: IconList },
     ],
   },
   {
@@ -44,62 +104,29 @@ const AREAS = [
     ],
   },
   {
-    id: 'events',
-    l: 'Events',
-    d: 'Calendar + RSVPs',
-    icon: IconCalendar,
-    sections: [
-      { id: 'eventsadmin', permKey: 'can_manage_events', l: 'Events',      d: 'Add, edit, cancel events',     icon: IconCalendar },
-      { id: 'events',      permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations',  icon: IconList },
-    ],
-  },
-  {
-    id: 'comms',
-    l: 'Communications',
-    d: 'News, notifications, banners, member posts, club guide',
-    icon: IconNews,
-    sections: [
-      { id: 'news',         permKey: 'can_post_news',          l: 'News',            d: 'List, edit, publish announcements',         icon: IconNews    },
-      { id: 'notifs',       permKey: 'can_send_notifications', l: 'Notifications',   d: 'Push alerts to all members',                icon: IconBell    },
-      { id: 'banners',      permKey: 'can_manage_sponsors',    l: 'Sponsor Banners', d: 'Rotating sponsor banners',                  icon: IconBanner  },
-      { id: 'memberposts',  permKey: 'can_manage_members',     l: 'Member Posts',    d: 'Moderate bulletin + partner posts',         icon: IconList    },
-      { id: 'clubguide',    permKey: 'can_post_news',          l: 'Club Guide',      d: 'Onboarding pages members read on first run',icon: IconList    },
-    ],
-  },
-  {
-    id: 'proshop',
-    l: 'Pro Shop',
-    d: 'Catalog + lesson queue',
-    icon: IconBag,
-    sections: [
-      { id: 'proitems',  permKey: 'can_manage_proshop',  l: 'Pro Shop Items',  d: 'Catalog of items for sale',     icon: IconBag    },
-      { id: 'lessonpros',permKey: 'can_manage_proshop',  l: 'Lesson Pros',     d: 'Roster shown when booking',     icon: IconPeople },
-      { id: 'lessons',   permKey: 'can_manage_lessons',  l: 'Lesson Requests', d: 'Pro shop inquiries queue',      icon: IconList   },
-    ],
-  },
-  {
     id: 'people',
     l: 'People',
-    d: 'Members, staff, club settings',
+    d: 'Members, post moderation, staff',
     icon: IconPeople,
     sections: [
-      { id: 'members',         permKey: 'can_manage_members',       l: 'Members',         d: 'Roster, CSV import, invites',          icon: IconPeople },
-      { id: 'staff',           permKey: 'can_manage_staff',         l: 'Staff',           d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
-      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox', d: 'Member messages routed to staff',      icon: IconBell },
-      { id: 'clubsettings',                                          l: 'Club Settings',   d: 'Logo, colors, contact, gating',        icon: IconCog, managerOnly: true },
+      { id: 'members',     permKey: 'can_manage_members', l: 'Members',        d: 'Roster, CSV import, invites',           icon: IconPeople },
+      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts', d: 'Hide/delete bulletin + partner posts',  icon: IconList   },
+      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',          d: 'Manage admins + grant permissions',     icon: IconShield, managerOnly: true },
     ],
   },
-  // Features — Phase 7 (v0.7.0). Master switchboard for everything
-  // members can see. Manager-only because it controls member-facing
-  // surfaces; super_admin sees the same area plus extra lock controls
-  // when editing a specific club via Platform → All Clubs.
+  // Club Setup — manager-only configuration. Replaces the v0.7.0
+  // standalone "Features" area (which had the wasted-click problem
+  // of being a single-section area). Subscription will land here
+  // when we ship a read-only tier viewer.
   {
-    id: 'features',
-    l: 'Features',
-    d: 'Turn member-facing surfaces on/off',
+    id: 'clubsetup',
+    l: 'Club Setup',
+    d: 'Branding, features, subscription',
     icon: IconCog,
     sections: [
-      { id: 'features', l: 'Feature Toggles', d: 'Pro Shop, Bulletin, Calendar, Lockers, all of it', icon: IconCog, managerOnly: true },
+      { id: 'clubsettings', l: 'Club Settings',   d: 'Logo, colors, contact, gating',  icon: IconCog, managerOnly: true },
+      { id: 'features',     l: 'Feature Toggles', d: 'Member-facing features on/off',  icon: IconCog, managerOnly: true },
+      // Future: { id: 'subscription', l: 'Subscription', d: 'Tier + active features summary', icon: IconList, managerOnly: true },
     ],
   },
   // Super-admin only — platform-wide controls

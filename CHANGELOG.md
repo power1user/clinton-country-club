@@ -22,6 +22,62 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.13** — Admin hub reorg shipped (recommendations from the
+  v0.7.5-era audit, in Marc's approved order).
+
+  **New top-level order.** Communications → Events → Golf Course →
+  Pro Shop → Dining → People → Club Setup → Platform. Marketing /
+  content-heavy stuff up top, ops in the middle, setup at the
+  bottom, super-admin last. Matches daily-touch frequency for the
+  average club manager.
+
+  **Course area renamed to "Golf Course."** Less ambiguous when a
+  manager searches for "course" (vs "discourse," "of course," etc.)
+  in the admin hub search bar. Internal area id stays `course` so
+  no routing breakage.
+
+  **Section moves:**
+  · **Hole Sponsors** → Course → Communications (consolidates
+    sponsorship surfaces alongside Sponsor Banners).
+  · **Clubhouse Inbox** → People → Communications (it's a staff↔
+    member comms surface; belongs with News + Push Broadcasts).
+  · **Moderate Posts** (renamed from "Member Posts") → Communications
+    → People (the posts are FROM members; moderation is about
+    people management, not staff-generated content).
+  · **Club Settings** → People → new "Club Setup" area.
+
+  **New Club Setup area.** Holds Club Settings (branding, contact,
+  pending-member gating, tier) + Feature Toggles. Replaces the
+  v0.7.0 standalone "Features" area, which had the wasted-click
+  problem of being a single-section area. Two-section area now
+  presents a real sub-hub. Future home for a read-only
+  Subscription summary (slot reserved, commented in code).
+
+  **Section relabels** per audit recommendations:
+  · Schedule Overrides → **Date Overrides** ("schedule" was easy to
+    confuse with weekly hours)
+  · Pace of Play → **Pace** (always referred to as "pace" anyway)
+  · Pin Positions → **Daily Pins** (matches how greenskeepers talk
+    about it)
+  · Holes → **Hole Details** (disambiguates from Hole Sponsors)
+  · Notifications → **Push Broadcasts** ("notifications" was
+    overloaded — could mean push, in-app alerts, or member prefs)
+  · Club Guide → **Member Guide** (matches the member-facing nav
+    label exactly)
+  · Lesson Requests → **Lesson Queue** (matches how staff process
+    them)
+  · Member Posts → **Moderate Posts** (action-first label;
+    matches the actual moderation verb)
+
+  **Section IDs preserved across the board.** Routing in the flat
+  section-content router (`{sec === 'X' && <Component />}`) is
+  keyed by id, not parent area — so every existing link, search
+  result, and permission check works unchanged. Only the labels
+  and parent areas changed.
+
+  **What's the same:** Pro Shop area (no changes), Dining area (no
+  changes), Events area (no changes), Platform area (no changes —
+  Provision Log added in v0.7.7 stays put).
 - **v0.7.12** — Settings About section + ProShop dead-card removal.
   Final cleanup pass from the UI audit batch.
 
