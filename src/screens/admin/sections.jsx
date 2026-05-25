@@ -961,12 +961,17 @@ export function NewsAdminFull() {
       order={{ column: 'published_at', ascending: false }}
       primaryField="headline"
       secondaryFn={r => `${r.category || 'General'} · ${r.date_label || (r.published_at ? new Date(r.published_at).toLocaleDateString() : '')}`}
-      defaultRow={{ category: 'Events', headline: '', body: '', date_label: 'Today', published_at: new Date().toISOString() }}
+      // v0.6.0: date_label is now an OPTIONAL date picker (was a
+      // required text label that defaulted to "Today"). Empty = no
+      // date shown on the member card. Legacy text values in existing
+      // rows continue to render as-is; member-side formatNewsDate in
+      // useClubData handles both formats.
+      defaultRow={{ category: 'Events', headline: '', body: '', date_label: null, published_at: new Date().toISOString() }}
       fields={[
         { key: 'category',   label: 'Category', type: 'select', options: ['Events', 'Course', 'Dining', 'Club', 'General'], required: true },
         { key: 'headline',   label: 'Headline', type: 'text', required: true },
         { key: 'body',       label: 'Body',     type: 'textarea', required: true },
-        { key: 'date_label', label: 'Date label (what members see)', type: 'text', placeholder: 'Today, May 14, etc.' },
+        { key: 'date_label', label: 'Display date (optional)', type: 'date' },
       ]}
     />
   );

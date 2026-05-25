@@ -9,6 +9,29 @@ All notable changes to this project. Convention:
 
 ---
 
+## v0.6.x — Phase 6: News/Events split + calendar view
+
+Events get a calendar as their primary surface (was a flat list).
+News stays as cards on Home but gets an optional date picker in the
+admin composer (was a required free-text label).
+
+- **v0.6.0** — Calendar view in Community + optional News date.
+  New `<Calendar>` component (`src/components/Calendar.jsx`):
+  standard 7-col month grid with prev/next nav + "Today" shortcut,
+  dots on days with events, today gets a brass ring, selected day
+  gets a filled green cell. Tap a day → events for that day render
+  underneath; selecting an empty day falls back to "Next Up" so the
+  panel never looks broken on sparse months.
+  `useEvents` hook now exposes the raw `event_date` so the calendar
+  can bucket events by ISO day. The category-filter tabs were
+  removed — calendar's per-day filter is more useful than
+  filter-by-type for the kind of small clubs we serve.
+  News admin: `date_label` field changed from required text
+  ("Today, May 14, …") to an optional date picker. Empty = no date
+  on the card. Old free-text values stay rendered as-is via the new
+  `formatNewsDate()` helper in `useClubData.jsx` — backward-compat
+  guaranteed.
+
 ## v0.5.x — Phase 5: member-to-member replies + DM affordances
 
 Reusable threaded-reply system on every member-generated content

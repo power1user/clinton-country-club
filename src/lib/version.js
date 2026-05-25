@@ -22,11 +22,14 @@
 //             Reusable post_replies system + DM affordances on
 //             member-generated content (bulletin posts first, then
 //             partner posts / events / pro shop).
+//   v0.6.x — Phase 6: News/Events split. Events get a calendar view
+//             as their primary surface; News gets an optional date
+//             picker (replaces the required text label).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.5.7';
+export const VERSION = '0.6.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

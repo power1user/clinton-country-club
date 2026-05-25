@@ -9,6 +9,22 @@ import { clubLocalParts, DEFAULT_TIMEZONE, todayInClubTz } from '../lib/timezone
 const EMPTY_MENU = { specials: [], lunch: [], dinner: [], bar: [], desserts: [] };
 const EMPTY_WEATHER = { temp: null, high: null, low: null, condition: '', wind: '', humidity: null, uv: null };
 
+// Format news date for the member-facing card. Handles three cases:
+//   · ISO date stored in date_label (v0.6.0+ admin picker) →
+//     localized "Mon DD" format
+//   · Free-text label like "Today" or "May 14" stored in date_label
+//     (pre-v0.6.0) → display as-is
+//   · No date_label at all → fall back to the published_at timestamp
+function formatNewsDate(label, publishedAt) {
+  if (label && /^\d{4}-\d{2}-\d{2}$/.test(label)) {
+    const [y, m, d] = label.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  if (label) return label;            // legacy free-text
+  if (!publishedAt) return '';
+  return new Date(publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Status pills (real-time)
 // ────────────────────────────────────────────────────────────────────────────
@@ -169,7 +185,12 @@ export function useNews() {
       if (!error && rows) {
         setData(rows.map(r => ({
           id: r.id, cat: r.category, head: r.headline, body: r.body,
-          date: r.date_label || new Date(r.published_at).toLocaleDateString(),
+          // v0.6.0: news.date_label now stores an ISO date (YYYY-MM-DD)
+          // when the admin sets it via the date picker. Older rows may
+          // hold free-text labels like "Today" or "May 14" — render
+          // those as-is for backward compat. If empty, fall back to the
+          // published_at timestamp.
+          date: formatNewsDate(r.date_label, r.published_at),
         })));
       }
       setLoading(false);
@@ -208,7 +229,10 @@ export function useEvents() {
       if (cancelled) return;
       if (rows) {
         setData(rows.map(r => ({
-          id: r.id, date: r.date_label, dow: r.dow, day: r.day_num, title: r.title,
+          id: r.id,
+          date: r.date_label,         // display string ("Sat May 24")
+          eventDate: r.event_date,    // raw ISO date for calendar bucketing (v0.6.0)
+          dow: r.dow, day: r.day_num, title: r.title,
           time: r.event_time, cat: r.category, spots: r.spots, price: r.price, desc: r.description,
         })));
       }
