@@ -22,6 +22,52 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.11** — Community tab redesign + Calendar to its own screen.
+  Per Marc's feedback during UI-audit review: "the calendar should
+  be a selection card (like bulletin board and member directory)…
+  calendar dominates a community page — not good. redesign that
+  page and the cards too."
+
+  **Calendar moved to its own dedicated screen.** New
+  `EventsCalendar.jsx` at `community/calendar`. Holds the calendar
+  grid + the day-detail panel — same logic that was in `Events.jsx`
+  before, plus the 24px breathing room between the calendar grid
+  and the "Sat, May 24" / "Next Up" heading that the audit flagged
+  as visually jammed together. Gated by `events_calendar` flag
+  (FeatureOff backstop for direct nav when off).
+
+  **Community tab (`Events.jsx`) rewritten as a hub.** Three rich
+  selection cards now stack as the entire body:
+  · **Bulletin Board** — preview: "X recent posts this week" (or
+    "X posts (none this week)" when stale).
+  · **Member Directory** — preview: "X active members." Live count
+    via a `head: true` query on `members`, realtime subscribed so
+    a join/deactivation updates the card.
+  · **Events Calendar** — preview: "Today: X events" when there
+    are any; else "Next: <title> · Mon DD" pulled from the
+    next-future event.
+
+  Each card filters by its own feature flag — a club with bulletin
+  off + directory off + calendar on gets exactly one card. Empty
+  state copy if all three are disabled, pointing the manager to
+  Admin → Features.
+
+  Cards redesigned: 44px green icon medallion, 16px title, 12px
+  description, 11px brass italic preview line, right chevron.
+  Substantially richer than the previous 140px chunky cards —
+  these are now first-class CTAs that tell you what's inside,
+  not just navigation labels.
+
+  Header tagline changed from "Events &amp; member channels" to
+  "Member channels &amp; the club calendar" — better reflects
+  the post-redesign layout where channels (Bulletin / Directory)
+  read first, calendar reads last.
+
+  Wiring: new `'community/calendar'` route in App.jsx alongside
+  the existing `'community/bulletin'` and `'community/event'`.
+  Inbound from the Home screen's v0.7.9 "Today's Events" section
+  still points at `community/event` for the individual event;
+  members reach the calendar grid via the Community card now.
 - **v0.7.10** — MyClub layout cleanup (4 items from the UI audit).
 
   **1. Duplicate Card button removed.** Identity strip used to have a
