@@ -10,7 +10,7 @@ import {
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
-  SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin,
+  SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -110,8 +110,10 @@ const AREAS = [
     icon: IconPlatform,
     superOnly: true,
     sections: [
-      { id: 'superadmins', l: 'Super Admins', d: 'Promote / demote platform admins',  icon: IconShield  },
-      { id: 'allclubs',    l: 'All Clubs',    d: 'Manage every club on the platform', icon: IconFlag    },
+      { id: 'superadmins',   l: 'Super Admins',   d: 'Promote / demote platform admins',  icon: IconShield  },
+      { id: 'allclubs',      l: 'All Clubs',      d: 'Manage every club on the platform', icon: IconFlag    },
+      // v0.7.7: audit log of every Cloudflare provision attempt.
+      { id: 'provisionlog',  l: 'Provision Log',  d: 'Cloudflare DNS automation history', icon: IconList    },
     ],
   },
 ];
@@ -191,6 +193,7 @@ export default function AdminPanel() {
           {sec === 'features'       && isManager && <FeaturesAdmin />}
           {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
           {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
+          {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
         </div>
       </div>
     );

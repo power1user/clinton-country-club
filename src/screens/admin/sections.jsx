@@ -1811,10 +1811,13 @@ function CreateClubModal({ onClose, onCreated }) {
   //      auto-creates the DNS Worker route + TLS cert.
   // Stage 2 failure is non-fatal — manager sees an error + the manual
   // instructions in the result block.
-  const provisionDomain = async (slug) => {
+  const provisionDomain = async (slug, clubId) => {
     setStage('dns');
     try {
-      const { data, error } = await supabase.functions.invoke('provision-club-domain', { body: { slug } });
+      // v0.7.7: pass club_id so the server-side audit log row in
+      // club_provision_log has a populated FK back to the new clubs
+      // row. Visible to super_admin at Platform → Provision Log.
+      const { data, error } = await supabase.functions.invoke('provision-club-domain', { body: { slug, club_id: clubId } });
       if (error) return { ok: false, error: error.message || 'Edge function error' };
       return data;
     } catch (e) {
@@ -1851,8 +1854,9 @@ function CreateClubModal({ onClose, onCreated }) {
     }
     setCreatedClub(data);
 
-    // Stage 2 — try to provision the DNS / Custom Domain.
-    const result = await provisionDomain(slug);
+    // Stage 2 — try to provision the DNS / Custom Domain. Pass the
+    // new club id so the v0.7.7 audit log row links back to it.
+    const result = await provisionDomain(slug, data.id);
     setDnsResult(result);
     setStage('done');
     setBusy(false);
@@ -2009,6 +2013,154 @@ function CreateClubModal({ onClose, onCreated }) {
 }
 export function PlatformSettingsAdmin() { return <ComingSoonSection title="Platform Settings" desc="The Grounds branding, billing, support contact, default templates for new clubs." />; }
 export function PlatformMetricsAdmin()  { return <ComingSoonSection title="Cross-Club Metrics" desc="Aggregate stats — active members, content updates, revenue, support tickets — across every club." />; }
+
+// ============================================================
+// ProvisionLogAdmin — Phase 7 (v0.7.7). Super_admin read-only view
+// of every Cloudflare Pages Custom Domain provision attempt
+// (success and failure) the provision-club-domain Edge Function
+// has made. Sorted newest-first. Tap a row to expand the raw CF
+// API response for debugging.
+//
+// Use cases:
+//   · "Did Oakgrove's DNS auto-provision succeed?" → see the row
+//     with ok=true, hostname=oakgrove.groundslive.com
+//   · "Why did the new club's subdomain fail?" → see error msg
+//     + status code + raw CF response
+//   · "How many retries did the manager do?" → multiple rows
+//     for the same slug, ordered by attempted_at
+// ============================================================
+export function ProvisionLogAdmin() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+  const [filterFailed, setFilterFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      // Join clubs for the display name when available. club_id is
+      // nullable so this is a LEFT join via PostgREST embedded
+      // syntax — failed-before-create attempts still render.
+      const q = supabase
+        .from('club_provision_log')
+        .select('id, slug, attempted_at, attempted_by, ok, hostname, already_existed, status_code, error, cf_response, club_id, clubs(name, slug)')
+        .order('attempted_at', { ascending: false })
+        .limit(200);
+      const { data } = filterFailed ? await q.eq('ok', false) : await q;
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    };
+    setLoading(true);
+    load();
+
+    // Realtime — a fresh provision attempt during this session
+    // appears without a refresh. Server-side log writes go through
+    // the service role so they bypass RLS, but the realtime stream
+    // still enforces RLS on delivery (super_admin SELECT policy).
+    const channel = supabase
+      .channel('provision_log')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_provision_log' }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [filterFailed]);
+
+  const okCount   = rows.filter(r => r.ok).length;
+  const failCount = rows.filter(r => !r.ok).length;
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Audit log of every Cloudflare Pages Custom Domain provision attempt. Written server-side by the provision-club-domain Edge Function — immutable. Tap any row to see the raw Cloudflare API response.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flex: 1 }}>
+          {loading ? '…' : `${rows.length} attempt${rows.length === 1 ? '' : 's'} · ${okCount} ok · ${failCount} failed`}
+        </span>
+        <div onClick={() => setFilterFailed(v => !v)} data-tap style={{ padding: '6px 12px', borderRadius: 3, background: filterFailed ? G.clsBg : G.card, border: `1px solid ${filterFailed ? G.clsBg : G.border}`, cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: filterFailed ? '#F2E5C0' : G.muted }}>
+            {filterFailed ? '✓ Failures only' : 'Show failures only'}
+          </span>
+        </div>
+      </div>
+
+      {loading && (
+        <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center', margin: 0 }}>Loading provision log…</p>
+      )}
+
+      {!loading && rows.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+            {filterFailed ? 'No failed provisions — system is healthy.' : 'No provision attempts logged yet. The next club onboarding will populate this.'}
+          </p>
+        </div>
+      )}
+
+      {!loading && rows.map(r => {
+        const isOpen = expanded === r.id;
+        const badgeColor = r.ok ? G.openBg : G.clsBg;
+        const badgeLabel = r.ok ? (r.already_existed ? 'EXISTED' : 'OK') : 'FAILED';
+        const clubLabel = r.clubs?.name || (r.club_id ? '(deleted club)' : '(no club)');
+        return (
+          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, overflow: 'hidden' }}>
+            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '11px 14px', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: badgeColor, padding: '2px 7px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{badgeLabel}</span>
+                {r.status_code != null && (
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted }}>HTTP {r.status_code}</span>
+                )}
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, marginLeft: 'auto' }}>
+                  {new Date(r.attempted_at).toLocaleString()}
+                </span>
+              </div>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>
+                {r.hostname || `${r.slug}.groundslive.com`}
+              </p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.4 }}>
+                {clubLabel}
+                {r.error && <> · <span style={{ color: G.clsDot }}>{r.error.slice(0, 80)}{r.error.length > 80 ? '…' : ''}</span></>}
+              </p>
+            </div>
+            {isOpen && (
+              <div style={{ borderTop: `1px solid ${G.border}`, padding: '10px 14px', background: G.bg }}>
+                <DetailRow label="Slug"        value={r.slug} />
+                <DetailRow label="Attempted"   value={new Date(r.attempted_at).toLocaleString()} />
+                <DetailRow label="By user id"  value={r.attempted_by || '(unknown)'} />
+                <DetailRow label="Club id"     value={r.club_id || '(none)'} />
+                <DetailRow label="Outcome"     value={r.ok ? (r.already_existed ? 'Success (domain already existed)' : 'Success (new)') : 'Failed'} />
+                {r.status_code != null && <DetailRow label="HTTP status" value={String(r.status_code)} />}
+                {r.error && (
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px', fontWeight: 700 }}>Error</p>
+                    <p style={{ fontFamily: 'monospace', fontSize: 11, color: G.clsDot, margin: 0, lineHeight: 1.5, wordBreak: 'break-word' }}>{r.error}</p>
+                  </div>
+                )}
+                {r.cf_response && (
+                  <div style={{ marginTop: 10 }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px', fontWeight: 700 }}>Cloudflare response</p>
+                    <pre style={{ fontFamily: 'monospace', fontSize: 10, color: G.text, margin: 0, lineHeight: 1.45, background: G.card, padding: 10, borderRadius: 3, border: `1px solid ${G.border}`, overflow: 'auto', maxHeight: 240, whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify(r.cf_response, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontFamily: 'monospace', fontSize: 11, color: G.text, textAlign: 'right', maxWidth: '65%', wordBreak: 'break-all' }}>{value}</span>
+    </div>
+  );
+}
 
 // ============================================================
 // lesson_requests (pro_shop_inquiries) — queue

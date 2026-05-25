@@ -22,6 +22,60 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.7** — Cloudflare DNS provision logging — deltas on top of
+  the v0.4.4 automation. The Edge Function (`provision-club-domain`)
+  and the CreateClubModal flow that calls it both already existed
+  and worked; this commit adds the durable audit trail super_admin
+  asked for.
+
+  Three deltas:
+
+  **1. `club_provision_log` table** (migration 43). Immutable audit
+  log; one row per provision attempt (success or failure). Columns:
+  `id`, `club_id` (nullable FK ON DELETE SET NULL — supports
+  attempts that pre-date their clubs row), `slug`, `attempted_by`
+  (FK to auth.users ON DELETE SET NULL), `attempted_at`, `ok`,
+  `hostname`, `already_existed`, `status_code`, `error`,
+  `cf_response` (jsonb — raw CF API body for debugging). Indexes on
+  `attempted_at DESC` and `slug`. RLS: super_admin only SELECT; no
+  INSERT/UPDATE/DELETE policy at all, so only the service role
+  writes (which is exactly the Edge Function).
+
+  **2. Edge Function v2** — adds a `logAttempt()` helper that uses
+  the Supabase service role client to insert a log row on every
+  exit path: bad slug, missing CF config, 409 already-existed,
+  Cloudflare API error, network exception, success. Logging is
+  best-effort — if `SUPABASE_SERVICE_ROLE_KEY` isn't set the
+  function continues silently with a console warning rather than
+  failing the provision call. The function now also accepts an
+  optional `club_id` in the request body so the log row links back
+  to the clubs row (CreateClubModal passes the id of the just-
+  inserted club).
+
+  **3. `ProvisionLogAdmin`** — new section under Platform area
+  (super_admin only). Lists every attempt sorted newest-first,
+  shows hostname + outcome badge (OK / EXISTED / FAILED) + HTTP
+  status + a one-line error preview. Tap a row to expand: full
+  metadata, error text in monospace, raw Cloudflare API response
+  as pretty-printed JSON. Filter toggle for "failures only."
+  Realtime subscription so a provision happening in another
+  super_admin's session appears live.
+
+  Why the Edge Function logs server-side rather than the modal
+  logging client-side: the server has the full picture (CF API
+  raw response, HTTP status, error reason) and writes via the
+  service role so logging always succeeds even when the user's
+  JWT has issues. Client-side logs would miss attempts where the
+  Edge Function itself throws before responding, and would have
+  to duplicate parsing logic.
+
+  Background: v0.4.4 originally shipped this feature end-to-end
+  (Edge Function + CreateClubModal UI with stage-based status,
+  success/failure messages, manual fallback instructions). What
+  was missing was the audit trail — a super_admin had to dig
+  through Supabase logs or the Cloudflare dashboard to see what
+  the function had attempted. v0.7.7 closes that gap without
+  touching the working onboarding flow.
 - **v0.7.6** — Pro Shop → My Inquiries. New member-facing read-only
   screen at `/myclub/proshop/inquiries`. Lists every lesson request
   + pro shop inquiry the current member has submitted (queries
