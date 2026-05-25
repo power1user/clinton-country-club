@@ -22,6 +22,38 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.10** — MyClub layout cleanup (4 items from the UI audit).
+
+  **1. Duplicate Card button removed.** Identity strip used to have a
+  "Card" button on the right that opened the Membership Card — the
+  same destination as the "Membership Card" action tile in the grid
+  below. Two paths to one screen is muddier than one path; the
+  action tile is the canonical entry point. Net: identity strip is
+  now name + member-number row only, no trailing CTA.
+
+  **2. Identity strip de-emphasized.** Avatar 44 → 32, name 16 → 14
+  (no italic), padding tightened (14px → 8/12), background opacity
+  0.18 → 0.10, border radius 6 → 4. The strip is now a reference
+  ("you're signed in as X") not a feature card. Lets the action
+  tile grid below it own the visual weight as the primary CTAs.
+
+  **3. Orphan tile fixed.** Was a strict 2-column `grid` — when the
+  v0.7.0 flag gating left an odd tile count (3 or 5 with flags on),
+  the last row had a lone tile floating against the left edge.
+  Switched to `flex-wrap` with `flex: 1 1 calc(50% - 5px)`. Even
+  counts behave identically; odd counts now stretch the orphan
+  tile full-width on the last row (cleaner than a left-floated
+  half-width loner).
+
+  **4. Install surfaces coordinated.** Pre-install, both MyClub's
+  InstallCard AND Settings' InstallEntry were visible — duplicate
+  prompts. Settings now sets `localStorage['pwa.installCoordinated'] = '1'`
+  on mount; InstallCard's `card` variant checks the flag and hides
+  itself when set. Net flow: a member discovers Install on MyClub
+  the first time(s); the moment they visit Settings (where the
+  persistent InstallEntry lives), the MyClub card disappears
+  forever — no more duplicate ask. Login post-signup banner
+  variant is unchanged (it's a one-shot, not persistent).
 - **v0.7.9** — Home screen polish (4 items from the UI audit).
 
   **1. Tagline fallback chain.** Was `{brand.tagline || 'Country Club'}`

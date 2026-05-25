@@ -87,28 +87,40 @@ export default function MyClub() {
             <BellChip />
           </div>
         </div>
-        <div style={{ background: 'rgba(0,0,0,0.18)', borderRadius: 6, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5">
+        {/* v0.7.10: identity strip de-emphasized — lighter background,
+            smaller avatar (44→32), smaller name (16→14, no italic),
+            tighter padding. Lets the action tiles below own the
+            visual weight as the primary CTAs. Card button removed
+            (duplicate path — Membership Card tile in the grid below
+            is the canonical entry point). */}
+        <div style={{ background: 'rgba(0,0,0,0.10)', borderRadius: 4, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5">
               <circle cx="12" cy="8" r="4" />
               <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
             </svg>
           </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: '#F2EDE0', margin: '0 0 2px', fontStyle: 'italic' }}>{m.name}</p>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0 }}>No. {m.number} · {m.type} · Hcp {m.hcp}</p>
-          </div>
-          <div onClick={() => push('myclub/card')} data-tap style={{ padding: '6px 12px', border: '1px solid rgba(122,172,136,0.4)', borderRadius: 3, cursor: 'pointer', flexShrink: 0 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8' }}>Card</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.2 }}>{m.name}</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#A8D8B8', margin: '1px 0 0' }}>No. {m.number} · {m.type} · Hcp {m.hcp}</p>
           </div>
         </div>
       </div>
 
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ padding: '14px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {/* v0.7.10: switched from strict 2-column grid to flex-wrap.
+              With v0.7.0 flag gating, the tile count is variable
+              (2-5 depending on which features the club has enabled).
+              Strict grid left an orphan tile floating left on row 3
+              when count was odd. flex-wrap + min-width: calc(50% -
+              gap/2) keeps the 2-up layout for even counts AND a
+              centered single tile when only one is on the last row.
+              gap math: 10px gap total between two columns means
+              each tile needs to allow for 5px share of that gap. */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {actions.map(a => (
-              <div key={a.id} onClick={() => push(a.id)} data-tap style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '16px 14px', cursor: 'pointer' }}>
+              <div key={a.id} onClick={() => push(a.id)} data-tap style={{ flex: '1 1 calc(50% - 5px)', minWidth: 'calc(50% - 5px)', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '16px 14px', cursor: 'pointer', boxSizing: 'border-box' }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" stroke={G.brass} fill="none" style={{ marginBottom: 10 }}>{a.icon}</svg>
                 <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>{a.label}</p>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0 }}>{a.sub}</p>

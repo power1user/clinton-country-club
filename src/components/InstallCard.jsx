@@ -12,7 +12,12 @@ import { G } from '../theme.js';
 import { usePWAInstall } from '../hooks/usePWAInstall.js';
 import { PLATFORM_NAME } from '../lib/version.js';
 
-const DISMISS_KEY = 'pwa.installDismissed';
+const DISMISS_KEY     = 'pwa.installDismissed';
+// v0.7.10: set by Settings.jsx on mount. When present, the `card`
+// variant on MyClub hides itself — the member already knows the
+// persistent Install entry lives in Settings, so duplicating the
+// prompt on every MyClub visit is noise.
+const COORDINATED_KEY = 'pwa.installCoordinated';
 
 export default function InstallCard({ variant = 'card', onDismiss }) {
   const { canInstall, install, isStandalone, isIOSSafari } = usePWAInstall();
@@ -20,10 +25,19 @@ export default function InstallCard({ variant = 'card', onDismiss }) {
   const [dismissed, setDismissed] = useState(
     variant === 'banner' && typeof sessionStorage !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === '1'
   );
+  // Check the coordination flag at render time (not in state) so a
+  // member who opens Settings and then nav-back to MyClub sees the
+  // card disappear immediately.
+  const coordinated = typeof localStorage !== 'undefined' && localStorage.getItem(COORDINATED_KEY) === '1';
 
   // Hide entirely if installed, dismissed, or nothing to offer
   if (isStandalone || dismissed) return null;
   if (!canInstall && !isIOSSafari) return null;
+  // v0.7.10: hide MyClub's card variant once the member has visited
+  // Settings (where InstallEntry permanently lives). Banner variant
+  // (Login post-signup) still fires regardless — it's a one-shot
+  // discovery prompt, not a persistent presence.
+  if (variant === 'card' && coordinated) return null;
 
   const dismiss = () => {
     setDismissed(true);

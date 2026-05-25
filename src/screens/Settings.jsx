@@ -11,6 +11,7 @@
 // Each section renders only when it's relevant for the member: e.g.
 // the display-mode picker hides when the club hasn't enabled the
 // display_mode feature flag.
+import { useEffect } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
@@ -26,6 +27,16 @@ export default function Settings() {
   const { member, club } = useAuth();
   const displayModeOn = useFlag('display_mode');
   const profilePhotosOn = useFlag('profile_photos');
+
+  // v0.7.10: once a member visits Settings, they know the persistent
+  // Install entry lives here — no need to keep showing the MyClub
+  // InstallCard. Setting this localStorage key on mount tells the
+  // card variant of InstallCard to hide itself on every future visit.
+  // Banner variant (Login post-signup) is unaffected — that fires only
+  // once and dismisses on the same screen.
+  useEffect(() => {
+    try { localStorage.setItem('pwa.installCoordinated', '1'); } catch (_) { /* ignore quota / private mode */ }
+  }, []);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
