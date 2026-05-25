@@ -15,6 +15,23 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.9** — Fix "You don't have permission to update your photo"
+  on profile photo upload. The v0.6.5 storage policy did a subquery
+  on `public.members` to map auth.uid() → members.id, then compared
+  that to the path's third segment. Subquery hit members' SELECT
+  RLS, which uses a SECURITY DEFINER function — works in most
+  contexts but fails in some storage RLS evaluation paths, returning
+  empty and tripping the WITH CHECK.
+  Fix (migration 32): drop the subquery. Store avatars under the
+  user's auth UID instead of members.id:
+    Old: `<club_id>/members/<member.id>/avatar.jpg`
+    New: `<club_id>/members/<auth.uid()>/avatar.jpg`
+  Storage policy becomes a one-liner: `(storage.foldername(name))[3]
+  = auth.uid()::text`. No cross-table reads, no chance of the same
+  bug coming back.
+  ProfilePhotoCard updated to use `session.user.id` for path. No
+  existing avatars to migrate (members.photo_url was empty across
+  the board pre-fix).
 - **v0.6.8** — Message deletion audit + in-message Delete button.
   Audit findings (all from v0.4.3):
     · Threads: hideThread writes thread_participants.hidden_at;

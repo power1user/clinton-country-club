@@ -45,21 +45,25 @@ async function resizeToBlob(file) {
 }
 
 export default function ProfilePhotoCard() {
-  const { member, club, refreshMember } = useAuth();
+  const { member, club, session, refreshMember } = useAuth();
   const enabled = useFlag('profile_photos');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const uploadRef = useRef(null);
   const captureRef = useRef(null);
 
-  if (!enabled || !member?.id || !club?.id) return null;
+  if (!enabled || !member?.id || !club?.id || !session?.user?.id) return null;
 
   const handleFile = async (file) => {
     if (!file || busy) return;
     setBusy(true); setErr(null);
     try {
       const blob = await resizeToBlob(file);
-      const path = `${club.id}/members/${member.id}/avatar.jpg`;
+      // Path uses the auth user_id (not members.id) so the storage
+      // RLS policy can verify ownership with a one-line auth.uid()
+      // check — no cross-table subquery, no chance of "permission
+      // denied" from a subtle RLS interaction (see migration 32).
+      const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
       const { error: upErr } = await supabase.storage
         .from('club-assets')
         .upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
@@ -87,7 +91,7 @@ export default function ProfilePhotoCard() {
     if (busy || !confirm('Remove your profile photo?')) return;
     setBusy(true); setErr(null);
     try {
-      const path = `${club.id}/members/${member.id}/avatar.jpg`;
+      const path = `${club.id}/members/${session.user.id}/avatar.jpg`;
       // Best-effort delete; don't block on storage failures (file may
       // not exist after a previous failed upload).
       await supabase.storage.from('club-assets').remove([path]);
