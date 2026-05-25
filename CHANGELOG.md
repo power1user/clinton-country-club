@@ -15,6 +15,28 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.12** — Profile photo upload fix attempt #4 — SELECT policy
+  on storage.buckets. DB-only fix (migration 34).
+  Diagnostic that cracked it: count(*) on storage.objects where
+  bucket_id='club-assets' returned **0**. No upload has ever
+  succeeded on this bucket, including admin logo/hero/pro-shop
+  image uploads that were supposed to work since Phase 3. Three
+  attempts to fix the object-level INSERT policy (v0.6.9, v0.6.11)
+  didn't move the needle because the object policy wasn't the
+  bottleneck.
+  Root cause: storage.buckets has RLS enabled in this project but
+  ZERO policies. Default deny-all for non-admin. Supabase Storage
+  looks up the bucket row before any object operation to check
+  the public flag, mime allowlist, size limit, etc. The bucket
+  lookup was failing silently and the eventual write returned a
+  misleading "row violates RLS" error pointing at storage.objects.
+  Buckets were created via SQL in Phase 3, which skipped the
+  policy creation the dashboard does automatically.
+  Fix: `create policy "anyone can read bucket info" on
+  storage.buckets for select using (true);`. Bucket info is
+  configuration, not member data — safe to read publicly. Same
+  default Supabase dashboard would have set if buckets had been
+  created through the UI.
 - **v0.6.11** — Profile photo upload finally works. DB-only fix
   (migration 33), no JS change needed. v0.6.10's diagnostics
   confirmed the failure was at the storage RLS layer: "new row
