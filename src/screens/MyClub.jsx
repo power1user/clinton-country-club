@@ -6,7 +6,6 @@ import BellChip from '../components/BellChip.jsx';
 import InstallCard from '../components/InstallCard.jsx';
 import NotificationsToggle from '../components/NotificationsToggle.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { useFlag } from '../hooks/useFlag.js';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { PLATFORM_NAME, VERSION } from '../lib/version.js';
@@ -15,10 +14,6 @@ export default function MyClub() {
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const { member, isAdmin, signOut, club } = useAuth();
-  // Tile visibility is gated by the directory flag, not DMs. A club
-  // can show the directory for browsing without enabling DMs; DMs
-  // still control the Message button inside the directory itself.
-  const directoryOn = useFlag('member_directory');
   const brand = useBrand();
   const now = useNow();
   // Map DB member shape to the design's prop names. Empty placeholders if
@@ -35,11 +30,13 @@ export default function MyClub() {
     parking: member.parking || '—',
   } : { name: '—', number: '—', type: 'Member', since: '—', hcp: '—', email: '', locker: '—', cart: '—', parking: '—' };
 
+  // Member Directory tile intentionally NOT here as of v0.5.6 — moved
+  // to the Community tab (which is the right home for "find other
+  // members"). MyClub is about ME: my profile, my card, my orders,
+  // my lessons. Two paths to the same destination was more confusing
+  // than helpful.
   const actions = [
     { id: 'message-clubhouse', label: 'Message Clubhouse', sub: 'Questions · Requests',       icon: <><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" strokeWidth="1.3" fill="none"/></> },
-    ...(directoryOn ? [
-      { id: 'member-directory', label: 'Member Directory',  sub: 'Find · DM other members',    icon: <><circle cx="9" cy="7" r="4" strokeWidth="1.3" fill="none"/><circle cx="17" cy="7" r="3" strokeWidth="1.3" fill="none"/><path d="M1 20c0-3 3.6-5.5 8-5.5s8 2.5 8 5.5" strokeWidth="1.3" fill="none"/></> },
-    ] : []),
     { id: 'myclub/card',       label: 'Membership Card',   sub: 'Digital · QR code',          icon: <><rect x="3" y="5" width="14" height="10" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M6 10h6M6 8h6" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/proshop',    label: 'Pro Shop',          sub: 'Specials · Equipment',       icon: <><path d="M12 3L2 8l2 13h16l2-13-10-5z" strokeWidth="1.3" fill="none"/><circle cx="12" cy="13" r="3" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/lessons',    label: 'Book a Lesson',     sub: 'PGA pros on staff',          icon: <><circle cx="8" cy="12" r="3" strokeWidth="1.3" fill="none"/><path d="M8 9V3m0 0l4 2" strokeWidth="1.3" fill="none"/></> },

@@ -15,6 +15,11 @@ Reusable threaded-reply system on every member-generated content
 surface, paired with DM buttons when DMs are enabled. The point is
 that no post is a dead end anymore.
 
+- **v0.5.6** — Removed Member Directory tile from MyClub. Directory
+  lives in Community only now. Two paths to the same destination
+  was muddier than helpful: Community is "find/talk to other
+  members," MyClub is "things about me." Member directory belongs
+  squarely in the first bucket.
 - **v0.5.5** — Removed Golf Partners card from Community section nav
   (added by mistake in v0.5.4). Golf-coordination already lives in
   GolfHub's Partners tile; duplicating it in Community blurred the
