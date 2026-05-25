@@ -15,6 +15,24 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.11** — Profile photo upload finally works. DB-only fix
+  (migration 33), no JS change needed. v0.6.10's diagnostics
+  confirmed the failure was at the storage RLS layer: "new row
+  violates row-level security policy."
+  Root cause: v0.6.9 / v0.6.5 used `storage.foldername()` to
+  parse the path. The function returns the right text[] in plain
+  SELECT (verified) but the policy evaluator was still rejecting.
+  Likely a runtime-context issue with how foldername interacts
+  with the policy checker in Supabase's storage code path.
+  Fix: switched the policy to `split_part(name, '/', N)` — the
+  exact pattern the existing `club_assets_staff_insert` policy
+  uses (and that's been working for logo / hero uploads since
+  Phase 3). Also dropped the `to authenticated` clause since the
+  staff policy doesn't have it; Supabase wires the role grant
+  separately.
+  No JS code change — the path the app constructs (using
+  session.user.id) is the same. Just the SQL got simpler and
+  matches the proven pattern.
 - **v0.6.10** — Better diagnostics on profile photo upload failures.
   The v0.6.9 fix didn't resolve the user's "permission denied"
   error in production, and the friendly error message hid which
