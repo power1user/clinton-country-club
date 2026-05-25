@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { Brass } from '../components/Buttons.jsx';
+import { useFlag } from '../hooks/useFlag.js';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const TEE_SLOTS = {
   'Thu May 15': [{ t: '3:30pm', s: 2 }, { t: '3:44pm', s: 4 }, { t: '4:02pm', s: 1 }, { t: '4:16pm', s: 3 }],
@@ -11,12 +13,17 @@ const TEE_SLOTS = {
 };
 
 export default function TeeTime() {
+  const on = useFlag('tee_time_booking');
   const [day, setDay] = useState('Thu May 15');
   const [players, setPlayers] = useState(2);
   const [selected, setSelected] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const days = Object.keys(TEE_SLOTS);
   const slots = TEE_SLOTS[day] || [];
+  // Phase 7 — placeholder feature, default OFF. UI scaffold exists
+  // but no real backend yet, so hide unless a club explicitly opts
+  // in. GolfHub also filters its tile when off.
+  if (!on) return <FeatureOff label="Tee Time Booking" />;
 
   if (confirmed) {
     return (

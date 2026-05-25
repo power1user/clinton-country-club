@@ -24,12 +24,22 @@
 //             partner posts / events / pro shop).
 //   v0.6.x — Phase 6: News/Events split. Events get a calendar view
 //             as their primary surface; News gets an optional date
-//             picker (replaces the required text label).
+//             picker (replaces the required text label). v0.6.1–v0.6.15
+//             also shipped a personalization side-quest (Settings
+//             screen, QR, profile photo, display mode, DM opt-out,
+//             PWA install entry, message deletion).
+//   v0.7.x — Phase 7: Operational control plane. Club Features
+//             Control Panel — every member-facing surface (Pro Shop,
+//             Bulletin, Calendar, Lockers, Cart, Parking, etc.)
+//             becomes a named, manager-toggleable flag with per-flag
+//             platform lock (super_admin can pin a value the manager
+//             can't undo). New top-level Features admin area + schema
+//             migration 39 adds clubs.feature_flags_locked.
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.6.15';
+export const VERSION = '0.7.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

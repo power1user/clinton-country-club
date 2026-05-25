@@ -30,7 +30,9 @@ export default function Events() {
   const { data: events } = useEvents();
   const brand = useBrand();
   const now = useNow();
-  const directoryOn = useFlag('member_directory');
+  const directoryOn  = useFlag('member_directory');
+  const bulletinOn   = useFlag('bulletin_board');
+  const calendarOn   = useFlag('events_calendar');
   const [selectedDate, setSelectedDate] = useState(isoToday);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
 
@@ -47,7 +49,9 @@ export default function Events() {
   }, [events, selectedDate]);
 
   const sections = [
-    { id: 'community/bulletin', label: 'Bulletin Board',   sub: 'Classifieds, wanted, general',  icon: <><path d="M3 6h18M3 12h18M3 18h18" strokeWidth="1.4" /></> },
+    ...(bulletinOn ? [
+      { id: 'community/bulletin', label: 'Bulletin Board',   sub: 'Classifieds, wanted, general',  icon: <><path d="M3 6h18M3 12h18M3 18h18" strokeWidth="1.4" /></> },
+    ] : []),
     ...(directoryOn ? [
       { id: 'member-directory', label: 'Member Directory', sub: 'Browse the roster · message members', icon: <><rect x="3" y="4" width="11" height="8" rx="1.5" strokeWidth="1.4" fill="none" /><path d="M6 8h5M6 6h5" strokeWidth="1.4" fill="none" /></> },
     ] : []),
@@ -109,7 +113,10 @@ export default function Events() {
         </div>
 
         {/* Calendar — month grid. Dots on days with events; tap a day
-            to filter the list below. */}
+            to filter the list below. Phase 7: the entire calendar
+            section hides when events_calendar is off. Section nav
+            (Bulletin/Directory) above stays — those are independent. */}
+        {calendarOn && <>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '4px 0 8px', fontWeight: 700 }}>Events Calendar</p>
         <Calendar
           events={events}
@@ -158,6 +165,7 @@ export default function Events() {
             </div>
           </div>
         ))}
+        </>}
       </div>
     </div>
   );

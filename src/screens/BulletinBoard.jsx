@@ -9,6 +9,7 @@ import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 import Replies from '../components/Replies.jsx';
 import Avatar from '../components/Avatar.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 function NewPostSheet({ onClose, onSubmitted, club, member }) {
   const [title, setTitle] = useState('');
@@ -90,6 +91,7 @@ export default function BulletinBoard() {
   const { club, member, session } = useAuth();
   const dmsOn = useFlag('dms');
   const profilePhotosOn = useFlag('profile_photos');
+  const bulletinBoardOn = useFlag('bulletin_board');
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
@@ -98,6 +100,8 @@ export default function BulletinBoard() {
   const [dmErr, setDmErr] = useState(null);
   const cats = [{ id: 'all', l: 'All' }, { id: 'Classifieds', l: 'Classifieds' }, { id: 'Wanted', l: 'Wanted' }, { id: 'General', l: 'General' }];
   const tagColors = { Classifieds: G.brass, Wanted: G.limDot, General: G.muted };
+  // Phase 7 gating — default ON. Community tab also filters its tile.
+  if (!bulletinBoardOn) return <FeatureOff label="Bulletin Board" />;
   const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);
 
   // DM the post's author. Hidden when DMs are off, when the post is

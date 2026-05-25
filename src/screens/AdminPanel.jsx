@@ -10,7 +10,7 @@ import {
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
-  SuperAdminsAdmin, AllClubsAdmin,
+  SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -87,6 +87,19 @@ const AREAS = [
       { id: 'staff',           permKey: 'can_manage_staff',         l: 'Staff',           d: 'Manage admins + grant permissions',    icon: IconShield, managerOnly: true },
       { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox', d: 'Member messages routed to staff',      icon: IconBell },
       { id: 'clubsettings',                                          l: 'Club Settings',   d: 'Logo, colors, contact, gating',        icon: IconCog, managerOnly: true },
+    ],
+  },
+  // Features — Phase 7 (v0.7.0). Master switchboard for everything
+  // members can see. Manager-only because it controls member-facing
+  // surfaces; super_admin sees the same area plus extra lock controls
+  // when editing a specific club via Platform → All Clubs.
+  {
+    id: 'features',
+    l: 'Features',
+    d: 'Turn member-facing surfaces on/off',
+    icon: IconCog,
+    sections: [
+      { id: 'features', l: 'Feature Toggles', d: 'Pro Shop, Bulletin, Calendar, Lockers, all of it', icon: IconCog, managerOnly: true },
     ],
   },
   // Super-admin only — platform-wide controls
@@ -175,6 +188,7 @@ export default function AdminPanel() {
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
+          {sec === 'features'       && isManager && <FeaturesAdmin />}
           {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
           {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
         </div>

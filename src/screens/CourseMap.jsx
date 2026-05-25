@@ -3,13 +3,18 @@ import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { usePinPlacements } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { useFlag } from '../hooks/useFlag.js';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 // Course overview — stylized illustration of Clinton CC's layout plus a real
 // scorecard with all three tee yardages. GPS/satellite returns in v2.
 export default function CourseMap() {
+  const on = useFlag('course_map');
   const { data: holes } = usePinPlacements();
   const brand = useBrand();
   const [tee, setTee] = useState('white');
+  // Phase 7 gating — default ON.
+  if (!on) return <FeatureOff label="Course Map" />;
 
   // Sum yardages for the chosen tee — fall back to any available row if a
   // specific tee yardage is missing on a hole.

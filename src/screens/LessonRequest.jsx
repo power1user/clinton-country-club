@@ -7,13 +7,16 @@ import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { Brass } from '../components/Buttons.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const FOCUSES = ['Full Swing', 'Short Game', 'Putting', 'Bunker Play', 'Course Management', 'Junior Lesson'];
 
 export default function LessonRequest() {
   const { club, member, canMemberWrite } = useAuth();
+  const on = useFlag('lesson_booking');
   const [pros, setPros] = useState([]);
   const [prosLoading, setProsLoading] = useState(true);
   const [pro, setPro] = useState(null);            // selected pro's id
@@ -68,6 +71,12 @@ export default function LessonRequest() {
     if (error) { setErr(error.message); return; }
     setSubmitted(true);
   };
+
+  // Phase 7 gating — manager can turn off lesson booking entirely
+  // (some clubs don't run lessons; default is ON to preserve existing
+  // behavior). MyClub already hides the tile when off; this is the
+  // direct-nav backstop.
+  if (!on) return <FeatureOff label="Book a Lesson" />;
 
   if (submitted) {
     return (

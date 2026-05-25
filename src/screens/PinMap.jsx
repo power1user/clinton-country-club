@@ -2,10 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { usePinPlacements } from '../hooks/useClubData.jsx';
+import { useFlag } from '../hooks/useFlag.js';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 // Read-only member view: shows the green image for the selected hole with a
 // flag marker at the coordinates the greenskeeper set today.
 export default function PinMap() {
+  const on = useFlag('pin_placements');
   const { data: holes, loading } = usePinPlacements();
   const [hole, setHole] = useState(1);
   const stripRef = useRef(null);
@@ -16,6 +19,9 @@ export default function PinMap() {
     const el = stripRef.current.querySelector(`[data-hole="${hole}"]`);
     if (el) el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   }, [hole]);
+
+  // Phase 7 gating — default ON.
+  if (!on) return <FeatureOff label="Pin Placement" />;
 
   if (loading || !h) {
     return (

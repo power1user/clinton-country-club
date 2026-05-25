@@ -23,6 +23,7 @@ import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase } from '../lib/supabase.js';
 import Replies from '../components/Replies.jsx';
 import Avatar from '../components/Avatar.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 // Pretty short date — "Sat May 24" — for the "when" chip on a card.
 function fmtDateChip(iso) {
@@ -36,12 +37,15 @@ export default function PartnerBoard() {
   const { club, member, session, canMemberWrite } = useAuth();
   const dmsOn = useFlag('dms');
   const profilePhotosOn = useFlag('profile_photos');
+  const partnerBoardOn = useFlag('partner_board');
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const [cat, setCat] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState(null);
+  // Phase 7 gating — default ON. GolfHub also filters its tile.
+  if (!partnerBoardOn) return <FeatureOff label="Golf Partners" />;
 
   const cats = [{ id: 'all', l: 'All' }, { id: 'Foursome', l: 'Foursome' }, { id: 'Single', l: 'Single' }, { id: 'Cart Share', l: 'Cart Share' }];
   const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);

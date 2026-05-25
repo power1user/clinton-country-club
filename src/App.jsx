@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
+import { useFlag } from './hooks/useFlag.js';
 import BottomNav from './components/BottomNav.jsx';
 import { G } from './theme.js';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from './lib/version.js';
@@ -60,10 +61,12 @@ const SCREENS = {
   'myclub/settings': Settings,
 };
 
-// Ordered list — used for tab swipe to figure out next/prev.
-// Keep in sync with the BottomNav tabs array.
-const TAB_ORDER = ['home', 'golf', 'food', 'community', 'myclub'];
-const TAB_ROOTS = new Set(TAB_ORDER);
+// Full tab list — used for the "is this a tab root?" check (membership in
+// this set turns horizontal swipe ON). Stays static; food remains a tab
+// root whether or not the flag is on, because direct navigation to /food
+// should still render its FeatureOff screen + allow swiping off it.
+const ALL_TABS = ['home', 'golf', 'food', 'community', 'myclub'];
+const TAB_ROOTS = new Set(ALL_TABS);
 
 // Swipe thresholds tuned by feel on iPhone:
 //   · 60px or more of horizontal travel, OR a fast flick (>0.4 px/ms)
@@ -78,6 +81,15 @@ const SWIPE_AXIS_LOCK_PX = 8;     // delta before we decide horizontal vs vertic
 function ScreenRenderer() {
   const { current, animKey, dir, tab, goTab } = useNav();
   const touchRef = useRef(null);
+  // Phase 7: swipe order respects the food_ordering flag so swiping
+  // from Golf goes to Community (not the FeatureOff for Food). The
+  // BottomNav already hides the Food tab when off, so this just keeps
+  // the gesture aligned with what the bottom nav shows.
+  const foodOn = useFlag('food_ordering');
+  const TAB_ORDER = useMemo(
+    () => ALL_TABS.filter(t => t !== 'food' || foodOn),
+    [foodOn]
+  );
 
   const Comp = SCREENS[current.id];
   const isRoot = TAB_ROOTS.has(current.id);

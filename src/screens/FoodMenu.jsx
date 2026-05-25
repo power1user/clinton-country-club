@@ -14,13 +14,16 @@ import { useEffect, useRef, useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
+import { useFlag } from '../hooks/useFlag.js';
 import BellChip from '../components/BellChip.jsx';
 import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const SPECIALS_KEY = '__specials__';
 
 export default function FoodMenu() {
+  const on = useFlag('food_ordering');
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const { data: menu, loading } = useMenu();
@@ -77,6 +80,10 @@ export default function FoodMenu() {
     const elTop = el.getBoundingClientRect().top;
     container.scrollTo({ top: container.scrollTop + (elTop - containerTop) - 10, behavior: 'smooth' });
   };
+
+  // Phase 7 gating — default ON. BottomNav also hides the Food tab
+  // when this is off, so members shouldn't normally reach this path.
+  if (!on) return <FeatureOff label="Food & Drink" />;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>

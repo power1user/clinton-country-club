@@ -4,10 +4,12 @@
 // clubs.feature_flags (jsonb), and the catalog below is the source of
 // truth for what flags exist and which tier unlocks each.
 //
-// Resolution rules (see isFeatureOn / featureState below):
+// Resolution rules (see isFeatureOn / featureState below), in order:
 //   1. Club tier below the flag's min_tier → flag is locked OFF
-//   2. Club has an explicit override in feature_flags → use that
-//   3. Otherwise → use the flag's default_enabled
+//   2. Platform lock present (clubs.feature_flags_locked) → use that
+//      value, regardless of what the club manager has set (Phase 7)
+//   3. Club has an explicit override in feature_flags → use that
+//   4. Otherwise → use the flag's default_enabled
 //
 // Why a code catalog instead of a DB table:
 //   · Adding a flag means writing UI that respects it → that's a code
@@ -15,6 +17,11 @@
 //   · The set of flags is small enough (~tens, not thousands) that a
 //     code object is the right shape.
 //   · Lets us ship a flag in the same commit as the code that gates on it.
+//
+// Phase 7 (v0.7.0) note: the Club Features Control Panel exposes
+// EVERY flag in this catalog as a manager-facing toggle. Anything we
+// add here ships with an automatic admin UI toggle the next time
+// FeaturesAdmin renders — no extra wiring per flag.
 
 export const TIERS = ['basic', 'standard', 'pro'];
 
@@ -36,12 +43,120 @@ export const TIER_DESCRIPTION = {
 
 // The catalog. Keys are flag identifiers used by useFlag('key').
 //
-//   min_tier         — lowest tier where this flag is available to toggle
-//   default_enabled  — value when no override and tier allows it
+//   key              — stable identifier; never rename without a migration
 //   label            — short title for admin UI
 //   description      — one-line explanation for admin UI
-//   category         — used to group flags in admin UI (optional)
+//   min_tier         — lowest tier where this flag is available to toggle
+//   default_enabled  — value when no override and tier allows it
+//   category         — used to group flags in admin UI
+//   placeholder      — (optional) true when the feature is a stub for
+//                      future work (e.g. Tee Time Booking pre-backend).
+//                      Toggle stays available so we can plan/preview,
+//                      but the UI shows a "coming soon" hint.
+//
+// IMPORTANT: default_enabled for previously-hardcoded-visible features
+// is `true` so existing clubs don't lose functionality on upgrade. Net
+// behavior is identical pre-/post-Phase-7 for any club that doesn't
+// touch their Features panel.
 export const FEATURES = {
+  // ─── Golf ──────────────────────────────────────────────────────────
+  pin_placements: {
+    key:             'pin_placements',
+    label:           'Pin Placements',
+    description:     "Daily pin position per green, with greenskeeper notes. Member surface is Golf → Pin Placement.",
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Golf',
+  },
+  course_map: {
+    key:             'course_map',
+    label:           'Course Map',
+    description:     'Satellite map of the course with per-hole detail. Member surface is Golf → Course Map.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Golf',
+  },
+  pace_of_play: {
+    key:             'pace_of_play',
+    label:           'Pace of Play',
+    description:     "Today's pace indicator (on pace / slightly slow / significantly slow) shown on Golf and Home.",
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Golf',
+  },
+  partner_board: {
+    key:             'partner_board',
+    label:           'Golf Partner Board',
+    description:     "Members post 'looking for a foursome' and others reply or DM. Surface is Golf → Golf Partners.",
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Golf',
+  },
+  tee_time_booking: {
+    key:             'tee_time_booking',
+    label:           'Tee Time Booking',
+    description:     'Member tee-time reservations. Coming soon — UI scaffold exists but no live backend yet.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Golf',
+    placeholder:     true,
+  },
+  lesson_booking: {
+    key:             'lesson_booking',
+    label:           'Lesson Booking',
+    description:     'Members can request lessons from the pro shop roster. Surface is My Club → Book a Lesson.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Golf',
+  },
+
+  // ─── Pro Shop ──────────────────────────────────────────────────────
+  pro_shop: {
+    key:             'pro_shop',
+    label:           'Pro Shop',
+    description:     'Browseable catalog of pro shop items. Surface is My Club → Pro Shop.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Pro Shop',
+  },
+
+  // ─── Dining ────────────────────────────────────────────────────────
+  food_ordering: {
+    key:             'food_ordering',
+    label:           'Food Ordering',
+    description:     'Members order food/drinks from the menu and place orders to a hole or location. Surface is the Food & Drink tab.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Dining',
+  },
+
+  // ─── Community ─────────────────────────────────────────────────────
+  bulletin_board: {
+    key:             'bulletin_board',
+    label:           'Bulletin Board',
+    description:     'Members post general announcements (lost-and-found, for-sale, ride shares, etc.). Surface is Community → Bulletin Board.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Community',
+  },
+  events_calendar: {
+    key:             'events_calendar',
+    label:           'Calendar & Events',
+    description:     'Member-facing calendar of club events, with RSVP. Surface is the Community tab.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Community',
+  },
+  member_directory: {
+    key:             'member_directory',
+    label:           'Member Directory',
+    description:     'Members can see a roster of every active member at the club. Required to find someone to DM; can also be on standalone for browsing-only when DMs are off.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Community',
+  },
+
+  // ─── Messaging ─────────────────────────────────────────────────────
   dms: {
     key:             'dms',
     label:           'Member-to-member DMs',
@@ -50,14 +165,42 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Messaging',
   },
-  member_directory: {
-    key:             'member_directory',
-    label:           'Member Directory',
-    description:     'Members can see a roster of every active member at the club. Required to find someone to DM; can also be on standalone for browsing-only when DMs are off.',
+
+  // ─── Member Info ───────────────────────────────────────────────────
+  profile_photos: {
+    key:             'profile_photos',
+    label:           'Member profile photos',
+    description:     'Members can upload a photo to show on their membership card, in the directory, on bulletin / partner posts, and in chat bubbles. When off, the default initials avatar shows regardless of whether members have uploaded photos.',
     min_tier:        'basic',
     default_enabled: false,
-    category:        'Messaging',
+    category:        'Member Info',
   },
+  lockers: {
+    key:             'lockers',
+    label:           'Locker Numbers',
+    description:     'Show the member\'s locker number on My Club → My Account. Turn off if your club doesn\'t assign lockers.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Member Info',
+  },
+  cart_assignments: {
+    key:             'cart_assignments',
+    label:           'Cart Assignments',
+    description:     'Show the member\'s cart assignment on My Club → My Account. Turn off if your club doesn\'t assign carts.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Member Info',
+  },
+  parking_assignments: {
+    key:             'parking_assignments',
+    label:           'Parking Spot Assignments',
+    description:     'Show the member\'s parking spot on My Club → My Account. Turn off if your club doesn\'t assign parking.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Member Info',
+  },
+
+  // ─── Appearance ────────────────────────────────────────────────────
   display_mode: {
     key:             'display_mode',
     label:           'Display mode personalization',
@@ -66,23 +209,47 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Appearance',
   },
-  profile_photos: {
-    key:             'profile_photos',
-    label:           'Member profile photos',
-    description:     'Members can upload a photo to show on their membership card, in the directory, on bulletin / partner posts, and in chat bubbles. When off, the default initials avatar shows regardless of whether members have uploaded photos.',
-    min_tier:        'basic',
-    default_enabled: false,
-    category:        'Profile',
-  },
 };
 
+// Category order used by admin UI grouping. Anything not listed here
+// falls to the end in catalog-declaration order.
+export const CATEGORY_ORDER = [
+  'Golf', 'Pro Shop', 'Dining', 'Community', 'Messaging', 'Member Info', 'Appearance',
+];
+
 // All flags as an ordered array — used by admin UI to render toggles.
-// Sorted by tier rank (lowest first) then alphabetical for stability.
+// Sorted by category (per CATEGORY_ORDER), then by tier rank, then by
+// label so the same UI shape is stable across renders.
 export function listFeatures() {
   return Object.values(FEATURES).sort((a, b) => {
+    const ca = CATEGORY_ORDER.indexOf(a.category || 'Other');
+    const cb = CATEGORY_ORDER.indexOf(b.category || 'Other');
+    if (ca !== cb) return (ca === -1 ? 999 : ca) - (cb === -1 ? 999 : cb);
     const t = (TIER_RANK[a.min_tier] || 0) - (TIER_RANK[b.min_tier] || 0);
     return t !== 0 ? t : a.label.localeCompare(b.label);
   });
+}
+
+// Group features by category — convenience for the FeaturesAdmin UI
+// that renders one section per category with a heading.
+export function listFeaturesByCategory() {
+  const groups = new Map();
+  for (const f of listFeatures()) {
+    const k = f.category || 'Other';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(f);
+  }
+  return Array.from(groups.entries()).map(([category, items]) => ({ category, items }));
+}
+
+// Internal: pull the platform lock value for a flag if one is set.
+// Returns { locked: true, value } or { locked: false }.
+function platformLockFor(club, flagKey) {
+  const locks = club?.feature_flags_locked || {};
+  if (Object.prototype.hasOwnProperty.call(locks, flagKey)) {
+    return { locked: true, value: !!locks[flagKey] };
+  }
+  return { locked: false };
 }
 
 // Boolean: is this feature on for this club right now?
@@ -90,10 +257,14 @@ export function listFeatures() {
 //
 //   import { isFeatureOn } from '../lib/features.js';
 //   if (isFeatureOn(club, 'dms')) { ... }
+//
+// Order: tier check → platform lock → club override → catalog default.
 export function isFeatureOn(club, flagKey) {
   const flag = FEATURES[flagKey];
   if (!flag || !club) return false;
   if ((TIER_RANK[club.subscription_tier] ?? 0) < TIER_RANK[flag.min_tier]) return false;
+  const lock = platformLockFor(club, flagKey);
+  if (lock.locked) return lock.value;
   const overrides = club.feature_flags || {};
   if (Object.prototype.hasOwnProperty.call(overrides, flagKey)) {
     return !!overrides[flagKey];
@@ -102,15 +273,21 @@ export function isFeatureOn(club, flagKey) {
 }
 
 // Detailed state for admin UI — distinguishes "off because tier-locked"
-// from "off because manager turned it off." Lets us render different
-// affordances in the Club Settings panel.
+// from "off because manager turned it off" from "off because The Grounds
+// pinned it off." Lets us render different affordances in the Features
+// panel (lock icon vs grayscale tier-lock vs normal toggle).
 //
-//   { value, locked, reason: 'tier-locked' | 'override' | 'default' | 'unknown' }
+//   { value, locked, reason }
+//   reason ∈ 'tier-locked' | 'platform-locked' | 'override' | 'default' | 'unknown'
 export function featureState(club, flagKey) {
   const flag = FEATURES[flagKey];
   if (!flag || !club) return { value: false, locked: true, reason: 'unknown' };
   if ((TIER_RANK[club.subscription_tier] ?? 0) < TIER_RANK[flag.min_tier]) {
     return { value: false, locked: true, reason: 'tier-locked' };
+  }
+  const lock = platformLockFor(club, flagKey);
+  if (lock.locked) {
+    return { value: lock.value, locked: true, reason: 'platform-locked' };
   }
   const overrides = club.feature_flags || {};
   if (Object.prototype.hasOwnProperty.call(overrides, flagKey)) {
@@ -131,6 +308,24 @@ export function withFlagChange(currentFlags, flagKey, value) {
   if (!flag) { next[flagKey] = value; return next; }
   if (!!value === !!flag.default_enabled) {
     delete next[flagKey];      // matches default — no need to store override
+  } else {
+    next[flagKey] = !!value;
+  }
+  return next;
+}
+
+// Platform-lock merge-helper. Used from Platform → All Clubs to pin
+// (or unpin) a flag for a specific club. Unlike withFlagChange, we
+// store both true AND false explicitly — the presence of the key in
+// feature_flags_locked is what activates the lock, regardless of the
+// catalog default. Pass `null` to clear the lock.
+//
+//   const next = withFlagLock(club.feature_flags_locked, 'dms', true);
+//   const next = withFlagLock(club.feature_flags_locked, 'dms', null); // unlock
+export function withFlagLock(currentLocks, flagKey, value) {
+  const next = { ...(currentLocks || {}) };
+  if (value === null || value === undefined) {
+    delete next[flagKey];
   } else {
     next[flagKey] = !!value;
   }

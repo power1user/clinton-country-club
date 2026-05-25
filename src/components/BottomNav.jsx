@@ -1,16 +1,23 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import NavIcon from './NavIcon.jsx';
 
 export default function BottomNav() {
   const { tab, goTab, cartCount } = useNav();
+  // Phase 7 — when food_ordering is off the whole Food tab disappears
+  // from the bottom nav (the screen itself also returns FeatureOff if
+  // a member somehow navigates to it directly). Home / Golf / Community
+  // / MyClub are always visible because they each carry mixed content
+  // that's gated per-tile inside.
+  const foodOn = useFlag('food_ordering');
   const tabs = [
     { id: 'home',      l: 'Home' },
     { id: 'golf',      l: 'Golf' },
-    { id: 'food',      l: 'Food & Drink' },
+    foodOn && { id: 'food', l: 'Food & Drink' },
     { id: 'community', l: 'Community' },
     { id: 'myclub',    l: 'My Club' },
-  ];
+  ].filter(Boolean);
   return (
     <div style={{
       background: G.greenDk,

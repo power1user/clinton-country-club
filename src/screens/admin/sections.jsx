@@ -8,7 +8,7 @@ import { useNav } from '../../hooks/useNav.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import { COMMON_TIMEZONES } from '../../lib/timezone.js';
-import { listFeatures, featureState, withFlagChange, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
+import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, withFlagLock, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
 import CrudSection from './CrudSection.jsx';
 import Toggle from '../../components/Toggle.jsx';
 
@@ -532,6 +532,195 @@ export function ClubSettingsAdmin() {
   );
 }
 
+// ============================================================
+// FeaturesAdmin — manager-facing master toggle panel (Phase 7,
+// v0.7.0). The Features top-level admin area opens this. Reads
+// `club` from auth context; renders FeaturesPanel in manager mode.
+// ============================================================
+export function FeaturesAdmin() {
+  const { club } = useAuth();
+  return (
+    <FeaturesPanel
+      club={club}
+      mode="manager"
+      headerNote="Each feature below controls a member-facing surface. Toggling off hides it from every member immediately — no rebuild, no re-deploy. Some flags require a higher subscription tier; those show locked. The Grounds can pin specific features on or off for your club; those show 'Set by The Grounds' and your toggle is disabled."
+    />
+  );
+}
+
+// FeaturesPanel — shared body for both manager mode (member-facing
+// toggles) and platform mode (same toggles plus per-flag lock controls
+// for super_admin). One toggle flip = one supabase update; no separate
+// Save button so the panel always reflects the live state.
+//
+// mode='manager':
+//   · Reads/writes club.feature_flags via withFlagChange
+//   · feature_flags_locked entries render as 'Set by The Grounds' +
+//     disabled toggle (manager can't undo a platform lock)
+//   · Tier-locked flags render as a lock icon + upgrade hint
+//
+// mode='platform':
+//   · Same toggles, but each row also shows a Lock/Unlock affordance
+//   · 'Lock' pins the current effective value into feature_flags_locked
+//     so the manager can't change it. 'Unlock' removes the entry.
+//   · The toggle, when locked, writes to feature_flags_locked (so the
+//     SA can flip the locked value). When unlocked, writes to
+//     feature_flags as usual.
+export function FeaturesPanel({ club, mode = 'manager', headerNote }) {
+  const [busyKey, setBusyKey] = useState(null);
+  const [err, setErr] = useState(null);
+
+  if (!club) {
+    return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading club…</p>;
+  }
+
+  // Persist a flag-flip optimistically — we don't manage local state
+  // because the realtime subscription in useAuth (or in AllClubsAdmin's
+  // own subscription) pushes the updated row back here. Keeps the UI a
+  // straight mirror of clubs.feature_flags / feature_flags_locked.
+  const writeFlag = async (flagKey, value, target) => {
+    setBusyKey(flagKey); setErr(null);
+    const payload = {};
+    if (target === 'lock') {
+      payload.feature_flags_locked = withFlagLock(club.feature_flags_locked, flagKey, value);
+    } else {
+      payload.feature_flags = withFlagChange(club.feature_flags, flagKey, value);
+      // Legacy column mirror — keep enable_member_dms in sync with
+      // the dms flag until that column is fully retired.
+      if (flagKey === 'dms') payload.enable_member_dms = !!value;
+    }
+    const { error } = await supabase.from('clubs').update(payload).eq('id', club.id);
+    setBusyKey(null);
+    if (error) setErr(error.message);
+  };
+
+  // Toggle the lock state on a flag — preserves the current effective
+  // value as the pinned value when locking, removes the key when unlocking.
+  const toggleLock = async (flagKey, currentValue, currentlyLocked) => {
+    await writeFlag(flagKey, currentlyLocked ? null : currentValue, 'lock');
+  };
+
+  const groups = listFeaturesByCategory();
+  const tierLabel = TIER_LABEL[club.subscription_tier] || 'Basic';
+
+  return (
+    <div>
+      {headerNote && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
+          {headerNote}
+        </p>
+      )}
+
+      <div style={{ padding: '10px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 14 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.5 }}>
+          Subscription tier: <strong>{tierLabel}</strong>. {TIER_DESCRIPTION[club.subscription_tier] || ''}
+        </p>
+      </div>
+
+      {err && (
+        <div style={{ padding: '10px 14px', marginBottom: 12, background: 'rgba(167,67,55,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsDot, margin: 0 }}>{err}</p>
+        </div>
+      )}
+
+      {groups.map(({ category, items }) => (
+        <div key={category} style={{ marginBottom: 16 }}>
+          <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>{category}</h4>
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            {items.map((flag, i) => (
+              <FeatureRow
+                key={flag.key}
+                flag={flag}
+                club={club}
+                mode={mode}
+                busy={busyKey === flag.key}
+                isFirst={i === 0}
+                onToggle={(v) => {
+                  const st = featureState(club, flag.key);
+                  // If locked from platform, the toggle writes the new
+                  // locked value (super_admin still controls). In manager
+                  // mode the row is disabled so onToggle never fires.
+                  writeFlag(flag.key, v, st.reason === 'platform-locked' ? 'lock' : 'override');
+                }}
+                onLockToggle={() => {
+                  const st = featureState(club, flag.key);
+                  toggleLock(flag.key, st.value, st.reason === 'platform-locked');
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle }) {
+  const st = featureState(club, flag.key);
+  const isPlatform = mode === 'platform';
+  const tierLocked     = st.reason === 'tier-locked';
+  const platformLocked = st.reason === 'platform-locked';
+
+  // Manager mode: platform lock disables the toggle. Platform mode:
+  // the SA can flip the locked value, so the toggle stays interactive.
+  const toggleDisabled = busy || tierLocked || (platformLocked && !isPlatform);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', borderTop: isFirst ? 'none' : `1px solid ${G.border}`, opacity: tierLocked ? 0.55 : 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>{flag.label}</p>
+          {flag.placeholder && (
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, background: 'rgba(155,122,30,0.12)', padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>Coming soon</span>
+          )}
+          {platformLocked && (
+            <span title="Pinned by The Grounds" style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {isPlatform ? `Locked ${st.value ? 'On' : 'Off'}` : 'Set by The Grounds'}
+            </span>
+          )}
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
+          {flag.description}
+        </p>
+        {tierLocked && (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
+            Requires {TIER_LABEL[flag.min_tier]} tier — contact The Grounds to upgrade.
+          </p>
+        )}
+        {/* Platform-mode lock affordance — small inline link below
+            the description. Keeps the row visually quiet for managers,
+            who never see this. */}
+        {isPlatform && !tierLocked && (
+          <div style={{ marginTop: 6 }}>
+            <span
+              onClick={busy ? undefined : onLockToggle}
+              data-tap
+              style={{ fontFamily: '"Lora",serif', fontSize: 10, color: platformLocked ? G.clsDot : G.brass, cursor: busy ? 'wait' : 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
+            >
+              {platformLocked ? '✕ Unlock — let the club manager decide' : '🔒 Lock for this club'}
+            </span>
+          </div>
+        )}
+      </div>
+      <div style={{ flexShrink: 0, paddingTop: 2 }}>
+        {tierLocked ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8">
+            <rect x="5" y="11" width="14" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 018 0v4" />
+          </svg>
+        ) : (
+          <Toggle
+            checked={st.value}
+            onChange={toggleDisabled ? () => {} : onToggle}
+            ariaLabel={flag.label}
+            disabled={toggleDisabled}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Reusable branding/contact editor. Drives the clubs row directly.
 //   mode='manager'  — club_manager editing their own club. Hides
 //                     immutable-ish facts (address, lat/lng, founded,
@@ -638,6 +827,12 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
     // Manager-editable fields always go through. Platform-only fields
     // only get included when mode === 'platform' so a manager's save
     // never overwrites an address or coordinates.
+    //
+    // Phase 7 (v0.7.0): feature_flags + enable_member_dms are NOT in
+    // this payload anymore — the Features admin area writes them
+    // directly per toggle. If we included them here we'd race against
+    // any feature flip the user made while this form was open and
+    // overwrite the toggle change.
     const payload = {
       tagline:           form.tagline.trim()       || null,
       contact_email:     form.contact_email.trim() || null,
@@ -647,11 +842,6 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       accent_color:      form.accent_color,
       logo_url:          form.logo_url.trim()       || null,
       hero_image_url:    form.hero_image_url.trim() || null,
-      feature_flags:     form.feature_flags || {},
-      // Mirror dms flag → legacy enable_member_dms column so anything
-      // that hasn't migrated to useFlag('dms') stays consistent. Safe
-      // to remove in a future cleanup once the column is dropped.
-      enable_member_dms: !!(form.feature_flags && form.feature_flags.dms),
       pending_member_access: form.pending_member_access || 'read_only',
     };
     // subscription_tier is only writable by super_admin (DB trigger
@@ -850,47 +1040,12 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
         )}
       </div>
 
-      {/* Per-flag toggles. Flags whose min_tier exceeds the current tier
-          are rendered locked + grayscaled with an "upgrade to X" hint. */}
-      <div style={{ padding: '8px 14px 4px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '6px 0 8px' }}>Feature toggles</p>
-        {listFeatures().map(flag => {
-          // Re-evaluate state against the FORM (so super_admin changing
-          // tier in the same screen sees flags un-lock live) rather than
-          // the saved club row.
-          const liveClub = { subscription_tier: form.subscription_tier, feature_flags: form.feature_flags || {} };
-          const st = featureState(liveClub, flag.key);
-          const lockedByTier = st.reason === 'tier-locked';
-          return (
-            <div key={flag.key} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${G.border}`, opacity: lockedByTier ? 0.55 : 1 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>{flag.label}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.5 }}>
-                  {flag.description}
-                </p>
-                {lockedByTier && (
-                  <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
-                    Requires {TIER_LABEL[flag.min_tier]} tier — contact The Grounds to upgrade.
-                  </p>
-                )}
-              </div>
-              {lockedByTier ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" style={{ flexShrink: 0 }}>
-                  <rect x="5" y="11" width="14" height="10" rx="2" />
-                  <path d="M8 11V7a4 4 0 018 0v4" />
-                </svg>
-              ) : (
-                <Toggle
-                  checked={st.value}
-                  onChange={v => set('feature_flags', withFlagChange(form.feature_flags, flag.key, v))}
-                  ariaLabel={flag.label}
-                />
-              )}
-            </div>
-          );
-        })}
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted, margin: '10px 0 6px', lineHeight: 1.5 }}>
-          More features unlock at higher tiers — they'll appear here when we ship them.
+      {/* Per-flag toggles moved to the dedicated Features admin area
+          (Phase 7). Keeping a pointer here so anyone looking for the
+          toggles in the old spot finds them quickly. */}
+      <div style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.5 }}>
+          Feature toggles moved to the <strong>Features</strong> area on the admin hub. Tier still lives here; the per-feature on/off controls (Pro Shop, Bulletin Board, Locker numbers, etc.) live in one dedicated place now.
         </p>
       </div>
 
@@ -1562,6 +1717,19 @@ export function AllClubsAdmin() {
           mode="platform"
           headerNote="Edit any club on the platform. As super_admin you also control the location facts + course meta + timezone that managers can't touch."
         />
+
+        {/* Phase 7: per-club Features panel in platform mode. Adds
+            lock controls below each toggle so super_admin can pin a
+            feature on/off for this club regardless of what the
+            manager sets. */}
+        <div style={{ marginTop: 28 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>Features</h3>
+          <FeaturesPanel
+            club={fullClub}
+            mode="platform"
+            headerNote="Toggles below write to this club's feature_flags. Hit 'Lock for this club' under any flag to pin the current value into feature_flags_locked — the manager will see 'Set by The Grounds' and the toggle will be disabled in their Features area."
+          />
+        </div>
       </div>
     );
   }

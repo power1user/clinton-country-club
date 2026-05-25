@@ -9,6 +9,107 @@ All notable changes to this project. Convention:
 
 ---
 
+## v0.7.x — Phase 7: Operational control plane
+
+Every member-facing surface becomes a manager-toggleable flag, with
+a separate platform-level lock super_admin can pin from Platform →
+All Clubs. New top-level **Features** admin area is the single home
+for these toggles; the inline toggle list in Club Settings is gone
+(pointer left in its place). Schema migration 39 adds
+`clubs.feature_flags_locked jsonb` (default `'{}'`) — a platform pin
+present here wins over the manager's own override and the catalog
+default. Existing behavior is unchanged for any club that doesn't
+touch their Features panel — previously-hardcoded-visible surfaces
+default to ON in the catalog.
+
+- **v0.7.0** — Phase 7 lands. Five parts:
+
+  **1. Catalog expansion.** `src/lib/features.js` grows from 4 flags
+  (`dms`, `member_directory`, `display_mode`, `profile_photos`) to
+  17. New flags, each with the screen they control:
+    · `pro_shop`            — MyClub → Pro Shop (default ON)
+    · `lesson_booking`      — MyClub → Book a Lesson (default ON)
+    · `bulletin_board`      — Community → Bulletin Board (default ON)
+    · `partner_board`       — Golf → Golf Partners (default ON)
+    · `events_calendar`     — Community tab's calendar section (default ON)
+    · `food_ordering`       — Food & Drink tab itself (default ON)
+    · `pace_of_play`        — Golf hub's live pace strip (default ON)
+    · `course_map`          — Golf → Course Map (default ON)
+    · `pin_placements`      — Golf → Pin Placement (default ON)
+    · `tee_time_booking`    — Golf → Book Tee Time (default OFF, marked
+      placeholder: scaffold exists, no real backend yet)
+    · `lockers`             — locker row on MyClub → My Account (default ON)
+    · `cart_assignments`    — cart row (default ON)
+    · `parking_assignments` — parking row (default ON)
+  Defaults preserve current behavior so every existing club keeps
+  every surface visible without touching anything.
+
+  **2. Platform lock.** Migration 39 adds
+  `clubs.feature_flags_locked jsonb default '{}'`. Resolution
+  order in `isFeatureOn`/`featureState`: tier → lock → manager
+  override → catalog default. New `featureState` reason
+  `'platform-locked'`; new `withFlagLock(currentLocks, key, value)`
+  helper (pass `null` to clear). RLS unchanged — clubs UPDATE
+  policy already gates writes.
+
+  **3. New top-level admin area: Features.** Sits between People
+  and Platform on the admin hub (manager-visible, not super-only).
+  Single section "Feature Toggles" opens `<FeaturesPanel
+  mode='manager' />` — one card per category (Golf, Pro Shop,
+  Dining, Community, Messaging, Member Info, Appearance) with
+  every flag in that category as a Toggle row. Tier-locked flags
+  render greyscale + lock icon + "Requires X tier" hint.
+  Platform-locked flags render a "Set by The Grounds" brass badge
+  + disabled toggle. Every toggle flip is a live supabase write —
+  no Save button, no race against pending edits.
+
+  **4. Super admin overrides.** Platform → All Clubs → club
+  detail now renders `<FeaturesPanel mode='platform' />` BELOW the
+  existing branding/contact form. Each non-tier-locked row shows
+  a small "🔒 Lock for this club" link; clicking pins the current
+  effective value into `feature_flags_locked`. Locked rows flip to
+  "✕ Unlock — let the club manager decide" and the badge reads
+  "Locked On/Off" instead of "Set by The Grounds." Toggles in
+  platform mode stay interactive even when locked (super_admin
+  can flip the locked value); manager-mode toggles disable.
+
+  **5. Gating audit.** Wired `useFlag(...)` early-returns into
+  every member-facing surface listed above: `ProShop.jsx`,
+  `LessonRequest.jsx`, `BulletinBoard.jsx`, `PartnerBoard.jsx`,
+  `FoodMenu.jsx`, `CourseMap.jsx`, `PinMap.jsx`, `TeeTime.jsx`.
+  Each renders the new shared `<FeatureOff label="…" />` (lives in
+  `src/components/FeatureOff.jsx`) when their flag is off — a
+  friendly "isn't available" screen with a BackHeader as the
+  escape hatch. Nav tiles + tab strips ALSO filter by flag so
+  members don't normally land on a FeatureOff screen in the first
+  place: `MyClub.jsx` filters its 5-tile grid + My Account rows;
+  `GolfHub.jsx` filters its 4-tile grid + the pace-of-play strip +
+  the next-tee-times preview block; `Events.jsx` filters its
+  section nav AND the calendar/day-detail section; `BottomNav.jsx`
+  hides the Food tab when food_ordering is off; `App.jsx`'s
+  `TAB_ORDER` is now reactive — swipe-nav skips the Food tab when
+  off so swiping from Golf goes straight to Community.
+
+  Files touched, in summary: `src/lib/features.js` (catalog +
+  lock helpers), `src/lib/version.js` (0.6.15 → 0.7.0 + Phase 7
+  history line), `src/screens/AdminPanel.jsx` (new Features
+  area), `src/screens/admin/sections.jsx` (FeaturesPanel +
+  FeaturesAdmin; removed inline toggles from ClubSettingsForm;
+  platform-mode panel added to AllClubsAdmin's detail view),
+  `src/screens/{ProShop,LessonRequest,BulletinBoard,PartnerBoard,FoodMenu,CourseMap,PinMap,TeeTime,Events,MyClub,GolfHub}.jsx`
+  (gating + tile filters), `src/components/{BottomNav,FeatureOff}.jsx`,
+  `src/App.jsx` (reactive TAB_ORDER), DB migration 39.
+
+  **Not in this commit (next four v0.7.x patches):** pull-to-
+  refresh re-audit (v0.7.1), dawn flag mirroring dusk (v0.7.2),
+  Android PWA badge via `navigator.setAppBadge` (v0.7.3), bulletin
+  /partner author attribution edge cases (v0.7.4). Wallet stays
+  parked at v0.8.0+ pending Apple/Google credentials.
+
+  **Heads-up for managers:** every previously-visible feature is
+  ON by default, so nothing disappears for members on upgrade.
+  Open Admin → Features to see the new switchboard.
+
 ## v0.6.x — Phase 6: News/Events split + calendar view
 
 Events get a calendar as their primary surface (was a flat list).

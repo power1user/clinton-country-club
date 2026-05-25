@@ -1,6 +1,7 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
+import { useFlag } from '../hooks/useFlag.js';
 import { SectionHead } from '../components/Headers.jsx';
 import BellChip from '../components/BellChip.jsx';
 import InstallCard from '../components/InstallCard.jsx';
@@ -15,6 +16,12 @@ export default function MyClub() {
   const { member, isAdmin, signOut, club } = useAuth();
   const brand = useBrand();
   const now = useNow();
+  // Phase 7 flags — tile + My-Account-row filters below.
+  const proShopOn   = useFlag('pro_shop');
+  const lessonsOn   = useFlag('lesson_booking');
+  const lockersOn   = useFlag('lockers');
+  const cartsOn     = useFlag('cart_assignments');
+  const parkingOn   = useFlag('parking_assignments');
   // Map DB member shape to the design's prop names. Empty placeholders if
   // there's no member record yet (e.g. signed in but pending claim).
   const m = member ? {
@@ -34,13 +41,15 @@ export default function MyClub() {
   // members"). MyClub is about ME: my profile, my card, my orders,
   // my lessons. Two paths to the same destination was more confusing
   // than helpful.
+  // Tiles filtered by Phase 7 flags. Member Guide + Membership Card +
+  // Message Clubhouse aren't flag-controlled — they're core surfaces.
   const actions = [
     { id: 'message-clubhouse', label: 'Message Clubhouse', sub: 'Questions · Requests',       icon: <><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/card',       label: 'Membership Card',   sub: 'Digital · QR code',          icon: <><rect x="3" y="5" width="14" height="10" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M6 10h6M6 8h6" strokeWidth="1.3" fill="none"/></> },
-    { id: 'myclub/proshop',    label: 'Pro Shop',          sub: 'Specials · Equipment',       icon: <><path d="M12 3L2 8l2 13h16l2-13-10-5z" strokeWidth="1.3" fill="none"/><circle cx="12" cy="13" r="3" strokeWidth="1.3" fill="none"/></> },
-    { id: 'myclub/lessons',    label: 'Book a Lesson',     sub: 'PGA pros on staff',          icon: <><circle cx="8" cy="12" r="3" strokeWidth="1.3" fill="none"/><path d="M8 9V3m0 0l4 2" strokeWidth="1.3" fill="none"/></> },
+    proShopOn && { id: 'myclub/proshop',    label: 'Pro Shop',          sub: 'Specials · Equipment',       icon: <><path d="M12 3L2 8l2 13h16l2-13-10-5z" strokeWidth="1.3" fill="none"/><circle cx="12" cy="13" r="3" strokeWidth="1.3" fill="none"/></> },
+    lessonsOn && { id: 'myclub/lessons',    label: 'Book a Lesson',     sub: 'PGA pros on staff',          icon: <><circle cx="8" cy="12" r="3" strokeWidth="1.3" fill="none"/><path d="M8 9V3m0 0l4 2" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/onboarding', label: 'Member Guide',      sub: 'Rules · Facilities · FAQs',  icon: <><rect x="4" y="2" width="12" height="16" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M8 7h6M8 10h6M8 13h4" strokeWidth="1.3" fill="none"/></> },
-  ];
+  ].filter(Boolean);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -160,11 +169,11 @@ export default function MyClub() {
           <SectionHead label="My Account" />
           {[
             ['Member Since', m.since],
-            ['Locker',        `No. ${m.locker}`],
-            ['Cart Assignment', m.cart],
-            ['Parking',       m.parking],
+            lockersOn && ['Locker',        `No. ${m.locker}`],
+            cartsOn   && ['Cart Assignment', m.cart],
+            parkingOn && ['Parking',       m.parking],
             ['Email on File', m.email],
-          ].map(([k, v]) => (
+          ].filter(Boolean).map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: `1px solid ${G.border}` }}>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>{k}</span>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, textAlign: 'right', maxWidth: '55%' }}>{v}</span>

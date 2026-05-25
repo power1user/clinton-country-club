@@ -2,10 +2,16 @@ import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useProShopItems } from '../hooks/useClubData.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
+import { useFlag } from '../hooks/useFlag.js';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 export default function ProShop() {
+  const on = useFlag('pro_shop');
   const { data: items, loading } = useProShopItems();
   const [scrollRef, onScroll] = useScrollRestore();
+  // Phase 7 gating — flag default is ON so existing clubs keep ProShop
+  // visible. Manager turns it off in Admin → Features.
+  if (!on) return <FeatureOff label="Pro Shop" />;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
