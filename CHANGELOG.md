@@ -22,6 +22,38 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.8** — GolfHub mock-data cleanup. Three pieces of legacy
+  fake data removed or replaced with live wiring. First batch from
+  the v0.7.5-era UI audit.
+
+  **1. "Course Conditions Today" block removed.** Was a 5-row table
+  hardcoded to: `Open · 6:30am – Dusk`, `Cart path only — Holes 3,
+  7 & 14`, `Greens: Firm and fast — stimp 11`, `Fairways: Excellent
+  — recent mowing`, `Rough: Moderate — 2½ inches`. None of it
+  reflected reality; it looked authoritative. Belongs to a future
+  `course_conditions` admin surface (not on the current roadmap);
+  better to show nothing than fake course intel.
+
+  **2. "Next Available Tee Times" preview removed.** Three hardcoded
+  rows (3:30pm/3:44pm/4:02pm) under the feature grid. v0.7.0 had
+  gated them behind `tee_time_booking`, but any club that enabled
+  the placeholder flag would see fake times. Removed unconditionally
+  until a real tee-time backend lands.
+
+  **3. "Course Open" status row now reads from `useClubStatus`.**
+  Was a hardcoded `Course Open` string with a green dot regardless
+  of actual course state. Now looks up the canonical Course pill
+  (`statusList.find(s => s.id === 'course')`), runs the standard
+  `effectiveState()` against current time + dusk + dawn + today's
+  hours + any schedule override, and renders the real label (Open
+  / Limited / Members / Closed) with the matching dot color. Pace
+  strip suffix also live now — was `· On pace` hardcoded, now
+  shows the staff-set pace message (e.g. `· Slightly slow on the
+  back nine`).
+
+  Net: GolfHub is now an honest surface. If the course is closed,
+  it says closed. If pace is slow, it says slow. No more
+  hand-written prose pretending to be live data.
 - **v0.7.7** — Cloudflare DNS provision logging — deltas on top of
   the v0.4.4 automation. The Edge Function (`provision-club-domain`)
   and the CreateClubModal flow that calls it both already existed

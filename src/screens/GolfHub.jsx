@@ -1,23 +1,43 @@
-import { G } from '../theme.js';
+import { G, gCfg } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useFlag } from '../hooks/useFlag.js';
-import { SectionHead } from '../components/Headers.jsx';
 import BellChip from '../components/BellChip.jsx';
-import { usePaceOfPlay, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
+import { useClubStatus, usePaceOfPlay, useNow, formatClockTime, formatLongDate, effectiveState, useDusk, useDawn } from '../hooks/useClubData.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { DEFAULT_TIMEZONE } from '../lib/timezone.js';
 
 export default function GolfHub() {
   const { push } = useNav();
   const { data: paceRow } = usePaceOfPlay();
+  const { data: statusList } = useClubStatus();
+  const { club } = useAuth();
   const brand = useBrand();
   const now = useNow();
   const pace = paceRow?.time_label || '—';
+  const dusk = useDusk();
+  const dawn = useDawn();
   // Phase 7 flags — each tile + the live-pace strip filter independently.
   const pinOn      = useFlag('pin_placements');
   const mapOn      = useFlag('course_map');
   const teeOn      = useFlag('tee_time_booking');
   const partnersOn = useFlag('partner_board');
   const paceOn     = useFlag('pace_of_play');
+
+  // v0.7.8: real Course pill state instead of the previously hardcoded
+  // "Course Open" string. Look up by category 'course' (the canonical
+  // identifier for the main golf-course status pill); fall back to the
+  // first status row if the club hasn't labeled one as 'course'.
+  // effectiveState handles auto-toggle from manual + scheduled hours +
+  // dusk/dawn — same logic the status pills on Home use.
+  const tz = club?.timezone || DEFAULT_TIMEZONE;
+  const coursePill = statusList.find(s => s.id === 'course') || statusList[0] || null;
+  const courseEff  = coursePill ? effectiveState(coursePill, new Date(), { dusk, dawn }, tz) : 'closed';
+  const courseCfg  = gCfg(courseEff);
+  const courseLabel = courseEff === 'open'    ? `${coursePill?.label || 'Course'} Open`
+                   : courseEff === 'limited'  ? `${coursePill?.label || 'Course'} Limited`
+                   : courseEff === 'members'  ? `${coursePill?.label || 'Course'} — Members`
+                                              : `${coursePill?.label || 'Course'} Closed`;
 
   const features = [
     pinOn      && { id: 'pin',      title: 'Pin Placement', sub: `Daily maps · ${brand.holes} holes`, icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.4"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg> },
@@ -43,18 +63,26 @@ export default function GolfHub() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* v0.7.8: course status row now reads from useClubStatus
+            instead of the previous always-"Course Open" hardcode. */}
         <div style={{ padding: '12px 20px', background: G.greenMid, display: 'flex', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: G.openDot, flexShrink: 0 }} />
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#D0E8D8', fontWeight: 500 }}>Course Open</span>
-          </div>
-          {/* Pace strip — Phase 7 flag, default ON */}
+          {coursePill && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: courseCfg.dot, flexShrink: 0 }} />
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#D0E8D8', fontWeight: 500 }}>{courseLabel}</span>
+            </div>
+          )}
+          {/* Pace strip — Phase 7 flag, default ON. v0.7.8: live pace
+              message (e.g. "Slightly slow") instead of hardcoded "On
+              pace" suffix. */}
           {paceOn && (
             <>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.12)' }} />
+              {coursePill && <div style={{ width: 1, background: 'rgba(255,255,255,0.12)' }} />}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: G.openDot, flexShrink: 0 }} />
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#D0E8D8' }}>Pace {pace} · On pace</span>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: paceRow?.state === 'closed' ? G.clsDot : paceRow?.state === 'limited' ? G.limDot : G.openDot, flexShrink: 0 }} />
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#D0E8D8' }}>
+                  Pace {pace}{paceRow?.message ? ` · ${paceRow.message}` : ''}
+                </span>
               </div>
             </>
           )}
@@ -74,40 +102,16 @@ export default function GolfHub() {
           </div>
         </div>
 
-        <div style={{ padding: '14px 20px' }}>
-          <SectionHead label="Course Conditions Today" />
-          {[
-            ['Course Status', 'Open · 6:30am – Dusk'],
-            ['Cart Restrictions', 'Cart path only — Holes 3, 7 & 14'],
-            ['Greens', 'Firm and fast — stimp 11'],
-            ['Fairways', 'Excellent — recent mowing'],
-            ['Rough', 'Moderate — 2½ inches'],
-          ].map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${G.border}` }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>{k}</span>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, textAlign: 'right', maxWidth: '55%' }}>{v}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Tee-time preview list — Phase 7 flag (placeholder feature),
-            hidden when tee_time_booking is off (the default). */}
-        {teeOn && (
-          <div style={{ padding: '0 20px 24px' }}>
-            <SectionHead label="Next Available Tee Times" />
-            {[
-              { time: '3:30pm', spots: 2, holes: '18' },
-              { time: '3:44pm', spots: 4, holes: '18' },
-              { time: '4:02pm', spots: 1, holes: '9' },
-            ].map(t => (
-              <div key={t.time} onClick={() => push('golf/tee')} data-tap style={{ display: 'flex', alignItems: 'center', padding: '11px 14px', background: G.card, borderRadius: 4, marginBottom: 8, cursor: 'pointer', border: `1px solid ${G.border}` }}>
-                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, flex: 1 }}>{t.time}</span>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, marginRight: 12 }}>{t.spots} spot{t.spots > 1 ? 's' : ''} · {t.holes} holes</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* v0.7.8: removed two hardcoded mock blocks here —
+              · "Course Conditions Today" (5 fake rows: course status,
+                cart restrictions, greens stimp, fairways, rough)
+              · "Next Available Tee Times" preview (3 fake slots)
+            Both looked legit but were manufactured data. Course
+            conditions belongs to a future course_conditions table
+            (not yet on the roadmap); the tee-times preview belongs
+            to a real tee_time_booking backend (still a placeholder
+            feature per v0.7.0's catalog). Better to render nothing
+            than fake authority. */}
       </div>
     </div>
   );
