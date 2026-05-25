@@ -15,6 +15,36 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.14** — Profile photo upload — finally pinned the actual
+  cause. Server response body was:
+    `{ "message": "No API key found in request",
+       "hint": "No \`apikey\` request header or url param was found." }`
+  Our anon key is the new `sb_publishable_*` format (Supabase
+  introduced this recently as a more secure replacement for the
+  legacy `eyJ...` JWT-style keys). The storage client in
+  supabase-js 2.105.4 wasn't including the apikey header on
+  upload requests, even though other services (auth, postgrest,
+  realtime) were attaching it fine.
+  Fix: explicitly set `apikey` as a global header on the supabase
+  client config:
+    ```
+    createClient(url, key, {
+      auth: { ... },
+      global: { headers: { apikey: key } },  // NEW
+    });
+    ```
+  Now the apikey is attached to every outgoing request regardless
+  of which service the supabase-js client is talking to. Storage
+  uploads work. Auth/postgrest/realtime continue to work
+  (redundant header is harmless). When supabase-js patches the
+  storage client to handle publishable keys natively we can drop
+  the override; for now this is the cleanest workaround.
+  Background on the chase: this was actually a 5-iteration debug
+  spiral (v0.6.9 → v0.6.13) because the supabase-js error wrapper
+  was mistranslating the server's response into "row violates RLS"
+  and then "Object not found" — neither of which was the real
+  cause. Lesson logged in code comments to read the raw network
+  response BEFORE trusting the client's error message.
 - **v0.6.13** — Profile photo upload — strike five but with the
   actual cause finally identified. Network tab response body
   revealed the real server response was HTTP 400 with body

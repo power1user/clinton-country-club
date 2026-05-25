@@ -11,8 +11,19 @@ if (!url || !anonKey) {
 
 export const isConfigured = Boolean(url && anonKey);
 
+// v0.6.14: explicitly attach the apikey as a global header. With the
+// new `sb_publishable_*` key format, the storage client in
+// supabase-js 2.105.4 wasn't including the apikey on upload requests,
+// surfacing as HTTP 400 + body { message: "No API key found in
+// request" }. Setting it via global.headers guarantees it lands on
+// EVERY outgoing request — auth, postgrest, realtime, and storage
+// alike. Harmless on the surfaces that were already working;
+// fixes storage where it wasn't.
 export const supabase = isConfigured
-  ? createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
+  ? createClient(url, anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true },
+      global: { headers: { apikey: anonKey } },
+    })
   : null;
 
 // Club slug resolution order:
