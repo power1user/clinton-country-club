@@ -3,12 +3,14 @@ import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useProShopItems } from '../hooks/useClubData.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useFlag } from '../hooks/useFlag.js';
+import { useNav } from '../hooks/useNav.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 export default function ProShop() {
   const on = useFlag('pro_shop');
   const { data: items, loading } = useProShopItems();
   const [scrollRef, onScroll] = useScrollRestore();
+  const { push } = useNav();
   // Phase 7 gating — flag default is ON so existing clubs keep ProShop
   // visible. Manager turns it off in Admin → Features.
   if (!on) return <FeatureOff label="Pro Shop" />;
@@ -18,6 +20,28 @@ export default function ProShop() {
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Pro Shop" />
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
+        {/* My Inquiries entry — v0.7.6. Sits at the top so members
+            checking on a pending lesson request find it immediately
+            rather than hunting. Tap → MyInquiries screen renders the
+            member's own pro_shop_inquiries with status. */}
+        <div
+          onClick={() => push('myclub/proshop/inquiries')}
+          data-tap
+          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: G.green, borderRadius: 6, marginBottom: 16, cursor: 'pointer' }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(168,216,184,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.6">
+              <rect x="4" y="3" width="16" height="18" rx="2" />
+              <path d="M8 8h8M8 12h8M8 16h5" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.2 }}>My Inquiries</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: '2px 0 0' }}>Lesson requests + pro shop inquiries you've submitted</p>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+        </div>
+
         <SectionHead label="Current Catalog" />
         {loading && (
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0' }}>Loading the catalog…</p>

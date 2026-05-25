@@ -28,6 +28,7 @@ import BulletinBoard from './screens/BulletinBoard.jsx';
 import MyClub from './screens/MyClub.jsx';
 import MemberCard from './screens/MemberCard.jsx';
 import ProShop from './screens/ProShop.jsx';
+import MyInquiries from './screens/MyInquiries.jsx';
 import LessonRequest from './screens/LessonRequest.jsx';
 import OnboardingGuide from './screens/OnboardingGuide.jsx';
 import AdminPanel from './screens/AdminPanel.jsx';
@@ -55,6 +56,7 @@ const SCREENS = {
   myclub: MyClub,
   'myclub/card': MemberCard,
   'myclub/proshop': ProShop,
+  'myclub/proshop/inquiries': MyInquiries,
   'myclub/lessons': LessonRequest,
   'myclub/onboarding': OnboardingGuide,
   'myclub/admin': AdminPanel,

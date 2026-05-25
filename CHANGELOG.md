@@ -22,6 +22,53 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.6** — Pro Shop → My Inquiries. New member-facing read-only
+  screen at `/myclub/proshop/inquiries`. Lists every lesson request
+  + pro shop inquiry the current member has submitted (queries
+  `pro_shop_inquiries` filtered by `member_id` + `club_id`), sorted
+  most-recent-first, each row expandable in place to show the full
+  detail (pro, preferred date/time, focus areas, notes, submitted
+  timestamp, plus a one-line status caption explaining what the
+  badge means).
+
+  Entry point: a prominent green tile at the top of the Pro Shop
+  screen — first thing you see when you tap into Pro Shop from
+  MyClub — labeled "My Inquiries" with the subtitle "Lesson
+  requests + pro shop inquiries you've submitted." Tiles sits
+  above the catalog because checking on a pending inquiry is a
+  more common visit reason than browsing items.
+
+  Status badges and the color palette mirror the admin Lesson
+  Queue exactly (pending/brass · contacted/lime · scheduled/open
+  green · done/muted · cancelled/red) so a member and a staffer
+  looking at the same row see the same colors and read the same
+  urgency.
+
+  Realtime: migration 42 adds `pro_shop_inquiries` to the
+  `supabase_realtime` publication. The new screen subscribes
+  filtered on `member_id=eq.{me}` so when admin staff change
+  status (pending → contacted → scheduled → done) the member's
+  view updates without a refresh — same UX every other
+  member-facing screen has had since v0.5.7. RLS already
+  restricts members to their own rows, so the realtime stream
+  only delivers each member their own updates.
+
+  Gating: visible when EITHER `pro_shop` OR `lesson_booking`
+  flag is on. A member with legacy lesson requests should still
+  be able to see them even if a club later turns off
+  `lesson_booking`, so we don't AND-gate. Only renders
+  FeatureOff when both flags are off.
+
+  No schema beyond the publication add. No new tables. Staff
+  continue to manage status from Admin → Pro Shop → Lesson
+  Requests exactly as they did before.
+
+  Closes a v0.5.1 pending item — the v0.5.1 changelog entry
+  noted "Pro shop inquiry replies are pending a member-side 'My
+  Inquiries' view to render against." That view is this. (Replies
+  on pro_shop_inquiries — the post_replies hookup — is still
+  available to wire if needed; the table CHECK constraint
+  already supports `post_table='pro_shop_inquiries'`.)
 - **v0.7.5** — Roadmap update: Digital Wallet Integration is
   permanently parked, off the roadmap. Was previously listed as
   "deferred to v0.8.0+ pending Apple Developer + Google Wallet
