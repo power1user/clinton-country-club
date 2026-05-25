@@ -15,6 +15,24 @@ Events get a calendar as their primary surface (was a flat list).
 News stays as cards on Home but gets an optional date picker in the
 admin composer (was a required free-text label).
 
+- **v0.6.13** — Profile photo upload — strike five but with the
+  actual cause finally identified. Network tab response body
+  revealed the real server response was HTTP 400 with body
+  `{statusCode: 404, error: not_found, message: Object not found}`.
+  NOT an RLS error. The supabase-js client misreported it as
+  "row violates row-level security policy" — a bad heuristic on
+  its end.
+  Root cause: `upload(path, blob, { upsert: true })` in our
+  supabase-js version appears to attempt UPDATE-first, and 404s
+  on the first upload when there's no existing object to update
+  (instead of falling back to INSERT). Explains why all prior
+  RLS-policy fixes had no effect — the request was never being
+  checked against RLS; it was being rejected by the storage
+  routing as "no such object to update."
+  Workaround: do an explicit `remove([path])` (idempotent, no
+  error if doesn't exist) followed by a plain `upload()` without
+  upsert. Two HTTP calls instead of one but reliable. Will revisit
+  if/when supabase-js fixes the upsert path.
 - **v0.6.12** — Profile photo upload fix attempt #4 — SELECT policy
   on storage.buckets. DB-only fix (migration 34).
   Diagnostic that cracked it: count(*) on storage.objects where

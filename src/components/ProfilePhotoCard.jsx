@@ -65,12 +65,19 @@ export default function ProfilePhotoCard() {
     try {
       const blob = await resizeToBlob(file);
 
-      // Step 1 — upload to storage. If THIS errors, it's a storage
-      // bucket RLS issue or a network problem. Tag the message so we
-      // can tell upload-vs-db failures apart in the UI.
+      // Step 1 — upload to storage. v0.6.13: switched to upload-then-
+      // remove-old instead of upsert. The supabase-js `upsert: true`
+      // path was returning HTTP 400 + body { statusCode: 404, error:
+      // not_found } even though no row existed — looks like a client
+      // bug where upsert tries to UPDATE first and 404s when there's
+      // nothing to update, instead of falling back to INSERT.
+      //
+      // Workaround: delete any existing avatar first (idempotent), then
+      // insert fresh. Two requests instead of one, but reliable.
+      await supabase.storage.from('club-assets').remove([path]).catch(() => {});
       const { error: upErr } = await supabase.storage
         .from('club-assets')
-        .upload(path, blob, { upsert: true, cacheControl: '3600', contentType: 'image/jpeg' });
+        .upload(path, blob, { cacheControl: '3600', contentType: 'image/jpeg' });
       if (upErr) {
         console.error('[avatar] storage.upload failed', { path, error: upErr });
         throw new Error(`Storage upload failed: ${upErr.message || JSON.stringify(upErr)}`);
