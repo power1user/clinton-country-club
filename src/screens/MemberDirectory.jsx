@@ -34,11 +34,10 @@ export default function MemberDirectory() {
   useEffect(() => {
     if (!club) return;
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      // allow_dms pulled so the per-row Message button can hide for
-      // members who've opted out (v0.6.3). user_id filter keeps
-      // out members who haven't claimed their account yet.
+    // allow_dms pulled so the per-row Message button can hide for
+    // members who've opted out (v0.6.3). user_id filter keeps
+    // out members who haven't claimed their account yet.
+    const load = async () => {
       const { data, error } = await supabase
         .from('members')
         .select('id, user_id, name, membership_number, tier, status, allow_dms, photo_url')
@@ -49,8 +48,27 @@ export default function MemberDirectory() {
       if (cancelled) return;
       if (!error) setMembers(data || []);
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    };
+    setLoading(true);
+    load();
+
+    // v0.7.1: realtime subscription on members. Was missing despite
+    // v0.5.7's audit claiming it was wired ("MemberDirectory (inline
+    // in component)") — either the audit was wrong or a refactor
+    // stripped it. Restored here so the directory updates live when
+    // someone joins, uploads a photo, changes name, toggles DM opt-
+    // out, or gets activated/deactivated. Same pattern used by every
+    // other member-facing hook in useClubData.
+    const channel = supabase
+      .channel(`members_directory:${club.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'members', filter: `club_id=eq.${club.id}` },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
   // Exclude the current user from the directory list

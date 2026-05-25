@@ -22,6 +22,33 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.1** — Pull-to-refresh re-audit + one realtime gap closed.
+  Background: v0.5.7 explicitly decided AGAINST pull-to-refresh on the
+  grounds that every member-facing screen was already realtime. v0.7.1
+  re-verified the seven hooks the original spec called out (useNews,
+  useEvents, useMenu, useProShopItems, useBulletinPosts,
+  usePartnerPosts, MemberDirectory) and the broader set in
+  useClubData. Six of seven still have active supabase subscriptions —
+  no work needed.
+  The seventh — **MemberDirectory** — was missing its subscription
+  despite v0.5.7 documenting it as "(inline in component)" realtime.
+  Either the audit was wrong then or a refactor stripped it; the fix
+  is the same regardless: restored the subscription in
+  `MemberDirectory.jsx` using the same channel pattern every other
+  hook uses (`members_directory:<club_id>` listening for `*` events
+  on `members` filtered by club_id, just calls `load()` on any
+  change).
+  Schema side: migration 40 adds `public.members` to the
+  `supabase_realtime` publication. Without it the subscription would
+  open successfully but never receive events. Confirmed via
+  `pg_publication_tables` query after applying.
+  Net effect: a member joining the directory, uploading a profile
+  photo, changing their name, toggling DM opt-out, or being
+  activated/deactivated now shows on every other member's directory
+  view live, without a manual refresh. Same UX as every other
+  member-facing surface.
+  No pull-to-refresh component built — would be cruft now that the
+  one gap is closed.
 - **v0.7.0** — Phase 7 lands. Five parts:
 
   **1. Catalog expansion.** `src/lib/features.js` grows from 4 flags
