@@ -22,6 +22,41 @@ default. Existing behavior is unchanged for any club that doesn't
 touch their Features panel — previously-hardcoded-visible surfaces
 default to ON in the catalog.
 
+- **v0.7.9** — Home screen polish (4 items from the UI audit).
+
+  **1. Tagline fallback chain.** Was `{brand.tagline || 'Country Club'}`
+  — a literal "Country Club" string read as placeholder for any
+  club that hadn't set a tagline. New chain:
+  `brand.tagline → club.name → omit the H1 entirely`. The small
+  uppercase brand prefix above still renders so the header is
+  never blank.
+
+  **2. Profile avatar gets accessibility metadata.** Added
+  `role="button"`, `aria-label="Open My Club"`, and a `title`
+  attribute on the circular avatar icon in the header. Screen
+  readers and keyboard navigation now identify it; desktop users
+  get a tooltip on hover. Zero visual change.
+
+  **3. Weather card compacted, no toggle.** Temp 44px → 32px,
+  card padding tighter, "Current Conditions" italic caption
+  dropped (redundant — the card is obviously weather), UV row
+  omitted (it was always null on the free OpenWeather tier, so
+  it read as "UV Index — · Moderate"). Forecast strip kept
+  visible at slightly smaller tile size — per Marc's direction
+  no toggle / no hidden state. Net result: weather block lost
+  about 30px of vertical height while keeping every signal it
+  ever delivered.
+
+  **4. NEW: Today's Events section above News.** When the club
+  has events with `event_date === today`, a new section appears
+  between the pace strip and Club News titled "Today's Events".
+  Each event renders as a single row with the category chip,
+  title, time, and a "Full" indicator if spots is 0. Tap → event
+  detail (same target as Community → tap event). Pulls from the
+  existing `useEvents()` hook (already realtime via the
+  `events:{club_id}` channel) so a same-day add by staff appears
+  without a refresh. Section hides entirely when there are no
+  today events — never an empty stub.
 - **v0.7.8** — GolfHub mock-data cleanup. Three pieces of legacy
   fake data removed or replaced with live wiring. First batch from
   the v0.7.5-era UI audit.

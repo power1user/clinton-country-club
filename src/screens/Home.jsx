@@ -3,9 +3,16 @@ import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import StatusPill from '../components/StatusPill.jsx';
 import BellChip from '../components/BellChip.jsx';
-import { useClubStatus, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
+import { useClubStatus, useEvents, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+
+// Today in YYYY-MM-DD (local). Same shape Events.jsx uses for
+// matching against event.eventDate.
+function isoToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export default function Home() {
   const { push, goTab } = useNav();
@@ -15,10 +22,23 @@ export default function Home() {
   const now = useNow();
   const { data: statusList } = useClubStatus();
   const { data: newsList }   = useNews();
+  const { data: events }     = useEvents();
   const { data: pace }       = usePaceOfPlay();
   const { data: w }          = useWeather();
   const locationLabel = `${brand.prefix} CC, ${brand.state}`;
   const showPendingBanner = isPending && pendingAccess === 'read_only';
+  // v0.7.9: Tagline fallback chain — brand.tagline (admin-set) →
+  // club.name (always present) → empty (header still has the small
+  // uppercase prefix). No more literal "Country Club" placeholder
+  // text when a club hasn't set a tagline.
+  const headerTitle = brand.tagline || club?.name || '';
+  // v0.7.9: today's events surfaced above News so members opening
+  // the app aren't surprised by "wait, was there something tonight?"
+  // Pulls from the same useEvents() hook the Community calendar uses
+  // (realtime) so a same-day add by staff shows up live.
+  const todayIso = isoToday();
+  const todayEvents = events.filter(e => String(e.eventDate || '').slice(0, 10) === todayIso);
+  const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -32,11 +52,22 @@ export default function Home() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.18em', textTransform: 'uppercase', margin: '0 0 2px' }}>{brand.prefix}</p>
-            <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>{brand.tagline || 'Country Club'}</h1>
+            {headerTitle && (
+              <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>{headerTitle}</h1>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
             <BellChip />
-            <div onClick={() => goTab('myclub')} data-tap style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            {/* v0.7.9: profile avatar gets aria-label + title for
+                screen readers and tooltip-on-hover. Visual unchanged. */}
+            <div
+              onClick={() => goTab('myclub')}
+              data-tap
+              role="button"
+              aria-label="Open My Club"
+              title="Open My Club"
+              style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(122,172,136,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5">
                 <circle cx="12" cy="8" r="4" />
                 <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
@@ -95,29 +126,31 @@ export default function Home() {
 
       {/* Scrollable body */}
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Weather */}
-        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${G.border}` }}>
-          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 11, color: G.brass, margin: '0 0 6px' }}>Current Conditions</p>
+        {/* Weather — v0.7.9 compacted. Temp 44→32, padding tightened,
+            "Current Conditions" caption dropped (redundant), UV row
+            omitted (free tier never had it). Forecast strip stays
+            visible (no toggle) but the tiles got slightly tighter so
+            the whole card eats less fold space. */}
+        <div style={{ padding: '10px 20px 12px', borderBottom: `1px solid ${G.border}` }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 44, fontWeight: 700, color: G.text, lineHeight: 1 }}>{w.temp}°</span>
+              <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 32, fontWeight: 700, color: G.text, lineHeight: 1 }}>{w.temp != null ? `${w.temp}°` : '—'}</span>
               <div>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: '0 0 2px' }}>{w.condition}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>{locationLabel}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0 }}>{w.condition}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>{locationLabel}</p>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 2px' }}>H {w.high}° / L {w.low}°</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 2px' }}>Wind {w.wind}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>UV Index {w.uv} · Moderate</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '0 0 1px' }}>H {w.high}° · L {w.low}°</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0 }}>Wind {w.wind}</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+          <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
             {(w.forecast || []).map((day, i) => (
-              <div key={i} style={{ flex: 1, background: G.card, borderRadius: 4, padding: '7px 4px', textAlign: 'center' }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '0 0 3px' }}>{day.d}</p>
-                <p style={{ fontSize: 14, margin: '0 0 3px', lineHeight: 1 }}>{day.c}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0, fontWeight: 500 }}>{day.t != null ? `${day.t}°` : '—'}</p>
+              <div key={i} style={{ flex: 1, background: G.card, borderRadius: 3, padding: '5px 3px', textAlign: 'center' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '0 0 2px' }}>{day.d}</p>
+                <p style={{ fontSize: 12, margin: '0 0 2px', lineHeight: 1 }}>{day.c}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.text, margin: 0, fontWeight: 500 }}>{day.t != null ? `${day.t}°` : '—'}</p>
               </div>
             ))}
           </div>
@@ -138,6 +171,30 @@ export default function Home() {
             </div>
           );
         })()}
+
+        {/* v0.7.9: Today's Events — hidden when there are none, so the
+            section never reads as an empty stub. Each row links to the
+            event detail screen (same target as Community → tap event).
+            Realtime via useEvents() so a same-day add by staff appears
+            without refresh. */}
+        {todayEvents.length > 0 && (
+          <div style={{ padding: '14px 20px 6px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>
+              <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Today's Events</h2>
+              <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted }}>at the club</span>
+            </div>
+            {todayEvents.map(ev => (
+              <div key={ev.id} onClick={() => push('community/event', { event: ev })} data-tap style={{ display: 'flex', gap: 10, padding: '10px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, cursor: 'pointer', alignItems: 'center' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'white', background: catColors[ev.cat] || G.muted, padding: '2px 7px', borderRadius: 2, flexShrink: 0 }}>{ev.cat}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>{ev.time}{ev.spots === 0 ? ' · Full' : ''}</p>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* News */}
         <div style={{ padding: '14px 20px 20px' }}>
