@@ -16,7 +16,13 @@ To inspect the current state:
 
 ## Edge Functions
 
-Live functions (deployed via MCP, sources not checked into this repo):
+Live functions deployed via MCP. Most function sources are NOT checked
+in (they're managed entirely through MCP/Dashboard). Exception:
+**`send-push`** has a tracked source under
+[`functions/send-push/index.ts`](./functions/send-push/) because of
+its diagnostic value — it's the canonical reference for what the
+function should do, and includes a `?diag=1` introspection endpoint
+that's useful when push notifications break.
 
 | Slug | Auth | Purpose |
 |---|---|---|

@@ -25,6 +25,41 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.11** — Push notifications: end-to-end confirmed.
+
+  After v0.8.10 restored the database webhook, the Edge Function
+  itself was still crashing on every invocation with 500 WORKER_ERROR.
+  Deployed `send-push` v5 with defensive boot diagnostics — VAPID
+  setup wrapped in try/catch, results returned as structured JSON
+  instead of a worker crash, plus a new `GET ?diag=1` endpoint that
+  introspects env state (key lengths, presence flags, subject) so
+  configuration errors can be diagnosed in seconds.
+
+  Diagnostic surfaced two configuration issues:
+    · `VAPID_PUBLIC_KEY` was named `VITE_VAPID_PUBLIC_KEY` in
+      Supabase (copy-pasted from Cloudflare without realizing the
+      `VITE_` prefix is a Vite-only convention for exposing vars to
+      the client bundle — Deno doesn't need it).
+    · `VAPID_SUBJECT` was set to a bare email (`marcabla1@gmail.com`)
+      without the required `mailto:` prefix; web-push validates this
+      as a URL.
+
+  Fixed both. End-to-end test fired two real pushes:
+    · iPhone PWA target: `{"sent":1,"failed":0,"total":1}` ✅
+    · Chrome desktop+Android (2 endpoints): `{"sent":1,"failed":1}` —
+      one Chrome subscription returned HTTP 410 Gone (stale
+      reinstall) and was auto-pruned by the function. Self-healing
+      logic works as designed.
+
+  Tracked the `send-push` v5 source in
+  `supabase/functions/send-push/index.ts` so the diagnostic version
+  isn't only-deployed-not-stored. Updated supabase/README.md to flag
+  this as the one exception to the no-checked-in-functions rule.
+
+  Admin broadcast push (`notification_messages` table) is still
+  pending — needs a separate Edge Function path since send-push only
+  handles the `messages` schema. Deferred to v0.9.x.
+
 - **v0.8.10** — Push notifications: restore the Database Webhook.
 
   Diagnosis revealed push had been silently broken: zero `send-push`
