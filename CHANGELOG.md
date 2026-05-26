@@ -9,6 +9,84 @@ All notable changes to this project. Convention:
 
 ---
 
+## v0.8.x — Phase 8: Guest Management
+
+Fifth user role alongside super_admin, club_manager, club_admin, and
+member. Real Supabase Auth accounts (passwordless magic-link signup);
+time-limited access (per-club configurable duration or indefinite);
+three access modes (data_only / read_only / full_temporary). Two QR
+entry paths: member-linked (signed URL with referring_member_id) and
+clubhouse (no referring member, for public play / tournaments). New
+guests + guest_visits tables (migration 44). RLS audit across every
+content table to ensure guests are denied member-only surfaces.
+
+Shipping plan (per Marc's "multi-commit minor" preference): foundation
+first, then registration form, then auth + access modes, then member
+QR, then clubhouse QR + admin management, then RLS audit + final
+scoping pass. Each ship reviewable before the next.
+
+- **v0.8.0** — Foundation. Schema, RLS, role helper, feature flag,
+  club-level guest config. No UI yet — every commit after this builds
+  on this layer.
+
+  **Migration 44** adds:
+    · Four enum types: `guest_visit_type` (member_guest / public_play
+      / tournament_guest / event_guest), `guest_access_level`
+      (data_only / read_only / full_temporary), `guest_check_in_method`
+      (member_qr / clubhouse_qr / staff_manual),
+      `guest_phone_collection` (off / optional / required).
+    · Five columns on `public.clubs`:
+        · `guest_visit_duration_days int` (NULL = indefinite,
+          default 1 day for existing clubs)
+        · `guest_auto_approve bool default true` (when off, new
+          registrations are pending and staff must approve)
+        · `guest_phone_collection` (defaults off — no phone field
+          on the form)
+        · `guest_pwa_required bool default false`
+        · `guest_default_access_level` (defaults read_only)
+    · `public.guests` — id, club_id, user_id (FK auth.users, NULL
+      until the magic link is clicked), name, email, phone, zip,
+      referring_member_id (FK members ON DELETE SET NULL),
+      visit_type, visit_date, access_level, status (active /
+      pending / revoked), expires_at (NULL = indefinite),
+      terms_accepted_at, created_at, updated_at. UNIQUE on
+      (club_id, email). updated_at trigger.
+    · `public.guest_visits` — append-only history. id, guest_id,
+      club_id, visit_date, visit_type, access_level,
+      referring_member_id, check_in_method, created_at. Lets us
+      answer "how many times has guest X visited?" and "how many
+      guests has member Y brought?".
+    · `is_active_guest(p_club_id uuid)` SQL helper — STABLE +
+      SECURITY DEFINER. Returns true when auth.uid() is an active,
+      non-expired guest of the given club. RLS policies on tables
+      guests can read (added in v0.8.5) use this.
+
+  **RLS:**
+    · `guests` — super_admin reads all; club staff (manager + admin)
+      read + write own-club rows; a guest reads only their own row.
+      INSERTs handled by the service role via Edge Function (defense
+      in depth — no client INSERT policy).
+    · `guest_visits` — super_admin reads all; club staff reads own-
+      club; guest reads own visits. INSERTs again service-role only.
+
+  **App-side changes:**
+    · `src/lib/features.js` — new `guest_registration` flag
+      (Guest System category, standard tier, default OFF).
+      Catalog grows to 18 flags.
+    · `src/hooks/useAuth.jsx` — `hydrateMember()` now also queries
+      `guests` for the current auth user when no members row is
+      found. New `guest` state + `isGuest` derived flag (true when
+      a non-admin auth user has an active, non-expired guest row).
+      `guestAccessLevel` exposes the access mode for consumers.
+      Both expose through the AuthCtx so any screen can branch on
+      `useAuth().isGuest`.
+
+  **What this does NOT yet do:** No QR codes, no registration page,
+  no admin Guest Management UI, no per-screen access scoping. Those
+  land in v0.8.1 through v0.8.5. The whole system is also gated
+  behind the `guest_registration` feature flag (OFF by default), so
+  this commit changes zero observable behavior for any existing club.
+
 ## v0.7.x — Phase 7: Operational control plane
 
 Every member-facing surface becomes a manager-toggleable flag, with

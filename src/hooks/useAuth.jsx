@@ -10,6 +10,7 @@ const AuthCtx = createContext(null);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [member, setMember] = useState(null);
+  const [guest, setGuest] = useState(null);          // v0.8.0: guests row if this auth user is a guest
   const [club, setClub] = useState(null);
   const [role, setRole] = useState(null);            // 'super_admin' | 'club_manager' | 'club_admin' | null
   const [permissions, setPermissions] = useState({}); // jsonb perm flags (club_admin only)
@@ -61,6 +62,7 @@ export function AuthProvider({ children }) {
   const hydrateMember = async () => {
     if (!isConfigured || !session?.user || !club) {
       setMember(null);
+      setGuest(null);
       setRole(null);
       setPermissions({});
       return;
@@ -86,6 +88,22 @@ export function AuthProvider({ children }) {
       }
     }
 
+    // v0.8.0: if no member row was found, check whether this auth
+    // user has a guest row. A given auth.users row is either in
+    // members OR in guests, never both — so this is the "what kind
+    // of user is this?" branch point. RLS on guests already restricts
+    // the SELECT to the row's own user_id == auth.uid().
+    let g = null;
+    if (!m) {
+      const { data: gRow } = await supabase
+        .from('guests')
+        .select('*')
+        .eq('club_id', club.id)
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      g = gRow || null;
+    }
+
     // user_roles: match this club OR platform-wide (null club_id) for super_admin.
     // A user can hold up to two rows here (e.g. super_admin + a club-scoped admin role).
     const { data: roleRows } = await supabase
@@ -98,6 +116,7 @@ export function AuthProvider({ children }) {
     // Use club_admin perms if present; manager/super_admin have all perms implicitly.
     const adminRow = (roleRows || []).find(r => r.role === 'club_admin');
     setMember(m || null);
+    setGuest(g);
     setRole(top);
     setPermissions(adminRow?.permissions || {});
   };
@@ -131,6 +150,15 @@ export function AuthProvider({ children }) {
   const isClubAdmin  = isManager || role === 'club_admin';
   const isAdmin      = isClubAdmin; // back-compat alias — any elevated role
   const hasPerm      = (key) => userHasPerm(role, permissions, key);
+  // v0.8.0: guest is a real but limited role. Active means status='active'
+  // AND (expires_at is null OR expires_at > now()). Staff who happen to
+  // also have a guests row (unusual but possible during testing) keep
+  // their staff role; isGuest is false when isAdmin is true.
+  const isGuest = !!guest && !isAdmin && !member && guest.status === 'active'
+    && (!guest.expires_at || new Date(guest.expires_at) > new Date());
+  // Guest access level surfaces what the renderer should show
+  // (data_only / read_only / full_temporary). Null when not a guest.
+  const guestAccessLevel = isGuest ? (guest.access_level || 'read_only') : null;
 
   // Pending-member gating. Manager sets clubs.pending_member_access to
   // 'read_only' (default — browse but no writes), 'full' (no gating), or
@@ -162,8 +190,9 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthCtx.Provider value={{
-      session, member, club, role, permissions,
+      session, member, guest, club, role, permissions,
       isSuperAdmin, isManager, isClubAdmin, isAdmin,
+      isGuest, guestAccessLevel,
       hasPerm,
       isPending, pendingAccess, isPendingLocked, canMemberWrite,
       needsTermsAcceptance, refreshMember: hydrateMember,

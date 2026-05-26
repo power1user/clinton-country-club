@@ -35,11 +35,20 @@
 //             platform lock (super_admin can pin a value the manager
 //             can't undo). New top-level Features admin area + schema
 //             migration 39 adds clubs.feature_flags_locked.
+//   v0.8.x — Phase 8: Guest Management. Fifth user role alongside
+//             super_admin / club_manager / club_admin / member.
+//             Real Supabase Auth accounts via magic-link signup,
+//             time-limited access (per-club configurable duration
+//             or indefinite), three access modes (data_only /
+//             read_only / full_temporary). Member-linked QR codes
+//             (signed URLs, referring_member_id auto-populated) +
+//             clubhouse QR (no referring member, for public play).
+//             New guests + guest_visits tables (migration 44).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.7.13';
+export const VERSION = '0.8.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

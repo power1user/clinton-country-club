@@ -209,12 +209,28 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Appearance',
   },
+
+  // ─── Guest System ──────────────────────────────────────────────────
+  // Phase 8 (v0.8.0): master switch for the entire guest registration
+  // system. When OFF, all guest entry points disappear, the public
+  // /guest/<slug> registration page returns 404, and no guest QR codes
+  // surface anywhere. When ON, the system is active and the manager's
+  // other guest settings (auto-approve, visit duration, phone field,
+  // PWA required) on the clubs row take effect.
+  guest_registration: {
+    key:             'guest_registration',
+    label:           'Guest Registration',
+    description:     "Members and clubhouse staff can invite non-members to register as guests via QR code. Captures contact info + grants time-limited app access per the access level you configure. When off, the whole guest system is dormant.",
+    min_tier:        'standard',
+    default_enabled: false,
+    category:        'Guest System',
+  },
 };
 
 // Category order used by admin UI grouping. Anything not listed here
 // falls to the end in catalog-declaration order.
 export const CATEGORY_ORDER = [
-  'Golf', 'Pro Shop', 'Dining', 'Community', 'Messaging', 'Member Info', 'Appearance',
+  'Golf', 'Pro Shop', 'Dining', 'Community', 'Messaging', 'Member Info', 'Appearance', 'Guest System',
 ];
 
 // All flags as an ordered array — used by admin UI to render toggles.
