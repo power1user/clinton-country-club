@@ -10,7 +10,7 @@ import {
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
-  SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin,
+  SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin, GuestManagementAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -106,12 +106,16 @@ const AREAS = [
   {
     id: 'people',
     l: 'People',
-    d: 'Members, post moderation, staff',
+    d: 'Members, post moderation, staff, guests',
     icon: IconPeople,
     sections: [
-      { id: 'members',     permKey: 'can_manage_members', l: 'Members',        d: 'Roster, CSV import, invites',           icon: IconPeople },
-      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts', d: 'Hide/delete bulletin + partner posts',  icon: IconList   },
-      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',          d: 'Manage admins + grant permissions',     icon: IconShield, managerOnly: true },
+      { id: 'members',     permKey: 'can_manage_members', l: 'Members',          d: 'Roster, CSV import, invites',                  icon: IconPeople },
+      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',   d: 'Hide/delete bulletin + partner posts',         icon: IconList   },
+      // v0.8.4: guest management. Section renders an "off" state when
+      // the guest_registration flag is off so the entry is still
+      // discoverable; flipping the flag in Club Setup activates it.
+      { id: 'guests',      permKey: 'can_manage_members', l: 'Guest Management', d: 'Registrations, clubhouse QR, settings',         icon: IconPeople, managerOnly: true },
+      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',            d: 'Manage admins + grant permissions',            icon: IconShield, managerOnly: true },
     ],
   },
   // Club Setup — manager-only configuration. Replaces the v0.7.0
@@ -218,6 +222,7 @@ export default function AdminPanel() {
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
           {sec === 'features'       && isManager && <FeaturesAdmin />}
+          {sec === 'guests'         && isManager && <GuestManagementAdmin />}
           {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
           {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
           {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}

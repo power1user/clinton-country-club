@@ -47,17 +47,18 @@ import { PLATFORM_NAME } from '../lib/version.js';
 // Parse the URL params once at module load (the page is a single-load
 // surface — guests don't navigate within it).
 function readQuery() {
-  if (typeof window === 'undefined') return { ref: null, via: 'clubhouse_qr' };
+  if (typeof window === 'undefined') return { ref: null, clubhouseToken: null, via: 'clubhouse_qr' };
   const sp = new URLSearchParams(window.location.search);
   const ref = sp.get('ref');
-  const via = sp.get('via') || (ref ? 'member_qr' : 'clubhouse_qr');
-  return { ref, via };
+  const clubhouseToken = sp.get('token');  // v0.8.4 clubhouse QR
+  const via = sp.get('via') || (ref ? 'member_qr' : (clubhouseToken ? 'clubhouse_qr' : 'clubhouse_qr'));
+  return { ref, clubhouseToken, via };
 }
 
 export default function GuestRegister() {
   const { club } = useAuth();
   const brand = useBrand();
-  const { ref, via } = readQuery();
+  const { ref, clubhouseToken, via } = readQuery();
 
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
@@ -104,6 +105,11 @@ export default function GuestRegister() {
           zip: zip.trim(),
           ref_token: isSignedToken ? ref : null,
           referring_member_id: isSignedToken ? null : ref,
+          // v0.8.4: clubhouse QR token (HMAC over club:clubhouse:version).
+          // Edge Function validates against the current
+          // clubs.clubhouse_qr_version so regenerated QRs invalidate
+          // every prior one.
+          clubhouse_token: clubhouseToken || null,
           visit_type: via === 'member_qr' ? 'member_guest' : 'public_play',
           check_in_method: via === 'member_qr' ? 'member_qr' : 'clubhouse_qr',
         },

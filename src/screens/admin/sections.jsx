@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useNav } from '../../hooks/useNav.jsx';
+import { useFlag } from '../../hooks/useFlag.js';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import { COMMON_TIMEZONES } from '../../lib/timezone.js';
 import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, withFlagLock, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
 import CrudSection from './CrudSection.jsx';
 import Toggle from '../../components/Toggle.jsx';
+import { QRCodeCanvas } from 'qrcode.react';
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
@@ -2011,6 +2013,454 @@ function CreateClubModal({ onClose, onCreated }) {
     </div>
   );
 }
+// ============================================================
+// GuestManagementAdmin — Phase 8 (v0.8.4). Manager-facing
+// surface for everything guest-related at a single club.
+//
+// Sections (top to bottom):
+//   1. Status: "Guest registration is OFF" message + link to
+//      Features when the flag isn't on. Otherwise shows the live
+//      guest count + a quick stats summary.
+//   2. Settings card: auto-approve, visit duration, phone field,
+//      PWA required, default access level. Each saves immediately
+//      via supabase update on flip (no batched Save button —
+//      matches the FeaturesPanel pattern from v0.7.0).
+//   3. Clubhouse QR card: the per-club QR for public play / drives.
+//      "Regenerate" increments clubs.clubhouse_qr_version which
+//      invalidates every prior QR. "Download PNG" exports the QR
+//      to a canvas → blob → save dialog for printing on signage.
+//   4. Guests list: search by name/email, filter by visit type +
+//      date range + referring member, CSV export of everything
+//      visible (respects current filters). Click a row to expand.
+// ============================================================
+export function GuestManagementAdmin() {
+  const { club } = useAuth();
+  const guestFlagOn = useFlag('guest_registration');
+
+  if (!club) {
+    return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading…</p>;
+  }
+
+  // Render the section even when the flag is off — but show a
+  // pointer to Features so the manager knows what to flip.
+  if (!guestFlagOn) {
+    return (
+      <div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+          Guest Management surfaces every guest who's registered at {club.name}, plus the controls for the public QR codes.
+        </p>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '20px 18px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 16, color: G.text, margin: '0 0 8px' }}>Guest registration is off</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+            Turn on <strong>Guest Registration</strong> in <strong>Admin → Club Setup → Feature Toggles</strong> to start collecting guest registrations and surface QR codes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+        Manage everything guest-related at {club.name} — settings, the public clubhouse QR, and the full guest list.
+      </p>
+      <GuestSettingsCard club={club} />
+      <ClubhouseQRCard club={club} />
+      <GuestList club={club} />
+    </div>
+  );
+}
+
+// ── GuestSettingsCard ───────────────────────────────────────────────
+// Manager controls that ride on the clubs row. Each control saves
+// immediately on change (no Save button, no race window). The
+// realtime sub in useAuth pushes the updated club row back so the
+// UI stays consistent if another manager edits in parallel.
+function GuestSettingsCard({ club }) {
+  const [saving, setSaving]   = useState(null);   // key currently mid-save
+  const [err, setErr]         = useState(null);
+
+  const save = async (patch, key) => {
+    setSaving(key); setErr(null);
+    const { error } = await supabase.from('clubs').update(patch).eq('id', club.id);
+    setSaving(null);
+    if (error) setErr(error.message);
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Settings</h4>
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+
+        <SettingRow
+          label="Auto-approve new registrations"
+          hint="When on, a guest who confirms their magic-link email is immediately active. Off = staff must approve each guest first."
+        >
+          <Toggle
+            checked={!!club.guest_auto_approve}
+            disabled={saving === 'auto'}
+            onChange={v => save({ guest_auto_approve: v }, 'auto')}
+            ariaLabel="Auto-approve"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Visit duration (days)"
+          hint="How many days a guest registration stays valid. Leave empty for indefinite (e.g. for prospective members)."
+        >
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={club.guest_visit_duration_days ?? ''}
+            disabled={saving === 'duration'}
+            onChange={e => {
+              const v = e.target.value;
+              save({ guest_visit_duration_days: v === '' ? null : Math.max(1, Math.min(365, Number(v))) }, 'duration');
+            }}
+            placeholder="e.g. 1"
+            style={{ width: 80, padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Phone field"
+          hint="Whether to ask for a phone number on the registration form."
+        >
+          <select
+            value={club.guest_phone_collection || 'off'}
+            disabled={saving === 'phone'}
+            onChange={e => save({ guest_phone_collection: e.target.value }, 'phone')}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+          >
+            <option value="off">Off — don't ask</option>
+            <option value="optional">Optional</option>
+            <option value="required">Required</option>
+          </select>
+        </SettingRow>
+
+        <SettingRow
+          label="Default access level"
+          hint="What a new guest sees after they confirm their email. data_only = thank-you screen only, no app access."
+        >
+          <select
+            value={club.guest_default_access_level || 'read_only'}
+            disabled={saving === 'access'}
+            onChange={e => save({ guest_default_access_level: e.target.value }, 'access')}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+          >
+            <option value="data_only">data_only — capture contact info only</option>
+            <option value="read_only">read_only — status / map / menu / weather</option>
+            <option value="full_temporary">full_temporary — above + news / events / pro shop</option>
+          </select>
+        </SettingRow>
+
+        <SettingRow
+          label="Require PWA install"
+          hint="When on, the registration page prompts the guest to install the PWA before they can submit. Off keeps it browser-friendly."
+          last
+        >
+          <Toggle
+            checked={!!club.guest_pwa_required}
+            disabled={saving === 'pwa'}
+            onChange={v => save({ guest_pwa_required: v }, 'pwa')}
+            ariaLabel="Require PWA install"
+          />
+        </SettingRow>
+      </div>
+      {err && (
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, margin: '6px 0 0' }}>{err}</p>
+      )}
+    </div>
+  );
+}
+
+function SettingRow({ label, hint, last, children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', borderBottom: last ? 'none' : `1px solid ${G.border}` }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>{label}</p>
+        {hint && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '3px 0 0', lineHeight: 1.5 }}>{hint}</p>
+        )}
+      </div>
+      <div style={{ flexShrink: 0, paddingTop: 2 }}>{children}</div>
+    </div>
+  );
+}
+
+// ── ClubhouseQRCard ─────────────────────────────────────────────────
+function ClubhouseQRCard({ club }) {
+  const [data, setData]   = useState(null);   // { url, token, version }
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState(null);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const qrCanvasRef = useRef(null);
+
+  const mint = async () => {
+    setLoading(true); setErr(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('guest-qr-token', {
+        body: { mode: 'clubhouse', club_id: club.id },
+      });
+      if (error || !res?.ok) {
+        setErr(res?.error || error?.message || 'Could not generate the clubhouse QR.');
+      } else {
+        setData(res);
+      }
+    } catch (e) {
+      setErr(e?.message || 'Network error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { mint(); /* eslint-disable-line */ }, [club?.id, club?.clubhouse_qr_version]);
+
+  const regenerate = async () => {
+    setBusy(true); setErr(null);
+    const newVersion = (club.clubhouse_qr_version || 1) + 1;
+    const { error } = await supabase
+      .from('clubs')
+      .update({ clubhouse_qr_version: newVersion })
+      .eq('id', club.id);
+    setBusy(false); setConfirmRegen(false);
+    if (error) { setErr(error.message); return; }
+    // Realtime club sub will refetch + the useEffect above re-mints.
+  };
+
+  // Download the QR as a PNG via QRCodeCanvas + canvas.toBlob.
+  const downloadPng = () => {
+    const canvas = qrCanvasRef.current?.querySelector('canvas');
+    if (!canvas || !data?.url) { setErr('QR not ready yet.'); return; }
+    canvas.toBlob(blob => {
+      if (!blob) { setErr('Could not export PNG.'); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${club.slug}-clubhouse-guest-qr-v${club.clubhouse_qr_version || 1}.png`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    }, 'image/png');
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Clubhouse QR Code</h4>
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px 16px' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px', lineHeight: 1.55 }}>
+          Single QR for the whole club — print it for the pro shop counter, first-tee signage, cart-barn entry, or event check-in tables. Anyone who scans it lands on the public registration form with no referring member.
+        </p>
+
+        {loading && (
+          <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center', margin: 0 }}>Generating QR…</p>
+        )}
+
+        {!loading && err && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, margin: '6px 0' }}>{err}</p>
+        )}
+
+        {!loading && data && (
+          <>
+            <div ref={qrCanvasRef} style={{ background: '#ffffff', padding: 12, borderRadius: 6, border: `1px solid ${G.border}`, display: 'inline-block', marginBottom: 10 }}>
+              <QRCodeCanvas value={data.url} size={200} bgColor="#ffffff" fgColor="#000000" level="M" marginSize={0} />
+            </div>
+            <p style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted, margin: '0 0 10px', wordBreak: 'break-all', lineHeight: 1.5 }}>{data.url}</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '0 0 12px' }}>
+              Current version: v{club.clubhouse_qr_version || 1}
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div onClick={downloadPng} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Download PNG</span>
+              </div>
+              {!confirmRegen ? (
+                <div onClick={() => setConfirmRegen(true)} data-tap style={{ padding: '8px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text }}>Regenerate</span>
+                </div>
+              ) : (
+                <>
+                  <div onClick={busy ? undefined : regenerate} data-tap style={{ padding: '8px 14px', background: G.clsBg, borderRadius: 3, cursor: busy ? 'wait' : 'pointer' }}>
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2E5C0', fontWeight: 500 }}>
+                      {busy ? 'Regenerating…' : 'Confirm — invalidate the old QR'}
+                    </span>
+                  </div>
+                  <div onClick={() => setConfirmRegen(false)} data-tap style={{ padding: '8px 14px', cursor: 'pointer' }}>
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>Cancel</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── GuestList ───────────────────────────────────────────────────────
+function GuestList({ club }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      let query = supabase
+        .from('guests')
+        .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name)')
+        .eq('club_id', club.id)
+        .order('visit_date', { ascending: false })
+        .limit(500);
+      const { data } = await query;
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    };
+    load();
+    const channel = supabase
+      .channel(`guests_admin:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'guests', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  // Client-side filter (server pulled the last 500 records by date; we
+  // don't expect a club to outrun that any time soon).
+  const filtered = rows.filter(r => {
+    if (typeFilter !== 'all' && r.visit_type !== typeFilter) return false;
+    if (from && r.visit_date < from) return false;
+    if (to && r.visit_date > to) return false;
+    if (q) {
+      const needle = q.toLowerCase();
+      if (
+        !(r.name || '').toLowerCase().includes(needle) &&
+        !(r.email || '').toLowerCase().includes(needle)
+      ) return false;
+    }
+    return true;
+  });
+
+  const exportCsv = () => {
+    const headers = ['name', 'email', 'phone', 'zip', 'visit_type', 'visit_date', 'access_level', 'status', 'expires_at', 'referring_member', 'created_at'];
+    const escape = (v) => {
+      if (v == null) return '';
+      const s = String(v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const lines = [headers.join(',')];
+    for (const r of filtered) {
+      lines.push([
+        escape(r.name), escape(r.email), escape(r.phone), escape(r.zip),
+        escape(r.visit_type), escape(r.visit_date), escape(r.access_level),
+        escape(r.status), escape(r.expires_at),
+        escape(r.members?.name || ''),
+        escape(r.created_at),
+      ].join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${club.slug}-guests-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+  };
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Guests</h4>
+
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Search by name or email…"
+          style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}>
+            <option value="all">All visit types</option>
+            <option value="member_guest">Member guests</option>
+            <option value="public_play">Public play</option>
+            <option value="tournament_guest">Tournament guests</option>
+            <option value="event_guest">Event guests</option>
+          </select>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
+          <div onClick={exportCsv} data-tap style={{ padding: '6px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
+          </div>
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>
+          {loading ? 'Loading…' : `${filtered.length} of ${rows.length} guest${rows.length === 1 ? '' : 's'}`}
+        </p>
+      </div>
+
+      {!loading && filtered.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 16, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+            {rows.length === 0 ? 'No guests have registered yet.' : 'No guests match those filters.'}
+          </p>
+        </div>
+      )}
+
+      {filtered.map(r => {
+        const isOpen = expanded === r.id;
+        const statusColor = r.status === 'active' ? G.openBg : r.status === 'pending' ? G.brass : G.clsBg;
+        return (
+          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, overflow: 'hidden' }}>
+            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '10px 12px', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 500, color: G.text, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</p>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusColor, padding: '2px 7px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>{r.status}</span>
+              </div>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.email} · {r.visit_type.replace(/_/g, ' ')} · {r.visit_date}
+                {r.members?.name && <> · guest of {r.members.name}</>}
+              </p>
+            </div>
+            {isOpen && (
+              <div style={{ borderTop: `1px solid ${G.border}`, padding: '10px 14px', background: G.bg }}>
+                <Row k="Email"            v={r.email} />
+                <Row k="Phone"            v={r.phone || '—'} />
+                <Row k="ZIP"              v={r.zip || '—'} />
+                <Row k="Visit type"       v={r.visit_type.replace(/_/g, ' ')} />
+                <Row k="Visit date"       v={r.visit_date} />
+                <Row k="Access level"     v={r.access_level.replace(/_/g, ' ')} />
+                <Row k="Status"           v={r.status} />
+                <Row k="Expires"          v={r.expires_at ? new Date(r.expires_at).toLocaleString() : 'Indefinite'} />
+                <Row k="Registered at"    v={new Date(r.created_at).toLocaleString()} />
+                <Row k="Referring member" v={r.members?.name || '—'} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Row({ k, v }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flexShrink: 0 }}>{k}</span>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, textAlign: 'right', maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+    </div>
+  );
+}
+
 export function PlatformSettingsAdmin() { return <ComingSoonSection title="Platform Settings" desc="The Grounds branding, billing, support contact, default templates for new clubs." />; }
 export function PlatformMetricsAdmin()  { return <ComingSoonSection title="Cross-Club Metrics" desc="Aggregate stats — active members, content updates, revenue, support tickets — across every club." />; }
 

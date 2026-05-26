@@ -25,6 +25,88 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.4** — Clubhouse QR + Admin Guest Management. Phase 8 is now
+  fully manager-operable: every guest-related control lives in one
+  admin section, the clubhouse QR can be regenerated to invalidate
+  prior printed copies, and the full guest roster is searchable,
+  filterable, and CSV-exportable.
+
+  **Migration 45** — `clubs.clubhouse_qr_version int NOT NULL DEFAULT 1`.
+  Single counter. Bump = invalidate. No secret material stored on the
+  row; the signature is derived at request time from
+  `${club_id}:clubhouse:${version}` via the same HMAC key derivation
+  used for member QRs (v0.8.3).
+
+  **`guest-qr-token` v2** — now serves both modes from a single
+  endpoint based on `body.mode`:
+    · `'member'` (default) — caller must have a members row, signs
+      `${club_id}:${member_id}`. Same behavior as v0.8.3.
+    · `'clubhouse'` — caller must be club_manager / club_admin (for
+      their own club_id) or super_admin (any club_id). Signs
+      `${club_id}:clubhouse:${version}`. Returns the URL with
+      `token=<sig>` and `via=clubhouse_qr` query params.
+
+  **`guest-register` v3** — adds a `clubhouse_token` body field
+  alongside `ref_token`. Validates with constant-time compare against
+  the current `clubs.clubhouse_qr_version` — a regenerated QR
+  immediately invalidates all prior copies. visit_type defaults to
+  `public_play` when only the clubhouse token is present.
+
+  **`GuestRegister.jsx`** — reads `?token=` from the URL and forwards
+  as `clubhouse_token` to the Edge Function. URL shape for clubhouse
+  QRs: `https://<slug>.groundslive.com/guest/<slug>?token=<sig>&via=clubhouse_qr`.
+
+  **New admin section: `GuestManagementAdmin`** — lives under
+  Admin → People → Guest Management. Three cards stacked:
+    1. **Settings** — per-club controls, each saving immediately on
+       change (no Save button race window): Auto-approve toggle,
+       Visit duration days (blank = indefinite), Phone field
+       (off/optional/required), Default access level
+       (data_only / read_only / full_temporary), Require PWA install.
+    2. **Clubhouse QR Code** — 200px QRCodeCanvas (canvas-backed so
+       we can export PNG via `canvas.toBlob`), URL displayed below
+       for verification, version counter for clarity. Two actions:
+       **Download PNG** (saves as `<slug>-clubhouse-guest-qr-vN.png`
+       — ready to print on signage) and **Regenerate** (two-step
+       confirm flow to prevent accidental invalidation).
+    3. **Guests list** — search by name/email, filter by visit_type
+       (member / public play / tournament / event) + date range
+       (from + to), CSV export of the currently-filtered set with all
+       captured fields plus referring member name. Tap a row to
+       expand the full detail (email, phone, ZIP, visit_type,
+       access_level, status, expiry, registered-at, referring
+       member). Realtime subscribed on `guests` so the list stays
+       live as registrations come in.
+
+  **People admin area** — gained the "Guest Management" section
+  (manager-only, requires can_manage_members). Description on the
+  area card updated to "Members, post moderation, staff, guests."
+  When the `guest_registration` flag is off, the section still
+  renders but shows a friendly "guest registration is off" panel
+  with a pointer to Club Setup → Features. Keeps the entry
+  discoverable while the feature is dormant.
+
+  **Smoke test path:**
+    1. Admin → Club Setup → Feature Toggles → turn ON
+       "Guest Registration" (requires standard tier or higher).
+    2. Admin → People → Guest Management → scroll to the
+       **Clubhouse QR Code** card.
+    3. Tap **Download PNG** — file lands in your downloads.
+    4. Open the printed QR's URL in an incognito browser → form
+       loads → register a test guest → confirm the row appears in
+       the **Guests** list within seconds (realtime).
+    5. Tap **Regenerate** → confirm → the printed QR (or that
+       just-saved PNG) now returns "This clubhouse QR is no longer
+       valid" on submit. The new QR works.
+    6. Use the search/filter bar + **Export CSV** to dump a sample.
+
+  **Phone-required gotcha worth knowing:** the registration form
+  ALWAYS shows a phone input when the club setting is `optional` or
+  `required`. When the manager flips from `optional` to `required`
+  mid-flight, any guest already on the form needs to refresh
+  (the cached form was rendered against the old setting). Acceptable
+  edge case — managers shouldn't be flipping mid-day.
+
 - **v0.8.3** — Member-linked guest QR codes. Each member can now show
   a signed, scannable QR that pre-attributes a registering guest to
   them as the host. Two entry points, one shared screen.
