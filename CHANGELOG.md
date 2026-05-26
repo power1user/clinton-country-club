@@ -25,6 +25,43 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.10** — Push notifications: restore the Database Webhook.
+
+  Diagnosis revealed push had been silently broken: zero `send-push`
+  invocations in the Edge Function logs despite 13 messages inserted
+  in the last week. Root cause: the Supabase Database Webhook that
+  fans messages-INSERT into the `send-push` Edge Function did not
+  exist in the project. No `supabase_functions` schema, no `pg_net`
+  extension, no trigger pointing at the webhook — the wire had been
+  disconnected (probably during a database reset somewhere in
+  project history). Client subscription path was healthy throughout
+  (3 valid rows in `push_subscriptions`: 1 iOS PWA, 2 Chrome).
+
+  **Migration 49** restores the wire as plain SQL so it lives in
+  migration history and survives any future resets — no more
+  invisible Dashboard state:
+    · installs `pg_net` extension
+    · creates `public.fn_send_push_on_message()` — SECURITY DEFINER,
+      calls `net.http_post` to the Edge Function with the anon JWT
+      as Bearer (mimics the payload shape the Dashboard webhook
+      would send)
+    · creates `trg_send_push_on_message` AFTER INSERT trigger on
+      `public.messages`
+
+  Smoke test (`net.http_post` direct to the Edge Function) confirmed
+  the wire works, but surfaced a second issue: the Edge Function
+  itself returns 500 WORKER_ERROR on first invocation — almost
+  certainly because the `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`
+  secrets are missing from the Edge Function environment. Cannot
+  fix from MCP (secrets are write-only via Dashboard / CLI for
+  security). Marc to verify Supabase Dashboard → Edge Functions →
+  send-push → Secrets manually.
+
+  Admin broadcast notifications (`notification_messages` table)
+  still won't push — that needs a separate Edge Function path
+  since send-push currently only handles the `messages` schema.
+  Deferred to v0.8.11.
+
 - **v0.8.9** — Maintenance + docs refresh.
 
   **Migration 48** pins `search_path = public, pg_temp` on
