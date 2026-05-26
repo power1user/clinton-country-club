@@ -37,6 +37,7 @@ import Settings from './screens/Settings.jsx';
 import TermsGate from './screens/TermsGate.jsx';
 import GuestRegister from './screens/GuestRegister.jsx';
 import GuestThankYou from './screens/GuestThankYou.jsx';
+import MemberGuestQR from './screens/MemberGuestQR.jsx';
 
 const SCREENS = {
   home: Home,
@@ -59,6 +60,7 @@ const SCREENS = {
   'community/bulletin': BulletinBoard,
   myclub: MyClub,
   'myclub/card': MemberCard,
+  'myclub/guest-qr': MemberGuestQR,
   'myclub/proshop': ProShop,
   'myclub/proshop/inquiries': MyInquiries,
   'myclub/lessons': LessonRequest,

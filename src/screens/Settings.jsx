@@ -22,13 +22,16 @@ import InstallEntry from '../components/InstallEntry.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { useNav } from '../hooks/useNav.jsx';
 import { PLATFORM_NAME, VERSION } from '../lib/version.js';
 import { termsSections, CURRENT_TERMS_DATE } from '../lib/terms.js';
 
 export default function Settings() {
-  const { member, club } = useAuth();
+  const { member, club, isGuest } = useAuth();
+  const { push } = useNav();
   const displayModeOn = useFlag('display_mode');
   const profilePhotosOn = useFlag('profile_photos');
+  const guestFlagOn = useFlag('guest_registration');
   // v0.7.12: About section's collapsible Terms re-view. Default
   // collapsed so the section stays short; expanding renders the
   // full terms inline (no separate screen / modal needed —
@@ -97,6 +100,39 @@ export default function Settings() {
             <div style={{ marginTop: 18 }} />
             <SectionHeading>Profile</SectionHeading>
             <ProfilePhotoCard />
+          </>
+        )}
+
+        {/* v0.8.3: Sharing — member's personal guest check-in QR. Lives
+            in Settings as a second entry point in addition to the
+            Guest QR button on the Membership Card screen. Hidden for
+            guests (they can't invite other guests) and when the club
+            hasn't enabled guest_registration. */}
+        {guestFlagOn && !isGuest && member?.id && (
+          <>
+            <div style={{ marginTop: 18 }} />
+            <SectionHeading>Sharing</SectionHeading>
+            <div
+              onClick={() => push('myclub/guest-qr')}
+              data-tap
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer' }}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h3v3h-3zM18 18h3v3h-3z" />
+                </svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Your Guest Check-In QR</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.4 }}>
+                  Share with someone to add them as your guest at {club?.name || 'the club'}.
+                </p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            </div>
           </>
         )}
 

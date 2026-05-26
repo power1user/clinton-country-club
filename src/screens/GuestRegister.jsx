@@ -88,6 +88,13 @@ export default function GuestRegister() {
     setBusy(true); setErr(null);
     try {
       // 1. Record the guest server-side.
+      // v0.8.3: signed-token QRs send `ref` as `<member_id>.<sig>`. We
+      // forward it as `ref_token` so the Edge Function can validate
+      // the signature server-side. The Edge Function ALSO still
+      // accepts the legacy `referring_member_id` (raw uuid) so old
+      // QR codes minted before signing rolled out keep working —
+      // remove that fallback after rotating member QRs.
+      const isSignedToken = typeof ref === 'string' && ref.includes('.');
       const { data, error } = await supabase.functions.invoke('guest-register', {
         body: {
           club_slug: CLUB_SLUG,
@@ -95,7 +102,8 @@ export default function GuestRegister() {
           email: email.trim(),
           phone: showPhone ? phone.trim() : null,
           zip: zip.trim(),
-          referring_member_id: ref,
+          ref_token: isSignedToken ? ref : null,
+          referring_member_id: isSignedToken ? null : ref,
           visit_type: via === 'member_qr' ? 'member_guest' : 'public_play',
           check_in_method: via === 'member_qr' ? 'member_qr' : 'clubhouse_qr',
         },

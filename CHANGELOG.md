@@ -25,6 +25,79 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.3** — Member-linked guest QR codes. Each member can now show
+  a signed, scannable QR that pre-attributes a registering guest to
+  them as the host. Two entry points, one shared screen.
+
+  **Signing scheme.** HMAC-SHA256 over `${club_id}:${member_id}`,
+  base64url-encoded with no padding. Token format on the wire is
+  `<member_id>.<signature>` so the server can split + verify in
+  one parse. Key source: `Deno.env.get('GUEST_QR_SIGNING_SECRET')`
+  if set, falling back to `SHA-256(SUPABASE_SERVICE_ROLE_KEY +
+  ':guest-qr-v1')`. The derivation keeps day-1 zero-config; if you
+  ever need to rotate the key without invalidating all existing
+  QRs, set `GUEST_QR_SIGNING_SECRET` explicitly and re-mint
+  outstanding codes. Domain separator (`:guest-qr-v1`) ensures we
+  never reuse the same effective key across different signing
+  contexts.
+
+  **`guest-qr-token` Edge Function** (new, `verify_jwt: true`).
+  Takes the caller's JWT, looks up their members row, returns
+  `{ ok, url, token, hostname, slug, member_id }`. URL shape:
+  `https://<slug>.groundslive.com/guest/<slug>?ref=<token>&via=member_qr`
+  — the subdomain establishes brand trust in the address bar,
+  the path slug makes it work on the apex too. Refuses non-members
+  (guests can't invite guests, staff without a member row can't
+  either — the latter is a known limitation we can revisit if it
+  matters).
+
+  **`guest-register` Edge Function v2** — adds signed-token
+  validation via the same key derivation. `ref_token` (signed) is
+  the preferred input; `referring_member_id` (raw uuid) still
+  accepted as a backward-compat fallback for any QR codes minted
+  before the signed scheme rolled out, with a console warning.
+  Drop the fallback after rotating every club's outstanding QRs.
+  Constant-time signature compare. Verified member must belong to
+  the URL's club (defense in depth — the signature already binds
+  club_id, but the DB lookup confirms the member is still in the
+  club + active before attribution is recorded).
+
+  **`MemberGuestQR.jsx` screen** (new, `/myclub/guest-qr`).
+  Calls `guest-qr-token` on mount, renders a 240px high-contrast
+  QR (black on white, error correction M), shows "Member's guest
+  invite for Club" caption, and offers a "Share link" affordance
+  that uses the Web Share API where available and falls back to
+  clipboard. The raw URL is visible below the share button for
+  manual copy / tap-to-copy. Footer note explains attribution.
+  Gated by `guest_registration` flag and rejects guest viewers
+  (only members can invite guests).
+
+  **Two entry points to the QR screen:**
+    · `MyClub → Membership Card → "Guest QR"` button — sits next
+      to the existing "QR Code" toggle. Only shown when the
+      guest_registration flag is on.
+    · `Settings → Sharing → "Your Guest Check-In QR"` row — full
+      tap target with icon, label, and a one-line description.
+      Hidden for guests and when the flag is off.
+
+  **`GuestRegister.jsx` updated** — submit now sends `ref_token`
+  (signed) when the URL's `?ref=` value contains a dot (the token
+  separator). Legacy raw-uuid URLs still send as
+  `referring_member_id` for the legacy fallback in the Edge
+  Function. Transparent to the guest filling the form.
+
+  **Smoke test path:**
+    1. Sign in as a Clinton member (subscription tier must be
+       standard or pro; turn on `guest_registration` in
+       Admin → Club Setup → Features).
+    2. MyClub → Membership Card → tap "Guest QR".
+    3. Confirm the QR renders + the URL below it has both the
+       slug and `?ref=<uuid>.<signature>`.
+    4. Open the URL in an incognito window — the registration
+       form loads with "A member of <Club> invited you" copy.
+    5. Complete registration → click magic link → confirm the
+       admin's `guests.referring_member_id` is set to your id.
+
 - **v0.8.2** — Auth flow, access modes, screen-level gating. The
   magic-link click now actually does something useful — guests get
   linked to their pre-written row and the app branches per access

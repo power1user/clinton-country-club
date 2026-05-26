@@ -5,6 +5,7 @@ import { GhostBtn } from '../components/Buttons.jsx';
 import Avatar from '../components/Avatar.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import { QRCodeSVG } from 'qrcode.react';
 import FeatureOff from '../components/FeatureOff.jsx';
 
@@ -24,7 +25,9 @@ const STATE_NAMES = {
 export default function MemberCard() {
   const [showQR, setShowQR] = useState(false);
   const { member, club, isGuest } = useAuth();
+  const { push } = useNav();
   const profilePhotosOn = useFlag('profile_photos');
+  const guestFlagOn = useFlag('guest_registration');
   // v0.8.2: guests don't have a membership card. Defense in depth —
   // the My Club tab also routes them to a guest-mode view rather than
   // the action grid that links here.
@@ -110,6 +113,14 @@ export default function MemberCard() {
             button (a button that says "Coming soon" reads as broken). */}
         <div style={{ marginTop: 22, display: 'flex', gap: 10, width: '100%', maxWidth: 346 }}>
           <GhostBtn onPress={() => setShowQR(!showQR)} style={{ flex: 1 }}>{showQR ? 'Show Card' : 'QR Code'}</GhostBtn>
+          {/* v0.8.3: dedicated guest-check-in QR. Lives on a separate
+              screen because it needs to be large + high-contrast for
+              the guest to scan at arm's length, AND because it shares
+              a destination with the Settings entry. Only renders when
+              the club has the guest_registration flag on. */}
+          {guestFlagOn && (
+            <GhostBtn onPress={() => push('myclub/guest-qr')} style={{ flex: 1 }}>Guest QR</GhostBtn>
+          )}
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, marginTop: 16, textAlign: 'center' }}>
           {[founded && `Est. ${founded}`, cityState].filter(Boolean).join(' · ')}
