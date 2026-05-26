@@ -25,6 +25,42 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.9** — Maintenance + docs refresh.
+
+  **Migration 48** pins `search_path = public, pg_temp` on
+  `fn_guests_set_updated_at`. This was the one trigger function in the
+  schema without an explicit search_path (Supabase linter
+  `0011_function_search_path_mutable`). All the other helper/trigger
+  functions already had it set; this one slipped through Migration 44.
+  Belt-and-suspenders against schema-poisoning attacks. No behavior
+  change.
+
+  **Stale SQL snapshots deleted.** `supabase/01_schema.sql`,
+  `02_rls.sql`, `03_seed.sql` were the original single-tenant Windhaven
+  bootstrap from before we had numbered migrations. They've been
+  superseded 48 times. Removed. `supabase/README.md` rewritten to
+  document the Edge Function inventory and required secrets — schema
+  is managed via MCP-applied migrations now.
+
+  **README.md fully refreshed for v0.8.x.** The top-level README was
+  still claiming v0.4.0 with a 4-role hierarchy + 7-area admin hub +
+  Phase-4-era feature inventory. Rewrote: bumped to v0.8.8, three
+  clubs deployed, 5-role hierarchy (added guest), 8-area admin hub
+  with current ordering (Communications / Events / Golf Course / Pro
+  Shop / Dining / People / Club Setup / Platform), full Phase 5–8
+  feature inventory (post_replies system, Settings screen + profile
+  photos + display mode + DM opt-out, Club Features Control Panel +
+  tier-based flags, full Guest Management section), updated repo
+  layout with every current screen/component/hook/lib file, automated
+  DNS provisioning notes, guest QR security details, fresh
+  troubleshooting table.
+
+  **New cadence rule** (added to README + `version.js`): the README is
+  refreshed at every **MINOR** bump (0.X.0). PATCH bumps don't touch
+  the README — CHANGELOG remains the source of truth between minor
+  releases. Prevents the README from drifting four phases behind
+  again.
+
 - **v0.8.8** — Phase 8 gap closeout. The five items the v0.8.5
   spec-coverage audit flagged as partial, all shipped together.
 

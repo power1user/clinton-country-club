@@ -48,7 +48,11 @@
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
 // support calls so we know which exact build is in the wild.
-export const VERSION = '0.8.8';
+//
+// README cadence: README.md is refreshed at every MINOR bump (0.X.0).
+// PATCH bumps don't touch the README — CHANGELOG.md is the source of
+// truth between minor releases.
+export const VERSION = '0.8.9';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
