@@ -6,23 +6,27 @@ import { useClubStatus, usePaceOfPlay, useNow, formatClockTime, formatLongDate, 
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { DEFAULT_TIMEZONE } from '../lib/timezone.js';
+import { guestCanSee } from '../lib/guestAccess.js';
 
 export default function GolfHub() {
   const { push } = useNav();
   const { data: paceRow } = usePaceOfPlay();
   const { data: statusList } = useClubStatus();
-  const { club } = useAuth();
+  const { club, isGuest, guestAccessLevel } = useAuth();
   const brand = useBrand();
   const now = useNow();
   const pace = paceRow?.time_label || '—';
   const dusk = useDusk();
   const dawn = useDawn();
   // Phase 7 flags — each tile + the live-pace strip filter independently.
-  const pinOn      = useFlag('pin_placements');
-  const mapOn      = useFlag('course_map');
-  const teeOn      = useFlag('tee_time_booking');
-  const partnersOn = useFlag('partner_board');
-  const paceOn     = useFlag('pace_of_play');
+  // v0.8.5: AND-gated with guest visibility per the spec — guests at
+  // any access level can see pin/map/pace; partner_board is members-
+  // only; tee_time_booking is members-only.
+  const pinOn      = useFlag('pin_placements')    && (!isGuest || guestCanSee(guestAccessLevel, 'pin_placements'));
+  const mapOn      = useFlag('course_map')        && (!isGuest || guestCanSee(guestAccessLevel, 'course_map'));
+  const teeOn      = useFlag('tee_time_booking')  && !isGuest;
+  const partnersOn = useFlag('partner_board')     && !isGuest;
+  const paceOn     = useFlag('pace_of_play')      && (!isGuest || guestCanSee(guestAccessLevel, 'pace_of_play'));
 
   // v0.7.8: real Course pill state instead of the previously hardcoded
   // "Course Open" string. Look up by category 'course' (the canonical

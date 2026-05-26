@@ -6,6 +6,7 @@ import BellChip from '../components/BellChip.jsx';
 import { useClubStatus, useEvents, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { guestCanSee } from '../lib/guestAccess.js';
 
 // Today in YYYY-MM-DD (local). Same shape Events.jsx uses for
 // matching against event.eventDate.
@@ -17,9 +18,14 @@ function isoToday() {
 export default function Home() {
   const { push, goTab } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
-  const { isPending, pendingAccess, club } = useAuth();
+  const { isPending, pendingAccess, club, isGuest, guestAccessLevel } = useAuth();
   const brand = useBrand();
   const now = useNow();
+  // v0.8.5: guest sub-section gating per the spec's allow/deny matrix.
+  // News + Today's Events are full_temporary-only (not in read_only's
+  // allow list). Members see everything as before.
+  const newsVisible        = !isGuest || guestCanSee(guestAccessLevel, 'news');
+  const todayEventsVisible = !isGuest || guestCanSee(guestAccessLevel, 'today_events');
   const { data: statusList } = useClubStatus();
   const { data: newsList }   = useNews();
   const { data: events }     = useEvents();
@@ -176,8 +182,10 @@ export default function Home() {
             section never reads as an empty stub. Each row links to the
             event detail screen (same target as Community → tap event).
             Realtime via useEvents() so a same-day add by staff appears
-            without refresh. */}
-        {todayEvents.length > 0 && (
+            without refresh.
+            v0.8.5: also hidden from read_only guests (events are
+            full_temporary-only). */}
+        {todayEventsVisible && todayEvents.length > 0 && (
           <div style={{ padding: '14px 20px 6px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>
               <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Today's Events</h2>
@@ -196,7 +204,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* News */}
+        {/* News — v0.8.5: hidden from read_only guests per the spec's
+            full_temporary-only list. Members + full_temp guests see it. */}
+        {newsVisible && (
         <div style={{ padding: '14px 20px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${G.border}` }}>
             <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Club News</h2>
@@ -219,6 +229,7 @@ export default function Home() {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

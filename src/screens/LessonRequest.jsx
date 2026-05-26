@@ -15,7 +15,7 @@ import FeatureOff from '../components/FeatureOff.jsx';
 const FOCUSES = ['Full Swing', 'Short Game', 'Putting', 'Bunker Play', 'Course Management', 'Junior Lesson'];
 
 export default function LessonRequest() {
-  const { club, member, canMemberWrite } = useAuth();
+  const { club, member, canMemberWrite, isGuest } = useAuth();
   const on = useFlag('lesson_booking');
   const [pros, setPros] = useState([]);
   const [prosLoading, setProsLoading] = useState(true);
@@ -77,6 +77,12 @@ export default function LessonRequest() {
   // behavior). MyClub already hides the tile when off; this is the
   // direct-nav backstop.
   if (!on) return <FeatureOff label="Book a Lesson" />;
+  // v0.8.5: lesson BOOKING is members-only regardless of guest access
+  // level (it submits to pro_shop_inquiries which is RLS-locked to
+  // members). Even full_temporary guests are blocked from the booking
+  // form. (Browsing the pro list — lesson_pros — stays public via the
+  // existing select_all policy on that table.)
+  if (isGuest) return <FeatureOff label="Book a Lesson" body="Lesson booking is for club members only." />;
 
   if (submitted) {
     return (

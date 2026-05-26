@@ -4,26 +4,35 @@ import { useProShopItems } from '../hooks/useClubData.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
+import { guestCanSee } from '../lib/guestAccess.js';
 
 export default function ProShop() {
   const on = useFlag('pro_shop');
   const { data: items, loading } = useProShopItems();
   const [scrollRef, onScroll] = useScrollRestore();
   const { push } = useNav();
+  const { isGuest, guestAccessLevel } = useAuth();
   // Phase 7 gating — flag default is ON so existing clubs keep ProShop
   // visible. Manager turns it off in Admin → Features.
   if (!on) return <FeatureOff label="Pro Shop" />;
+  // v0.8.5: guests gated by access level. read_only guests don't see
+  // pro shop; full_temporary guests browse the catalog (no checkout,
+  // no inquiries — "My Inquiries" is gated separately below).
+  if (isGuest && !guestCanSee(guestAccessLevel, 'pro_shop')) {
+    return <FeatureOff label="Pro Shop" body="The pro shop catalog isn't available to guests at your access level." />;
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Pro Shop" />
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 24px' }}>
-        {/* My Inquiries entry — v0.7.6. Sits at the top so members
-            checking on a pending lesson request find it immediately
-            rather than hunting. Tap → MyInquiries screen renders the
-            member's own pro_shop_inquiries with status. */}
+        {/* My Inquiries entry — v0.7.6. Members only (guests don't
+            have inquiries to view; pro_shop_inquiries is members-only
+            via RLS). v0.8.5: hidden for guests. */}
+        {!isGuest && (
         <div
           onClick={() => push('myclub/proshop/inquiries')}
           data-tap
@@ -41,6 +50,7 @@ export default function ProShop() {
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
         </div>
+        )}
 
         <SectionHead label="Current Catalog" />
         {loading && (

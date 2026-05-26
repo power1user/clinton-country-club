@@ -25,6 +25,75 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.5** — RLS finalization + within-screen scoping. Closes out
+  Phase 8. The spec's allow/deny matrix is now enforced at both the
+  database layer (via RLS) and the UI layer (via per-screen + per-
+  section visibility checks).
+
+  **Migration 46 — guest SELECT policies.** Adds 11 new RLS policies,
+  one per table on the Phase 8 allow list. Each policy uses the
+  `is_active_guest(club_id)` helper introduced in migration 44.
+  Permissive policies stack as OR, so this is a pure additive change
+  — members + staff retain their existing SELECT via
+  `is_member_or_staff_of`; active guests gain SELECT via
+  `is_active_guest`. No existing policy mutated.
+
+    Tables granted to guests (RLS-level):
+    · `club_status`, `club_status_hours`, `schedule_overrides`
+    · `pace_of_play`
+    · `holes`, `pin_placements`
+    · `menus`, `menu_categories`
+    · `news`, `events`, `pro_shop_items`
+    · (`lesson_pros` already had `SELECT USING (true)` — public)
+
+    Tables intentionally NOT granted to guests (denied via absence
+    of a members row in `is_member_or_staff_of`):
+    · `members`, `bulletin_posts`, `partner_posts`, `post_replies`
+    · `threads`, `messages`, `thread_participants`
+    · `food_orders`, `event_registrations`, `pro_shop_inquiries`
+    · `notification_messages`, `notification_reads`
+    · admin-only tables (`user_roles`, `club_provision_log`, etc.)
+
+    Defense-in-depth note: even with the UI gating in place, a
+    determined guest hitting our REST endpoints directly with their
+    JWT would still be RLS-denied on every members-only table.
+    Belt-and-suspenders security is the point.
+
+  **Within-screen UI gating** — fills the per-section gaps left
+  intentionally for v0.8.5. Uses the `guestCanSee(level, key)` helper
+  from `lib/guestAccess.js`:
+
+    `Home.jsx`:
+    · News section — hidden from read_only guests (full_temp + members see it).
+    · Today's Events section — hidden from read_only guests (same reason).
+    · Status pills + weather + pace strip — visible to all guest levels (already was).
+
+    `GolfHub.jsx`:
+    · Pin / Course Map / Pace tiles — visible to ALL guest levels (in the read_only allow list per spec).
+    · Tee Time tile — hidden from ALL guests (tee booking is members-only regardless of level).
+    · Partner Board tile — hidden from ALL guests (member-to-member coordination).
+    Each gate AND-combines the existing v0.7.0 feature flag check with the new isGuest+access check.
+
+    `ProShop.jsx`:
+    · Screen body visible to full_temporary guests (catalog browse-only).
+    · `read_only` guests get a FeatureOff with "isn't available to guests at your access level."
+    · "My Inquiries" tile hidden from all guests (no member-side inquiry history to view).
+
+    `LessonRequest.jsx`:
+    · Members only — even full_temporary guests are blocked because
+      booking submits to `pro_shop_inquiries` which is RLS-locked.
+      Browsing the lesson pros LIST is fine (lesson_pros has public
+      RLS), but the booking form itself is members-only.
+
+  **Phase 8 is complete.** Six commits, three new Edge Functions
+  (`guest-register`, `guest-link`, `guest-qr-token`), three migrations
+  (44 = schema, 45 = clubhouse version, 46 = guest SELECT policies),
+  five new screens / components (GuestRegister, GuestThankYou,
+  MemberGuestQR, GuestManagementAdmin, FeatureOff `body` prop),
+  and one helper module (lib/guestAccess.js). Feature flag is OFF
+  by default so existing clubs see zero behavior change until a
+  manager flips it on in Admin → Club Setup → Features.
+
 - **v0.8.4** — Clubhouse QR + Admin Guest Management. Phase 8 is now
   fully manager-operable: every guest-related control lives in one
   admin section, the clubhouse QR can be regenerated to invalidate
