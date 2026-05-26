@@ -35,6 +35,7 @@ import OnboardingGuide from './screens/OnboardingGuide.jsx';
 import AdminPanel from './screens/AdminPanel.jsx';
 import Settings from './screens/Settings.jsx';
 import TermsGate from './screens/TermsGate.jsx';
+import GuestRegister from './screens/GuestRegister.jsx';
 
 const SCREENS = {
   home: Home,
@@ -216,8 +217,26 @@ function PendingLockedSplash() {
   );
 }
 
+// v0.8.1: detect the public guest registration page from the URL
+// path. The /guest/<slug> route lives OUTSIDE the normal auth Gate —
+// guests don't have a session when they scan the QR, and even if a
+// stale session exists (member or staff opened the URL on the wrong
+// device) we still want them to see the registration form, not their
+// dashboard. Evaluated at render-time so back/forward nav within the
+// SPA still works.
+function isOnGuestRegistrationRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/guest\/[a-z0-9-]+/i.test(window.location.pathname);
+}
+
 function Gate() {
   const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance } = useAuth();
+
+  // v0.8.1: guest registration page is public — no session required.
+  // Shows the branded landing + form before any other gate logic fires.
+  if (isOnGuestRegistrationRoute()) {
+    return <GuestRegister />;
+  }
 
   if (loading) {
     // First-open splash with parent-brand attribution. Briefly visible

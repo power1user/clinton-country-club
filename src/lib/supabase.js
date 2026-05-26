@@ -28,9 +28,12 @@ export const supabase = isConfigured
 
 // Club slug resolution order:
 //   1. ?club=slug query param        (dev / preview overrides)
-//   2. <subdomain>.groundslive.com   (production)
-//   3. VITE_DEFAULT_CLUB_SLUG env    (dev local builds)
-//   4. 'clintoncc' hardcoded fallback (so the app never boots blank)
+//   2. /guest/<slug>/... URL path    (v0.8.1 — public guest registration
+//                                     page reachable from groundslive.com
+//                                     apex without a subdomain)
+//   3. <subdomain>.groundslive.com   (production)
+//   4. VITE_DEFAULT_CLUB_SLUG env    (dev local builds)
+//   5. 'clintoncc' hardcoded fallback (so the app never boots blank)
 function resolveClubSlug() {
   if (typeof window === 'undefined') {
     return import.meta.env.VITE_DEFAULT_CLUB_SLUG || 'clintoncc';
@@ -38,12 +41,18 @@ function resolveClubSlug() {
   // 1. query param override
   const qp = new URLSearchParams(window.location.search).get('club');
   if (qp) return qp;
-  // 2. subdomain on groundslive.com (skip 'www' — that's the marketing host)
+  // 2. /guest/<slug> path — branded landing for QR scans. The slug
+  //    must come from the URL because the guest may be on the apex
+  //    domain (groundslive.com/guest/clintoncc) where the subdomain
+  //    check below wouldn't fire.
+  const pathMatch = window.location.pathname.match(/^\/guest\/([a-z0-9-]+)(?:\/|$)/i);
+  if (pathMatch) return pathMatch[1].toLowerCase();
+  // 3. subdomain on groundslive.com (skip 'www' — that's the marketing host)
   const m = window.location.hostname.match(/^([a-z0-9-]+)\.groundslive\.com$/i);
   if (m && m[1] !== 'www') return m[1].toLowerCase();
-  // 3. env var fallback
+  // 4. env var fallback
   if (import.meta.env.VITE_DEFAULT_CLUB_SLUG) return import.meta.env.VITE_DEFAULT_CLUB_SLUG;
-  // 4. last resort — avoid blank-club boot
+  // 5. last resort — avoid blank-club boot
   return 'clintoncc';
 }
 

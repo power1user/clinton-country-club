@@ -25,6 +25,60 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.1** — Public QR landing + registration form. Guests scanning
+  any guest QR now land on a branded check-in page, fill in their
+  contact info, and get a magic-link access email. No app download
+  required to register.
+
+  **URL shape.** Two equivalent forms (both resolve to the same
+  screen):
+    · `groundslive.com/guest/<club-slug>` (apex)
+    · `<club-slug>.groundslive.com/guest/<club-slug>` (club subdomain)
+
+  Query params (set automatically by the QR generator in v0.8.3/4):
+    · `?ref=<member_id>` — referring member (member-scanned QR);
+      surfaces as the "brought by" column in admin Guest Management.
+      v0.8.1 accepts the raw uuid; v0.8.3 layers signed-URL validation.
+    · `?via=member_qr` | `?via=clubhouse_qr` — explicit visit-type
+      signal; defaults to member_qr when ref is present.
+
+  **Edge Function: `guest-register`** (deployed, `verify_jwt: false`
+  because guests aren't yet authenticated). Validates club slug,
+  feature flag (tier + lock + override), required fields, and per-club
+  phone collection setting (off / optional / required). Computes
+  `expires_at` from club's `guest_visit_duration_days` in club tz
+  (NULL = indefinite). Upserts the `guests` row on (club_id, email)
+  and appends a `guest_visits` history row. Writes via service role
+  (no client INSERT policy on either table). Returns `{ ok, guest_id,
+  status, access_level, expires_at }`.
+
+  **`GuestRegister.jsx`** — branded landing using `useBrand` for the
+  club's logo + name. Form fields: name, email, ZIP, conditional
+  phone (per `clubs.guest_phone_collection`), ToU checkbox. iOS-safe
+  16px inputs to suppress auto-zoom on focus. Submit calls the Edge
+  Function, then `supabase.auth.signInWithOtp(email)` for the magic
+  link, then flips to a "Check your email" success state with the
+  destination address echoed back.
+
+  **`resolveClubSlug` in `lib/supabase.js`** — added a `/guest/<slug>`
+  path check as resolution step #2 (between query-param override and
+  subdomain). Lets the guest page work on apex (`groundslive.com`)
+  where the subdomain regex would otherwise miss.
+
+  **`App.jsx` Gate** — new `isOnGuestRegistrationRoute()` check that
+  short-circuits the auth-gating logic for URLs matching
+  `/guest/<slug>`. Evaluated at render time so a stale session on
+  the device doesn't block the registration form.
+
+  **Not yet wired** — the magic link, when clicked, lands the new
+  auth user at the app root with a fresh session, but the
+  "link this auth.uid to the guests row" step isn't there yet. That
+  arrives in v0.8.2 along with the access-mode resolution and
+  screen-level gating. So today: a guest can register and get the
+  email, but clicking the link lands them in the existing Login
+  splash because the guests row's `user_id` is still NULL. Not
+  exposed to anyone yet (the feature flag is still OFF by default).
+
 - **v0.8.0** — Foundation. Schema, RLS, role helper, feature flag,
   club-level guest config. No UI yet — every commit after this builds
   on this layer.
