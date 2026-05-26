@@ -34,7 +34,7 @@ function fmtDateChip(iso) {
 
 export default function PartnerBoard() {
   const { data: posts, refresh } = usePartnerPosts();
-  const { club, member, session, canMemberWrite } = useAuth();
+  const { club, member, session, canMemberWrite, isGuest } = useAuth();
   const dmsOn = useFlag('dms');
   const profilePhotosOn = useFlag('profile_photos');
   const partnerBoardOn = useFlag('partner_board');
@@ -46,6 +46,8 @@ export default function PartnerBoard() {
   const [err, setErr] = useState(null);
   // Phase 7 gating — default ON. GolfHub also filters its tile.
   if (!partnerBoardOn) return <FeatureOff label="Golf Partners" />;
+  // v0.8.2: guests can never see member-to-member coordination.
+  if (isGuest) return <FeatureOff label="Golf Partners" body="Finding playing partners is for club members only." />;
 
   const cats = [{ id: 'all', l: 'All' }, { id: 'Foursome', l: 'Foursome' }, { id: 'Single', l: 'Single' }, { id: 'Cart Share', l: 'Cart Share' }];
   const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);

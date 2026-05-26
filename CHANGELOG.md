@@ -25,6 +25,91 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.2** — Auth flow, access modes, screen-level gating. The
+  magic-link click now actually does something useful — guests get
+  linked to their pre-written row and the app branches per access
+  level. Phase 8 is now functionally end-to-end for non-data_only
+  guests.
+
+  **`guest-link` Edge Function deployed** (`verify_jwt: true`). Takes
+  the caller's auth JWT, finds all `guests` rows matching that
+  email, and (via service role) sets `user_id = auth.uid()` on any
+  with `user_id IS NULL`. Idempotent. Refuses to overwrite a
+  user_id that's already pointing at a different auth user
+  (defense against an email-rotation hijack). Cross-club aware:
+  one auth user can be a guest at multiple clubs and the function
+  links all their rows in a single call.
+
+  **`useAuth.hydrateMember()` updated** — when session is live but
+  neither members nor guests has a matching user_id row, it now
+  calls `guest-link` once, re-queries the guests table, and
+  populates the `guest` state. This makes the magic-link click
+  flow self-healing: the v0.8.1 row was written with `user_id=NULL`,
+  and clicking the link → fresh session → hydrateMember → invokes
+  guest-link → re-query → guest is hydrated.
+
+  **`data_only` access mode** lands `GuestThankYou.jsx` — branded
+  hero + "Your visit has been recorded" + the club's contact info
+  + sign-out + powered-by footer. App.jsx Gate routes here before
+  the ScreenRenderer when `isGuest && guestAccessLevel === 'data_only'`.
+
+  **`lib/guestAccess.js`** — central source of truth for the spec's
+  allow/deny visibility matrix. `guestCanSee(accessLevel, key)`
+  returns true when the given surface is visible to a guest at
+  that level. v0.8.5 will use this for the finer-grained
+  in-screen section gating (hide news for read_only, show calendar
+  only for full_temporary, etc.).
+
+  **`<FeatureOff>` gets a `body` prop** so guest-specific gating
+  reads "Members only" instead of the default "your club hasn't
+  enabled this." Every guest-side gate below sends a guest-
+  appropriate body string.
+
+  **Always-hidden screens now gate on `isGuest`** (placed after all
+  hook calls per rules of hooks):
+    · BulletinBoard — "The bulletin board is for club members only."
+    · PartnerBoard — "Finding playing partners is for club members only."
+    · MemberDirectory — "The member directory is only available to club members."
+    · Inbox — "Messaging is for club members only."
+    · Thread (DMs / clubhouse / orders) — same
+    · MessageClubhouse — same + points at the contact info on the guest profile
+    · MemberCard — "Membership cards are for club members."
+
+  **BottomNav + swipe-nav filter for guests:**
+    · `read_only` guests see Home, Golf, Food, MyClub (no Community —
+      bulletin/directory are always-hidden and the calendar is
+      full_temporary-only, so the tab has nothing to show).
+    · `full_temporary` guests see all of the above + Community.
+    · `data_only` guests never reach the nav.
+    · Food tab stays for guests because the menu is in the
+      read_only-allowed list; cart CTAs hide inside the screen.
+
+  **BellChip hides for guests** — the inbox they don't have access
+  to is not surfaced as a clickable icon.
+
+  **MyClub renders a guest view** — replaces the action-tile grid +
+  the My Account block with a single status card showing the
+  guest's name + welcome + expiry date. Contact the Club + Sign
+  out + footer all remain.
+
+  **FoodMenu cart gating** — the floating "View Order" CTA, the
+  header cart-count pill, and the per-item +/- buttons all hide
+  when isGuest. Menu reads as a view-only catalog. canOrder
+  variable in scope makes the gate a one-line check.
+
+  **What's still polish for v0.8.5:**
+    · Within-Home gating (news section only for full_temporary; status +
+      weather + pace for read_only)
+    · Within-GolfHub gating (hide partner_board tile for guests
+      [already happens via flag + isGuest check on partner_board
+      screen, but tile should also hide]; hide tee time tile too)
+    · ProShop / LessonRequest screens gating for guests (full_temp
+      sees them browse-only)
+    · Community redesign — within-screen sub-sections for guests
+    · Settings cleanup for guests (NotificationsToggle is a no-op
+      for guests; can hide cleanly)
+    · RLS-side enforcement audit across every public.* table
+
 - **v0.8.1** — Public QR landing + registration form. Guests scanning
   any guest QR now land on a branded check-in page, fill in their
   contact info, and get a magic-link access email. No app download

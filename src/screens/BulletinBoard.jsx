@@ -88,7 +88,7 @@ function NewPostSheet({ onClose, onSubmitted, club, member }) {
 
 export default function BulletinBoard() {
   const { data: posts, refresh } = useBulletinPosts();
-  const { club, member, session } = useAuth();
+  const { club, member, session, isGuest } = useAuth();
   const dmsOn = useFlag('dms');
   const profilePhotosOn = useFlag('profile_photos');
   const bulletinBoardOn = useFlag('bulletin_board');
@@ -102,6 +102,8 @@ export default function BulletinBoard() {
   const tagColors = { Classifieds: G.brass, Wanted: G.limDot, General: G.muted };
   // Phase 7 gating — default ON. Community tab also filters its tile.
   if (!bulletinBoardOn) return <FeatureOff label="Bulletin Board" />;
+  // v0.8.2: guests can never see member-generated content.
+  if (isGuest) return <FeatureOff label="Bulletin Board" body="The bulletin board is for club members only." />;
   const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);
 
   // DM the post's author. Hidden when DMs are off, when the post is

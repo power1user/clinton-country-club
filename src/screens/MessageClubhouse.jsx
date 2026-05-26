@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const TOPICS = [
   { id: 'Pro Shop',   desc: 'Lessons, equipment, fittings, tee-time requests' },
@@ -19,10 +20,14 @@ const TOPICS = [
 ];
 
 export default function MessageClubhouse() {
-  const { club, member, session, canMemberWrite } = useAuth();
+  const { club, member, session, canMemberWrite, isGuest } = useAuth();
   const { push, pop } = useNav();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  // v0.8.2: guests can't open clubhouse threads. They have the
+  // contact-the-club info on the thank-you screen instead.
+  if (isGuest) return <FeatureOff label="Message Clubhouse" body="Messaging is for club members only. The club's contact info is on your guest profile screen." />;
 
   if (!canMemberWrite) {
     return (

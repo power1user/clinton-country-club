@@ -88,11 +88,17 @@ export function AuthProvider({ children }) {
       }
     }
 
-    // v0.8.0: if no member row was found, check whether this auth
-    // user has a guest row. A given auth.users row is either in
-    // members OR in guests, never both — so this is the "what kind
-    // of user is this?" branch point. RLS on guests already restricts
-    // the SELECT to the row's own user_id == auth.uid().
+    // v0.8.0 / v0.8.2: if no member row was found, check whether this
+    // auth user has a guest row. A given auth.users row is either in
+    // members OR in guests, never both — this is the "what kind of
+    // user is this?" branch point. RLS on guests restricts SELECT to
+    // the row's own user_id == auth.uid().
+    //
+    // v0.8.2: if no guest row matches user_id either, this is likely
+    // a fresh magic-link click — the guests row was written at
+    // registration time with user_id=NULL and needs linking. Call
+    // the guest-link Edge Function to do the link server-side via
+    // service role, then re-query. Limit to ONE retry to avoid loops.
     let g = null;
     if (!m) {
       const { data: gRow } = await supabase
@@ -102,6 +108,21 @@ export function AuthProvider({ children }) {
         .eq('user_id', session.user.id)
         .maybeSingle();
       g = gRow || null;
+
+      if (!g) {
+        try {
+          await supabase.functions.invoke('guest-link');
+          const { data: gRow2 } = await supabase
+            .from('guests')
+            .select('*')
+            .eq('club_id', club.id)
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          g = gRow2 || null;
+        } catch (e) {
+          console.warn('[guest-link] failed (non-fatal):', e?.message);
+        }
+      }
     }
 
     // user_roles: match this club OR platform-wide (null club_id) for super_admin.

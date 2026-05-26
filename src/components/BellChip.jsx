@@ -4,11 +4,18 @@
 // any tab header title row.
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { useInboxUnread } from '../hooks/useInbox.js';
 
 export default function BellChip() {
   const { push } = useNav();
+  const { isGuest } = useAuth();
   const unread = useInboxUnread();
+  // v0.8.2: guests don't have an inbox — hide the bell entirely.
+  // Hook calls above (useNav, useInboxUnread) run unconditionally so
+  // rules of hooks stay happy; the hook just returns 0 for guests
+  // since RLS denies them access to threads + notifications.
+  if (isGuest) return null;
   const showCount = unread > 0;
   const countLabel = unread > 99 ? '99+' : String(unread);
 

@@ -14,9 +14,10 @@ import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 import Avatar from '../components/Avatar.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 export default function MemberDirectory() {
-  const { club, member, session, canMemberWrite } = useAuth();
+  const { club, member, session, canMemberWrite, isGuest } = useAuth();
   // Two flags split deliberately: member_directory controls whether
   // members can see the roster at all; dms controls whether the
   // per-row Message button shows. A club can show a browse-only
@@ -70,6 +71,11 @@ export default function MemberDirectory() {
 
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
+
+  // v0.8.2: guest gate. Placed AFTER all hook calls (rules of hooks).
+  // The data load above is a no-op for guests since RLS denies SELECT
+  // on members for them, but the hooks still need to run.
+  if (isGuest) return <FeatureOff label="Member Directory" body="The member directory is only available to club members." />;
 
   // Exclude the current user from the directory list
   const others = members.filter(m => m.user_id !== session?.user?.id);

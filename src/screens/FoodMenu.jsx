@@ -15,6 +15,7 @@ import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useFlag } from '../hooks/useFlag.js';
+import { useAuth } from '../hooks/useAuth.jsx';
 import BellChip from '../components/BellChip.jsx';
 import { useMenu, useNow, formatClockTime } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -27,9 +28,15 @@ export default function FoodMenu() {
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const { data: menu, loading } = useMenu();
+  const { isGuest } = useAuth();
   const brand = useBrand();
   const now = useNow();
   const getQty = (id) => cart.find(i => i.id === id)?.qty || 0;
+  // v0.8.2: guests see the menu but can't order. Hides the floating
+  // View Order CTA + the per-item add-to-cart controls. Effective
+  // cartCount stays 0 for guests since the cart is in-memory and they
+  // never add anything; explicit gate here is belt+suspenders.
+  const canOrder = !isGuest;
 
   // Section refs keyed by category id (or SPECIALS_KEY). Used by the
   // chip bar's scrollIntoView so taps jump to the right section.
@@ -98,7 +105,7 @@ export default function FoodMenu() {
             <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: 0, lineHeight: 1.1 }}>Dining</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {cartCount > 0 && (
+            {canOrder && cartCount > 0 && (
               <div onClick={() => push('food/order')} data-tap style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: G.brass, borderRadius: 3, cursor: 'pointer' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 001.99 1.61h9.72a2 2 0 001.98-1.69L23 6H6" /></svg>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: 'white', fontWeight: 600 }}>{cartCount} · ${cartTotal}</span>
@@ -162,8 +169,8 @@ export default function FoodMenu() {
               accent
               items={menu.specials || []}
               getQty={getQty}
-              addToCart={addToCart}
-              removeFromCart={removeFromCart}
+              addToCart={canOrder ? addToCart : null}
+              removeFromCart={canOrder ? removeFromCart : null}
             />
           )}
 
@@ -174,14 +181,14 @@ export default function FoodMenu() {
               label={c.name}
               items={menu.itemsByCategory?.[c.id] || []}
               getQty={getQty}
-              addToCart={addToCart}
-              removeFromCart={removeFromCart}
+              addToCart={canOrder ? addToCart : null}
+              removeFromCart={canOrder ? removeFromCart : null}
             />
           ))}
         </div>
       </div>
 
-      {cartCount > 0 && (
+      {canOrder && cartCount > 0 && (
         <div style={{ position: 'absolute', bottom: 80, left: 16, right: 16 }}>
           <div onClick={() => push('food/order')} data-tap style={{ background: G.green, borderRadius: 5, padding: '13px 18px', display: 'flex', alignItems: 'center', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.25)' }}>
             <span style={{ background: G.brass, color: '#1B3A2D', fontSize: 11, fontWeight: 700, fontFamily: '"Lora",serif', width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 12, flexShrink: 0 }}>{cartCount}</span>
@@ -232,19 +239,24 @@ function MenuSection({ setRef, label, items, accent = false, getQty, addToCart, 
                 <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, lineHeight: 1.5, margin: '0 0 6px' }}>{item.desc}</p>
                 <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 600, color: G.text }}>{item.price}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 2 }}>
-                {qty > 0 && (
-                  <>
-                    <div onClick={() => removeFromCart(item.id)} data-tap style={{ width: 28, height: 28, borderRadius: 3, border: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2.5"><path d="M5 12h14" /></svg>
-                    </div>
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 14, fontWeight: 600, color: G.text, minWidth: 16, textAlign: 'center' }}>{qty}</span>
-                  </>
-                )}
-                <div onClick={() => addToCart(item)} data-tap style={{ width: 28, height: 28, borderRadius: 3, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+              {/* v0.8.2: when addToCart is null (guest mode), hide the
+                  +/- cart controls entirely — the menu reads as a
+                  view-only catalog. Members get the full ordering UI. */}
+              {addToCart && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 2 }}>
+                  {qty > 0 && (
+                    <>
+                      <div onClick={() => removeFromCart(item.id)} data-tap style={{ width: 28, height: 28, borderRadius: 3, border: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2.5"><path d="M5 12h14" /></svg>
+                      </div>
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 14, fontWeight: 600, color: G.text, minWidth: 16, textAlign: 'center' }}>{qty}</span>
+                    </>
+                  )}
+                  <div onClick={() => addToCart(item)} data-tap style={{ width: 28, height: 28, borderRadius: 3, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         );

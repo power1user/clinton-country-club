@@ -12,6 +12,7 @@ import Avatar from '../components/Avatar.jsx';
 import { supabase } from '../lib/supabase.js';
 import { markThreadRead, hideThread } from '../hooks/useInbox.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const ORDER_STATUS_LABEL = {
   pending:          { label: 'New order',     state: 'limited' },
@@ -23,7 +24,7 @@ const ORDER_STATUS_LABEL = {
 
 export default function Thread({ params }) {
   const threadId = params?.threadId;
-  const { session, member, canMemberWrite } = useAuth();
+  const { session, member, canMemberWrite, isGuest } = useAuth();
   const profilePhotosOn = useFlag('profile_photos');
   const { pop } = useNav();
   const [thread, setThread] = useState(null);
@@ -289,6 +290,10 @@ export default function Thread({ params }) {
       )}
     </div>
   ) : null;
+
+  // v0.8.2: guests never see threads (DMs, clubhouse, order chats are
+  // all member surfaces). Placed after all hook calls per rules of hooks.
+  if (isGuest) return <FeatureOff label="Messages" body="Messaging is for club members only." />;
 
   return (
     // overflow: hidden on BOTH axes — iOS Safari sometimes nudges the

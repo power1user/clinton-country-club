@@ -13,7 +13,7 @@ import { PLATFORM_NAME, VERSION } from '../lib/version.js';
 export default function MyClub() {
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
-  const { member, isAdmin, signOut, club } = useAuth();
+  const { member, isAdmin, signOut, club, isGuest, guest } = useAuth();
   const brand = useBrand();
   const now = useNow();
   // Phase 7 flags — tile + My-Account-row filters below.
@@ -22,6 +22,22 @@ export default function MyClub() {
   const lockersOn   = useFlag('lockers');
   const cartsOn     = useFlag('cart_assignments');
   const parkingOn   = useFlag('parking_assignments');
+
+  // v0.8.2: guest-mode renderer. Replaces the action-tile grid + the
+  // My Account list with a slim "you're visiting as a guest" card.
+  // Header (clock + title) + Contact the Club + Sign out + footer
+  // remain. Bell and gear icons in the header also hide via their
+  // own components' isGuest checks.
+  const guestHelpers = isGuest && guest ? {
+    name: guest.name || 'Guest',
+    expiresLabel:
+      guest.expires_at
+        ? (() => {
+            const d = new Date(guest.expires_at);
+            return `Access until ${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+          })()
+        : 'Open-ended access',
+  } : null;
   // Map DB member shape to the design's prop names. Empty placeholders if
   // there's no member record yet (e.g. signed in but pending claim).
   const m = member ? {
@@ -108,26 +124,42 @@ export default function MyClub() {
       </div>
 
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ padding: '14px 16px' }}>
-          {/* v0.7.10: switched from strict 2-column grid to flex-wrap.
-              With v0.7.0 flag gating, the tile count is variable
-              (2-5 depending on which features the club has enabled).
-              Strict grid left an orphan tile floating left on row 3
-              when count was odd. flex-wrap + min-width: calc(50% -
-              gap/2) keeps the 2-up layout for even counts AND a
-              centered single tile when only one is on the last row.
-              gap math: 10px gap total between two columns means
-              each tile needs to allow for 5px share of that gap. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {actions.map(a => (
-              <div key={a.id} onClick={() => push(a.id)} data-tap style={{ flex: '1 1 calc(50% - 5px)', minWidth: 'calc(50% - 5px)', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '16px 14px', cursor: 'pointer', boxSizing: 'border-box' }}>
-                <svg width="20" height="20" viewBox="0 0 20 20" stroke={G.brass} fill="none" style={{ marginBottom: 10 }}>{a.icon}</svg>
-                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>{a.label}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0 }}>{a.sub}</p>
-              </div>
-            ))}
+        {/* v0.8.2: guests see a single status card instead of the
+            action tile grid. The grid links to member-only surfaces
+            (Membership Card, Pro Shop, Lessons) that they'd just hit
+            FeatureOff on. */}
+        {isGuest ? (
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ padding: '16px 18px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 6px', fontWeight: 700 }}>Guest at {club?.name || 'the club'}</p>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 17, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Welcome, {guestHelpers?.name?.split(' ')[0] || 'Guest'}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+                You're signed in with limited access. {guestHelpers?.expiresLabel || 'Access is open-ended.'}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ padding: '14px 16px' }}>
+            {/* v0.7.10: switched from strict 2-column grid to flex-wrap.
+                With v0.7.0 flag gating, the tile count is variable
+                (2-5 depending on which features the club has enabled).
+                Strict grid left an orphan tile floating left on row 3
+                when count was odd. flex-wrap + min-width: calc(50% -
+                gap/2) keeps the 2-up layout for even counts AND a
+                centered single tile when only one is on the last row.
+                gap math: 10px gap total between two columns means
+                each tile needs to allow for 5px share of that gap. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {actions.map(a => (
+                <div key={a.id} onClick={() => push(a.id)} data-tap style={{ flex: '1 1 calc(50% - 5px)', minWidth: 'calc(50% - 5px)', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '16px 14px', cursor: 'pointer', boxSizing: 'border-box' }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" stroke={G.brass} fill="none" style={{ marginBottom: 10 }}>{a.icon}</svg>
+                  <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>{a.label}</p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0 }}>{a.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* NotificationsToggle moved to Settings in v0.6.2 — the gear
             icon in the header is the entry point. InstallCard stays
@@ -177,6 +209,9 @@ export default function MyClub() {
           </div>
         )}
 
+        {/* v0.8.2: hide My Account block for guests (they don't have
+            a members row — these fields would all be em-dashes). */}
+        {!isGuest && (
         <div style={{ padding: '0 20px 8px' }}>
           <SectionHead label="My Account" />
           {[
@@ -192,6 +227,7 @@ export default function MyClub() {
             </div>
           ))}
         </div>
+        )}
 
         {isAdmin && (
           <div style={{ padding: '14px 20px 8px' }}>

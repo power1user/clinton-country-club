@@ -16,7 +16,12 @@
 import { G } from '../theme.js';
 import { BackHeader } from './Headers.jsx';
 
-export default function FeatureOff({ label = 'This feature' }) {
+// v0.8.2 — `body` prop overrides the default "your club hasn't enabled
+// this" copy. Used by guest-side gating to render "Members only — this
+// surface isn't available to guests." instead.
+export default function FeatureOff({ label = 'This feature', body }) {
+  const bodyText = body ||
+    "Your club hasn't enabled this feature. If you think it should be on, reach out to your manager.";
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
@@ -30,7 +35,7 @@ export default function FeatureOff({ label = 'This feature' }) {
           {label} isn't available
         </h2>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, lineHeight: 1.6, margin: 0, maxWidth: 300 }}>
-          Your club hasn't enabled this feature. If you think it should be on, reach out to your manager.
+          {bodyText}
         </p>
       </div>
     </div>

@@ -36,6 +36,7 @@ import AdminPanel from './screens/AdminPanel.jsx';
 import Settings from './screens/Settings.jsx';
 import TermsGate from './screens/TermsGate.jsx';
 import GuestRegister from './screens/GuestRegister.jsx';
+import GuestThankYou from './screens/GuestThankYou.jsx';
 
 const SCREENS = {
   home: Home,
@@ -91,9 +92,18 @@ function ScreenRenderer() {
   // BottomNav already hides the Food tab when off, so this just keeps
   // the gesture aligned with what the bottom nav shows.
   const foodOn = useFlag('food_ordering');
+  // v0.8.2: same idea for the guest-filtered Community tab. read_only
+  // guests don't see Community so swiping from Food goes straight to
+  // MyClub.
+  const { isGuest, guestAccessLevel } = useAuth();
+  const showCommunity = !isGuest || guestAccessLevel === 'full_temporary';
   const TAB_ORDER = useMemo(
-    () => ALL_TABS.filter(t => t !== 'food' || foodOn),
-    [foodOn]
+    () => ALL_TABS.filter(t => {
+      if (t === 'food'      && !foodOn)       return false;
+      if (t === 'community' && !showCommunity) return false;
+      return true;
+    }),
+    [foodOn, showCommunity]
   );
 
   const Comp = SCREENS[current.id];
@@ -230,7 +240,7 @@ function isOnGuestRegistrationRoute() {
 }
 
 function Gate() {
-  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance } = useAuth();
+  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel } = useAuth();
 
   // v0.8.1: guest registration page is public — no session required.
   // Shows the branded landing + form before any other gate logic fires.
@@ -278,6 +288,14 @@ function Gate() {
   // don't see terms before they're approved.)
   if (needsTermsAcceptance) {
     return <TermsGate />;
+  }
+
+  // v0.8.2: guests with `data_only` access don't enter the app at all
+  // — they see a polite "your visit has been recorded" terminal
+  // screen. Read-only and full-temporary guests fall through into
+  // the normal ScreenRenderer; their UI is restricted per-screen.
+  if (isGuest && guestAccessLevel === 'data_only') {
+    return <GuestThankYou />;
   }
 
   return (

@@ -10,13 +10,15 @@ import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useInbox, markNotificationRead, hideThread, hideNotification } from '../hooks/useInbox.js';
 import { isPushSupported, pushPermission, subscribeToPush } from '../lib/push.js';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const PUSH_DISMISSED_KEY = 'inbox.pushBannerDismissed';
 
 export default function Inbox() {
   const { push } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
-  const { session, member } = useAuth();
+  const { session, member, isGuest } = useAuth();
+  // (guest gate moved below all hook calls — rules of hooks)
   const { threads, notifications, loading } = useInbox();
   const [expanded, setExpanded] = useState({});      // notification id → bool
   const [pendingHide, setPendingHide] = useState(null);  // thread item awaiting confirm
@@ -88,6 +90,10 @@ export default function Inbox() {
   };
 
   const showPushBanner = isPushSupported() && pushState !== 'granted' && pushState !== 'denied' && !bannerDismissed;
+
+  // v0.8.2: Inbox is always hidden from guests. Placed after all
+  // hook calls (rules of hooks).
+  if (isGuest) return <FeatureOff label="Inbox" body="Messaging is for club members only." />;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

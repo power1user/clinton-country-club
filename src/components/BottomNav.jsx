@@ -1,21 +1,35 @@
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { useAuth } from '../hooks/useAuth.jsx';
 import NavIcon from './NavIcon.jsx';
 
 export default function BottomNav() {
   const { tab, goTab, cartCount } = useNav();
+  const { isGuest, guestAccessLevel } = useAuth();
   // Phase 7 — when food_ordering is off the whole Food tab disappears
   // from the bottom nav (the screen itself also returns FeatureOff if
   // a member somehow navigates to it directly). Home / Golf / Community
   // / MyClub are always visible because they each carry mixed content
   // that's gated per-tile inside.
   const foodOn = useFlag('food_ordering');
+
+  // v0.8.2: guests see a smaller tab set based on access level.
+  //   data_only: never reaches here — see App.jsx Gate redirect.
+  //   read_only: Home, Golf, Food, MyClub (Community has no readable
+  //     content at this level — calendar is full_temp only, bulletin
+  //     and directory are always hidden).
+  //   full_temporary: above + Community (calendar visible).
+  // Food tab stays visible to guests because the MENU is allowed
+  // (per the spec); the cart/order CTAs hide inside the screen at
+  // v0.8.5.
+  const showCommunity = !isGuest || guestAccessLevel === 'full_temporary';
+
   const tabs = [
     { id: 'home',      l: 'Home' },
     { id: 'golf',      l: 'Golf' },
     foodOn && { id: 'food', l: 'Food & Drink' },
-    { id: 'community', l: 'Community' },
+    showCommunity && { id: 'community', l: 'Community' },
     { id: 'myclub',    l: 'My Club' },
   ].filter(Boolean);
   return (

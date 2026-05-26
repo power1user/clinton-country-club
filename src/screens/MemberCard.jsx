@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { QRCodeSVG } from 'qrcode.react';
+import FeatureOff from '../components/FeatureOff.jsx';
 
 const STATE_NAMES = {
   AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
@@ -22,8 +23,12 @@ const STATE_NAMES = {
 
 export default function MemberCard() {
   const [showQR, setShowQR] = useState(false);
-  const { member, club } = useAuth();
+  const { member, club, isGuest } = useAuth();
   const profilePhotosOn = useFlag('profile_photos');
+  // v0.8.2: guests don't have a membership card. Defense in depth —
+  // the My Club tab also routes them to a guest-mode view rather than
+  // the action grid that links here.
+  if (isGuest) return <FeatureOff label="Membership Card" body="Membership cards are for club members. You're signed in as a guest." />;
   const m = member ? {
     name: member.name,
     number: member.membership_number,
