@@ -2158,13 +2158,42 @@ function GuestSettingsCard({ club }) {
         <SettingRow
           label="Require PWA install"
           hint="When on, the registration page prompts the guest to install the PWA before they can submit. Off keeps it browser-friendly."
-          last
         >
           <Toggle
             checked={!!club.guest_pwa_required}
             disabled={saving === 'pwa'}
             onChange={v => save({ guest_pwa_required: v }, 'pwa')}
             ariaLabel="Require PWA install"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Clubhouse QR visit type"
+          hint="What visit_type the clubhouse QR records by default. Change to tournament_guest for a tournament-only QR, event_guest for a specific event, etc. Affects how the guest shows up in your reporting."
+        >
+          <select
+            value={club.clubhouse_qr_visit_type || 'public_play'}
+            disabled={saving === 'cqv'}
+            onChange={e => save({ clubhouse_qr_visit_type: e.target.value }, 'cqv')}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+          >
+            <option value="public_play">Public play</option>
+            <option value="tournament_guest">Tournament guest</option>
+            <option value="event_guest">Event guest</option>
+            <option value="member_guest">Member guest</option>
+          </select>
+        </SettingRow>
+
+        <SettingRow
+          label="Allow guests to order food"
+          hint="When on, guests in read_only or full_temporary mode see the same cart + place-order CTAs in the Food tab that members do. Default off — most clubs keep food ordering members-only."
+          last
+        >
+          <Toggle
+            checked={!!club.guests_can_order_food}
+            disabled={saving === 'food'}
+            onChange={v => save({ guests_can_order_food: v }, 'food')}
+            ariaLabel="Allow guests to order food"
           />
         </SettingRow>
       </div>
@@ -2306,6 +2335,10 @@ function GuestList({ club }) {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  // v0.8.8: filter by referring member. 'all' shows everything, 'none'
+  // shows only public_play / clubhouse registrations (no referring
+  // member), or a specific member_id shows only their invited guests.
+  const [refFilter, setRefFilter] = useState('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [expanded, setExpanded] = useState(null);
@@ -2340,6 +2373,8 @@ function GuestList({ club }) {
     if (typeFilter !== 'all' && r.visit_type !== typeFilter) return false;
     if (from && r.visit_date < from) return false;
     if (to && r.visit_date > to) return false;
+    if (refFilter === 'none' && r.referring_member_id) return false;
+    if (refFilter !== 'all' && refFilter !== 'none' && r.referring_member_id !== refFilter) return false;
     if (q) {
       const needle = q.toLowerCase();
       if (
@@ -2350,14 +2385,41 @@ function GuestList({ club }) {
     return true;
   });
 
+  // v0.8.8: build the referring-member dropdown options from members
+  // who actually have brought a guest. No point listing every member
+  // — that'd be a 200-item dropdown for clubs with active rosters.
+  const referringMembers = (() => {
+    const seen = new Map();
+    for (const r of rows) {
+      if (r.referring_member_id && r.members?.name) {
+        seen.set(r.referring_member_id, r.members.name);
+      }
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]));
+  })();
+
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  const downloadCsv = (filename, lines) => {
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+  };
+
+  // Summary CSV — one row per guest, with their most-recent visit info.
   const exportCsv = () => {
     const headers = ['name', 'email', 'phone', 'zip', 'visit_type', 'visit_date', 'access_level', 'status', 'expires_at', 'referring_member', 'created_at'];
-    const escape = (v) => {
-      if (v == null) return '';
-      const s = String(v);
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
-      return s;
-    };
     const lines = [headers.join(',')];
     for (const r of filtered) {
       lines.push([
@@ -2368,14 +2430,59 @@ function GuestList({ club }) {
         escape(r.created_at),
       ].join(','));
     }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${club.slug}-guests-${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    downloadCsv(`${club.slug}-guests-${new Date().toISOString().slice(0,10)}.csv`, lines);
+  };
+
+  // v0.8.8: Visit history CSV — one row per visit (joins guest_visits
+  // with guests for the contact fields). Lets a manager see how often
+  // each guest has been to the club + with which member, on a single
+  // export. Pulls fresh from the DB at click time so it's always
+  // current; respects the same filters (visit_type + date range +
+  // referring_member) that the guest list shows.
+  const exportVisitHistoryCsv = async () => {
+    // Build the query against guest_visits with joined guest info.
+    let query = supabase
+      .from('guest_visits')
+      .select('id, visit_date, visit_type, access_level, check_in_method, referring_member_id, created_at, guests(name, email, phone, zip), members:referring_member_id(name)')
+      .eq('club_id', club.id)
+      .order('visit_date', { ascending: false })
+      .limit(2000);
+    if (typeFilter !== 'all') query = query.eq('visit_type', typeFilter);
+    if (from) query = query.gte('visit_date', from);
+    if (to)   query = query.lte('visit_date', to);
+    if (refFilter === 'none') query = query.is('referring_member_id', null);
+    else if (refFilter !== 'all') query = query.eq('referring_member_id', refFilter);
+
+    const { data, error } = await query;
+    if (error || !data) {
+      alert(`Could not export visit history: ${error?.message || 'unknown error'}`);
+      return;
+    }
+    // Optional name/email q-string filter applied client-side because
+    // we'd need a join-side filter for that and it complicates the
+    // query syntax. Server pulled with the structural filters; we
+    // refine here.
+    const matched = q
+      ? data.filter(r => {
+          const needle = q.toLowerCase();
+          return (
+            (r.guests?.name  || '').toLowerCase().includes(needle) ||
+            (r.guests?.email || '').toLowerCase().includes(needle)
+          );
+        })
+      : data;
+    const headers = ['guest_name', 'guest_email', 'guest_phone', 'guest_zip', 'visit_date', 'visit_type', 'access_level', 'check_in_method', 'referring_member', 'visit_recorded_at'];
+    const lines = [headers.join(',')];
+    for (const r of matched) {
+      lines.push([
+        escape(r.guests?.name), escape(r.guests?.email), escape(r.guests?.phone), escape(r.guests?.zip),
+        escape(r.visit_date), escape(r.visit_type), escape(r.access_level),
+        escape(r.check_in_method),
+        escape(r.members?.name || ''),
+        escape(r.created_at),
+      ].join(','));
+    }
+    downloadCsv(`${club.slug}-visits-${new Date().toISOString().slice(0,10)}.csv`, lines);
   };
 
   return (
@@ -2397,10 +2504,27 @@ function GuestList({ club }) {
             <option value="tournament_guest">Tournament guests</option>
             <option value="event_guest">Event guests</option>
           </select>
+          {/* v0.8.8: filter by referring member. Options are derived
+              from members who've actually brought guests (no point
+              listing every member). */}
+          <select value={refFilter} onChange={e => setRefFilter(e.target.value)} style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}>
+            <option value="all">All referrers</option>
+            <option value="none">No referring member (clubhouse / public)</option>
+            {referringMembers.map(([id, nm]) => (
+              <option key={id} value={id}>Guest of {nm}</option>
+            ))}
+          </select>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
           <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
           <div onClick={exportCsv} data-tap style={{ padding: '6px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
+          </div>
+          {/* v0.8.8: separate "Visit history" export — one row per
+              visit so repeat-guest patterns are visible. Hits the DB
+              fresh on click so it doesn't get capped at the 500-row
+              guest list limit. */}
+          <div onClick={exportVisitHistoryCsv} data-tap style={{ padding: '6px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 500 }}>Export visit history</span>
           </div>
         </div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>

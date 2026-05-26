@@ -28,15 +28,14 @@ export default function FoodMenu() {
   const { push, addToCart, removeFromCart, cart, cartCount, cartTotal } = useNav();
   const [scrollRef, onScroll] = useScrollRestore();
   const { data: menu, loading } = useMenu();
-  const { isGuest } = useAuth();
+  const { isGuest, club } = useAuth();
   const brand = useBrand();
   const now = useNow();
   const getQty = (id) => cart.find(i => i.id === id)?.qty || 0;
-  // v0.8.2: guests see the menu but can't order. Hides the floating
-  // View Order CTA + the per-item add-to-cart controls. Effective
-  // cartCount stays 0 for guests since the cart is in-memory and they
-  // never add anything; explicit gate here is belt+suspenders.
-  const canOrder = !isGuest;
+  // v0.8.2: guests see the menu but can't order by default.
+  // v0.8.8: per-club opt-in — when clubs.guests_can_order_food is on,
+  // guests get the same cart + place-order CTAs members do.
+  const canOrder = !isGuest || !!club?.guests_can_order_food;
 
   // Section refs keyed by category id (or SPECIALS_KEY). Used by the
   // chip bar's scrollIntoView so taps jump to the right section.

@@ -25,6 +25,74 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.8** — Phase 8 gap closeout. The five items the v0.8.5
+  spec-coverage audit flagged as partial, all shipped together.
+
+  **Migration 47** adds two `clubs` columns:
+    · `clubhouse_qr_visit_type` (enum guest_visit_type, default
+      `public_play`) — what visit_type the clubhouse QR records.
+      Change to `tournament_guest` for a tournament-only QR,
+      `event_guest` for a specific event, etc.
+    · `guests_can_order_food` (bool, default false) — per-club
+      opt-in to let guests use the food ordering CTAs. Default
+      off — most clubs keep food members-only.
+
+  **1. PWA install gate on the registration form.** When
+  `clubs.guest_pwa_required` is on AND the page isn't running as
+  a standalone PWA, GuestRegister.jsx now renders an install panel
+  above the form with a brass border + "Install the {Club} app
+  first" headline. iOS Safari gets explicit Share → Add to Home
+  Screen instructions; Android Chrome / Edge get the native
+  install button via `usePWAInstall().install()`. The submit
+  button stays disabled with the label "Install the app to
+  continue" until `isStandalone` flips true (which happens after
+  the guest installs and reopens at `/guest/<slug>` via the new
+  home-screen icon). Browsers that support neither install path
+  show a quiet "ask club staff to register you in person" fallback
+  rather than a dead end.
+
+  **2. Filter by referring member** in the admin Guest List. New
+  dropdown alongside the visit-type + date filters: "All
+  referrers" / "No referring member (clubhouse / public)" / one
+  entry per member who's actually brought a guest. Options are
+  derived from the loaded data so the dropdown stays useful
+  (not a 200-item roster). Filter applies to both the visible
+  list AND both CSV exports.
+
+  **3. Export Visit History CSV.** New "Export visit history"
+  button alongside the existing "Export CSV". Hits
+  `guest_visits` directly via Supabase, returns one row per
+  visit (joins the guest contact info onto each row), respects
+  all current filters (visit_type + date range + referring
+  member + name/email search). Output: `<slug>-visits-<date>.csv`
+  with columns `guest_name`, `guest_email`, `guest_phone`,
+  `guest_zip`, `visit_date`, `visit_type`, `access_level`,
+  `check_in_method`, `referring_member`, `visit_recorded_at`.
+  Useful for "how many times has guest X been here?" + "how
+  many guests has member Y brought this season?" reporting.
+
+  **4. Configurable clubhouse-QR visit_type.** Admin → People →
+  Guest Management → Settings gains a "Clubhouse QR visit type"
+  dropdown next to the existing settings. Saves immediately on
+  change. `guest-register` Edge Function v4 honors
+  `club.clubhouse_qr_visit_type` for any registration submitted
+  with a valid clubhouse_token — replaces the v0.8.4 hardcoded
+  `public_play`. Explicit `body.visit_type` on the request still
+  wins (lets a future tournament-specific QR override per-URL).
+
+  **5. Per-club guests-can-order-food opt-in.** Admin → People →
+  Guest Management → Settings gains an "Allow guests to order
+  food" toggle (defaults off). FoodMenu.jsx's `canOrder`
+  computation becomes `!isGuest || club.guests_can_order_food`,
+  meaning a club that flips the toggle ON gets the same cart
+  pill, View Order CTA, and per-item +/- buttons surfaced to
+  guests that members see. Cart state itself was already in
+  scope for guests (in-memory in NavProvider) so no other
+  wiring needed — just unlocking the UI.
+
+  **What's NOT in this commit:** N/A. All five flagged gaps
+  shipped. Spec coverage for Phase 8 is now complete.
+
 - **v0.8.7** — Splash min-duration + install-prompt icons match
   what lands on the home screen.
 

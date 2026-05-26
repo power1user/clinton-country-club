@@ -41,6 +41,7 @@ import { useState } from 'react';
 import { G } from '../theme.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { usePWAInstall } from '../hooks/usePWAInstall.js';
 import { supabase, CLUB_SLUG } from '../lib/supabase.js';
 import { PLATFORM_NAME } from '../lib/version.js';
 
@@ -59,6 +60,13 @@ export default function GuestRegister() {
   const { club } = useAuth();
   const brand = useBrand();
   const { ref, clubhouseToken, via } = readQuery();
+  // v0.8.8: PWA install gate. When clubs.guest_pwa_required is true,
+  // we render an "install the app first" panel above the form and
+  // disable submit until the page is running standalone. Once the
+  // guest installs and opens the installed PWA at /guest/<slug>,
+  // isStandalone flips true and the form unlocks.
+  const { canInstall, install, isStandalone, isIOSSafari } = usePWAInstall();
+  const [pwaBusy, setPwaBusy] = useState(false);
 
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
@@ -77,12 +85,27 @@ export default function GuestRegister() {
   const showPhone      = phoneSetting !== 'off';
   const phoneRequired  = phoneSetting === 'required';
 
+  // v0.8.8: PWA install requirement. When the club has flipped it on,
+  // the form is locked until the registration page is running as a
+  // standalone PWA (i.e. the guest has installed and re-opened from
+  // their home screen). When the club hasn't required PWA, this is
+  // always true and the form behaves like before.
+  const pwaRequired       = !!club?.guest_pwa_required;
+  const pwaRequirementMet = !pwaRequired || isStandalone;
+
   const formValid =
+    pwaRequirementMet &&
     name.trim().length >= 2 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     zip.trim().length >= 5 &&
     accept &&
     (!phoneRequired || phone.trim().length >= 5);
+
+  const handleInstall = async () => {
+    if (pwaBusy) return;
+    setPwaBusy(true);
+    try { await install(); } finally { setPwaBusy(false); }
+  };
 
   const submit = async () => {
     if (!formValid || busy) return;
@@ -184,6 +207,38 @@ export default function GuestRegister() {
               : <>Welcome to {club.name}! Check in below and we'll email you a one-tap access link.</>}
           </p>
 
+          {/* v0.8.8: PWA install gate. Renders when the club requires
+              install + the page isn't already running standalone.
+              iOS gets explicit instructions; Android Chrome / Edge get
+              the native install prompt. The form below renders but is
+              locked (formValid stays false until isStandalone flips). */}
+          {pwaRequired && !isStandalone && (
+            <div style={{ background: G.card, border: `1.5px solid ${G.brass}`, borderRadius: 6, padding: '14px 16px', marginBottom: 18 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Install the {club.name} app first</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+                {club.name} requires guests to use the installed app rather than the mobile browser. It only takes a few seconds and you'll skip the install step on future visits.
+              </p>
+              {isIOSSafari ? (
+                <ol style={{ margin: 0, paddingLeft: 20, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.6 }}>
+                  <li>Tap the <strong>Share</strong> icon in Safari's bottom bar.</li>
+                  <li>Scroll down → <strong>Add to Home Screen</strong>.</li>
+                  <li>Tap <strong>Add</strong> in the top corner.</li>
+                  <li>Open the new app icon and you'll come right back here.</li>
+                </ol>
+              ) : canInstall ? (
+                <div onClick={handleInstall} data-tap style={{ display: 'inline-block', padding: '10px 18px', background: G.green, borderRadius: 3, cursor: pwaBusy ? 'wait' : 'pointer' }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>
+                    {pwaBusy ? 'Installing…' : 'Install the app'}
+                  </span>
+                </div>
+              ) : (
+                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: 0 }}>
+                  Your browser doesn't support installing as an app. Try Chrome, Edge, or Safari on iPhone to register as a guest. Or ask club staff to register you in person.
+                </p>
+              )}
+            </div>
+          )}
+
           <Field label="Full name" required>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="First Last" style={inputStyle} autoComplete="name" />
           </Field>
@@ -229,7 +284,9 @@ export default function GuestRegister() {
             }}
           >
             <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: formValid && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-              {busy ? 'Sending…' : 'Send Access Link'}
+              {busy ? 'Sending…' :
+                (pwaRequired && !isStandalone) ? 'Install the app to continue' :
+                'Send Access Link'}
             </span>
           </div>
 
