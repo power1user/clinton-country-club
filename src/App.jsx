@@ -254,13 +254,28 @@ function Gate() {
     // First-open splash with parent-brand attribution. Briefly visible
     // before the club row resolves; if that goes well users won't even
     // notice it.
+    // v0.8.6: replace the text-only treatment with the real Grounds
+    // branding. We use the icon (grounds-icon.png) standalone rather
+    // than the full lockup because the lockup's wordmark + tagline
+    // are dark green and would disappear against the dark green
+    // splash background. Wordmark is rendered as white Playfair to
+    // stay readable; the brass-toned tagline beneath matches the
+    // accent color the icon itself uses for the flag + sun.
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: G.green, padding: 32 }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 11, color: '#A8D8B8', letterSpacing: '0.3em', textTransform: 'uppercase', margin: 0 }}>{PLATFORM_NAME}</p>
-        <h1 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 28, fontWeight: 700, color: '#F2EDE0', margin: '8px 0 6px', textAlign: 'center', lineHeight: 1.2 }}>
-          {PLATFORM_TAGLINE}
+        <img
+          src="/grounds-icon.png"
+          alt={`${PLATFORM_NAME} logo`}
+          style={{ width: 96, height: 96, marginBottom: 18, borderRadius: 18, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
+        />
+        <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 32, fontWeight: 700, color: '#F2EDE0', margin: '0 0 4px', letterSpacing: '0.04em', textAlign: 'center' }}>
+          The Grounds
         </h1>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: '#A8D8B8', margin: 0 }}>Loading your club…</p>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#C4A040', letterSpacing: '0.22em', textTransform: 'uppercase', margin: '0 0 18px', fontWeight: 600 }}>
+          Member Experience Platform
+        </p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: '#A8D8B8', margin: 0 }}>{PLATFORM_TAGLINE}</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: '#A8D8B8', margin: '14px 0 0', opacity: 0.7 }}>Loading your club…</p>
       </div>
     );
   }

@@ -233,8 +233,10 @@ export default function GuestRegister() {
             </span>
           </div>
 
-          {/* Footer attribution — same treatment as the Login splash */}
-          <div style={{ marginTop: 28, textAlign: 'center' }}>
+          {/* Footer attribution — same treatment as the MyClub footer.
+              v0.8.6: small Grounds mark inline with the text. */}
+          <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <img src="/grounds-mark.png" alt="" style={{ width: 16, height: 16, opacity: 0.85 }} />
             <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
               Powered by {PLATFORM_NAME}
             </p>

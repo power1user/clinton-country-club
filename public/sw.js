@@ -11,8 +11,11 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'New message';
   const options = {
     body: payload.body || '',
-    icon: payload.icon || '/favicon.svg',
-    badge: payload.badge || '/favicon.svg',
+    // v0.8.6: use the branded Grounds icon for push notifications
+    // instead of the generic favicon.svg placeholder. Per-club custom
+    // icons could later override via payload.icon at send time.
+    icon: payload.icon || '/grounds-icon.png',
+    badge: payload.badge || '/grounds-icon.png',
     data: payload.data || {},
     tag: payload.data?.threadId || undefined,   // dedupe pushes for the same thread
     renotify: true,

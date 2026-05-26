@@ -25,6 +25,85 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.6** — Platform branding rollout. Replaces the generic
+  `icon.svg` / `favicon.svg` placeholders with the real Grounds brand
+  assets across every surface where the platform identity should
+  appear. Inside club-facing screens (Home, Golf, Community, MyClub
+  body, etc.) the club's own logo + colors continue to own the
+  visible surface — the white-label promise is unchanged.
+
+  **New files in `public/`** (copied from
+  `Course photos and assets/`):
+    · `grounds-icon.png` — Logo C, the square app icon (dark green
+      tile, white G, hill, flag, sun). Used as the favicon,
+      apple-touch-icon, PWA manifest icons, AND push notification
+      icon. Source resolution is high enough (1024+ square) that
+      one file serves every requested size.
+    · `grounds-lockup.png` — Logo B, the full "THE GROUNDS · MEMBER
+      EXPERIENCE PLATFORM" lockup. Not used in v0.8.6 itself (the
+      splash uses Logo C instead — see below) but staged in
+      `public/` for future marketing surfaces and email templates.
+    · `grounds-mark.png` — Logo A, the standalone G-mark on
+      transparent background. Used in the "Powered by The Grounds"
+      footer attribution next to the text.
+
+  **Wired-in surfaces:**
+
+    1. **`index.html`** — `<link rel="icon">` and
+       `<link rel="apple-touch-icon">` now point at
+       `/grounds-icon.png` (PNG, not SVG). The 180x180 hint on
+       apple-touch-icon improves iOS home-screen rendering.
+
+    2. **`public/manifest.webmanifest`** — three `icons` entries
+       (192x192, 512x512 any, 512x512 maskable) all sourcing from
+       `/grounds-icon.png`. Android PWA install + Chrome Add-To-
+       Home-Screen + Microsoft Edge app install all pick this up.
+
+    3. **`public/sw.js`** — push notification `icon` + `badge`
+       defaults swapped from `/favicon.svg` to `/grounds-icon.png`.
+       Notification senders can still override per-payload via
+       `payload.icon` if a club-specific icon is wanted later.
+
+    4. **Loading splash in `App.jsx` Gate** — replaced the text-only
+       treatment with the 96x96 Grounds icon (with 18px rounded
+       corners + drop shadow) above the wordmark rendered as 32px
+       white Playfair "The Grounds", with the brass-toned "Member
+       Experience Platform" mini-tagline below in uppercase tracking
+       to match the lockup. Keeps the existing `PLATFORM_TAGLINE`
+       below as the colloquial pitch and "Loading your club…" as
+       the wait state caption.
+       Why Logo C standalone instead of the lockup PNG: the
+       lockup's wordmark is dark green and would disappear against
+       the dark green splash background. Standalone icon + white
+       text gives the same brand presence with proper contrast.
+
+    5. **`MyClub`, `GuestRegister`, `GuestThankYou` footers** —
+       small (16x16) Grounds mark inline to the left of the
+       "Powered by The Grounds" text. Same treatment across all
+       three surfaces (one shared pattern, intentionally kept inline
+       rather than abstracted into a component since it's three
+       very small instances).
+
+  **Where we did NOT add branding** (deliberately):
+    · Member-facing screens above the footer — club's brand owns
+      the visible content area, per the white-label promise.
+    · Per-subdomain manifest customization — out of scope; option
+      to ship custom club PWA icons as a Pro-tier add-on is on the
+      roadmap for whenever a club asks.
+    · Marketing apex page — not built yet.
+    · Email templates — Supabase-side, outside this codebase.
+
+  **Migration / cleanup notes:**
+    · `public/favicon.svg` and `public/icon.svg` are no longer
+      referenced anywhere in the build, but kept in `public/` so
+      stale service workers cached on members' devices don't 404
+      during the transition window. Safe to delete in a future
+      cleanup pass once devices have rotated SWs (give it a month).
+    · `PLATFORM_TAGLINE` in `lib/version.js` left at
+      "Country-club apps, white-labeled." — this is the colloquial
+      pitch line. The logo's formal "Member Experience Platform"
+      positioning is rendered as its own splash subtitle.
+
 - **v0.8.5** — RLS finalization + within-screen scoping. Closes out
   Phase 8. The spec's allow/deny matrix is now enforced at both the
   database layer (via RLS) and the UI layer (via per-screen + per-

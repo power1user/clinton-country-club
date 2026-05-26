@@ -66,7 +66,9 @@ export default function GuestThankYou() {
           <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign out</span>
         </div>
 
-        <div style={{ marginTop: 28 }}>
+        {/* v0.8.6: Grounds mark inline with the attribution text */}
+        <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <img src="/grounds-mark.png" alt="" style={{ width: 16, height: 16, opacity: 0.85 }} />
           <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
             Powered by {PLATFORM_NAME}
           </p>

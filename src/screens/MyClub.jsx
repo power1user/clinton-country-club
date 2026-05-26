@@ -250,11 +250,16 @@ export default function MyClub() {
           </div>
         </div>
 
-        {/* About — parent-brand attribution + version */}
+        {/* About — parent-brand attribution + version.
+            v0.8.6: small Grounds mark added to the left of the text.
+            Quiet, in line with the existing typographic treatment. */}
         <div style={{ padding: '4px 20px 28px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 3px' }}>
-            Powered by {PLATFORM_NAME}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 3 }}>
+            <img src="/grounds-mark.png" alt="" style={{ width: 16, height: 16, opacity: 0.85 }} />
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
+              Powered by {PLATFORM_NAME}
+            </p>
+          </div>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0, opacity: 0.7 }}>
             v{VERSION}
           </p>
