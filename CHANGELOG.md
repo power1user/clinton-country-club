@@ -25,6 +25,33 @@ first, then registration form, then auth + access modes, then member
 QR, then clubhouse QR + admin management, then RLS audit + final
 scoping pass. Each ship reviewable before the next.
 
+- **v0.8.7** — Splash min-duration + install-prompt icons match
+  what lands on the home screen.
+
+  **Splash min-duration.** The v0.8.6 branded loading splash was
+  swapped in but a hot connection resolves the club row in 100-
+  300ms, so the splash flashed too fast to register. Added a
+  `SPLASH_MIN_MS = 1500` floor in `App.jsx` Gate: a timer starts on
+  mount and the splash stays up until BOTH `loading` is false AND
+  the timer has elapsed. Slow connections still wait on the club
+  fetch as before — the timer is a floor, not extra latency.
+
+  **InstallCard + InstallEntry icons.** Both the banner variant
+  (Login post-signup) and the card variant (MyClub) of `InstallCard`,
+  plus the iOS-instructions branch and the Android-prompt branch of
+  `InstallEntry` (Settings → App), were rendering a generic phone
+  SVG inside a green tile. Swapped all four spots for
+  `/grounds-icon.png` at the same dimensions so the in-app install
+  prompt previews exactly what will land on the home screen.
+
+  **One thing this doesn't fix:** already-installed PWAs continue
+  showing whatever icon was current when the member installed.
+  iOS, Android, and Windows all snapshot the manifest icon at
+  install time and don't refresh from manifest changes. Members on
+  an already-installed PWA have to uninstall + reinstall to see the
+  Grounds icon on their home screen. Fresh installs land on the
+  new icon directly.
+
 - **v0.8.6** — Platform branding rollout. Replaces the generic
   `icon.svg` / `favicon.svg` placeholders with the real Grounds brand
   assets across every surface where the platform identity should

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { useFlag } from './hooks/useFlag.js';
@@ -6,6 +6,13 @@ import BottomNav from './components/BottomNav.jsx';
 import { G } from './theme.js';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from './lib/version.js';
 import { registerServiceWorker, isPushSupported } from './lib/push.js';
+
+// v0.8.7: minimum time the loading splash stays on screen, even if
+// the club row resolves faster. Without this floor a hot connection
+// flashes the splash for 100-300ms and members never see the brand.
+// 1500ms is long enough to register the icon + wordmark + tagline,
+// short enough that it doesn't feel like a slow app.
+const SPLASH_MIN_MS = 1500;
 
 import Login from './screens/Login.jsx';
 import Home from './screens/Home.jsx';
@@ -244,13 +251,25 @@ function isOnGuestRegistrationRoute() {
 function Gate() {
   const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel } = useAuth();
 
+  // v0.8.7: minimum-duration splash. Tracks whether at least
+  // SPLASH_MIN_MS has elapsed since mount; until that's true AND
+  // `loading` has gone false, we keep showing the splash. The timer
+  // starts on first render of Gate (which is also when AuthProvider
+  // starts its club fetch), so this isn't extra latency on top of a
+  // slow fetch — it's a floor under a fast fetch.
+  const [splashTimerDone, setSplashTimerDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSplashTimerDone(true), SPLASH_MIN_MS);
+    return () => clearTimeout(t);
+  }, []);
+
   // v0.8.1: guest registration page is public — no session required.
   // Shows the branded landing + form before any other gate logic fires.
   if (isOnGuestRegistrationRoute()) {
     return <GuestRegister />;
   }
 
-  if (loading) {
+  if (loading || !splashTimerDone) {
     // First-open splash with parent-brand attribution. Briefly visible
     // before the club row resolves; if that goes well users won't even
     // notice it.

@@ -40,12 +40,9 @@ export default function InstallEntry() {
     return (
       <div style={{ padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="5" y="2" width="14" height="20" rx="2" />
-              <line x1="12" y1="18" x2="12" y2="18" />
-            </svg>
-          </div>
+          {/* v0.8.7: real Grounds app icon so the install prompt
+              previews exactly what lands on the home screen. */}
+          <img src="/grounds-icon.png" alt={`${PLATFORM_NAME} app icon`} style={{ width: 40, height: 40, borderRadius: 6, flexShrink: 0, objectFit: 'cover' }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>Add to Home Screen</p>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.45 }}>
