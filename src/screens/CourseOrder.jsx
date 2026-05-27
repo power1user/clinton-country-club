@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { G } from '../theme.js';
-import { useNav } from '../hooks/useNav.jsx';
+import { useNav, priceToNumber } from '../hooks/useNav.jsx';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -64,7 +64,7 @@ export default function CourseOrder() {
             <div key={item.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 600, color: G.text, margin: '0 0 2px' }}>{item.name}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0 }}>{item.price} each</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0 }}>{item.price || 'Ask staff for price'} each</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div onClick={() => removeFromCart(item.id)} data-tap style={{ width: 26, height: 26, borderRadius: 3, border: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -75,7 +75,7 @@ export default function CourseOrder() {
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
                 </div>
               </div>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 600, color: G.text, minWidth: 44, textAlign: 'right' }}>${(item.qty * parseFloat(item.price.replace('$', ''))).toFixed(2)}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 600, color: G.text, minWidth: 44, textAlign: 'right' }}>${(item.qty * priceToNumber(item.price)).toFixed(2)}</span>
             </div>
           ))}
           {cart.length > 0 && (

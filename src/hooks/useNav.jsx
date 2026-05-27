@@ -18,6 +18,18 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 const NavCtx = createContext(null);
 
 const TABS = ['home', 'golf', 'food', 'community', 'myclub'];
+
+// v0.9.8: Safe price-to-number coercion. menus.price is nullable text;
+// admins also enter free-form values like "Market" or "Half $15 / Full
+// $25". Anything that doesn't parse cleanly becomes 0 so cart math
+// can't crash the renderer. Exported so CourseOrder can use the same
+// rules to display row totals.
+export function priceToNumber(p) {
+  if (p == null) return 0;
+  const cleaned = String(p).replace(/[^0-9.\-]/g, '');
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
 const ROOT_KEY = (tab) => `tab:${tab}`;
 
 export function NavProvider({ children }) {
@@ -139,7 +151,13 @@ export function NavProvider({ children }) {
   });
   const clearCart = () => setCart([]);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
-  const cartTotal = cart.reduce((s, i) => s + i.qty * parseFloat(i.price.replace('$', '')), 0).toFixed(2);
+  // v0.9.8: defensive coercion. menus.price is nullable text and the
+  // admin allows "Market"-style free-form strings. The old direct
+  // `.replace('$','')` threw TypeError on null/undefined → React
+  // unmounted the whole tree → black screen the moment a null-priced
+  // item (e.g. any dessert) hit the cart. priceToNumber() returns 0
+  // for any unparseable price so the cart math survives.
+  const cartTotal = cart.reduce((s, i) => s + i.qty * priceToNumber(i.price), 0).toFixed(2);
 
   return (
     <NavCtx.Provider value={{

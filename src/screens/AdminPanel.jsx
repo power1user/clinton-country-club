@@ -3,7 +3,8 @@ import { G, gCfg } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
-import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
+import { useClubStatus, usePaceOfPlay, usePinPlacements, effectiveState, useDusk, useDawn } from '../hooks/useClubData.jsx';
+import { DEFAULT_TIMEZONE } from '../lib/timezone.js';
 import { useCommsUnread } from '../lib/commsUnread.js';
 import { GreenWithPin } from './PinMap.jsx';
 import {
@@ -638,13 +639,34 @@ function IconCog({ color = '#fff' }) {
   );
 }
 
+// v0.9.8: re-render every 60 seconds so time-driven open/closed
+// transitions (dawn, dusk, scheduled open/close) update without a
+// manual refresh. Mirrors the pattern member-facing StatusPill uses.
+function useMinuteTick() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+}
+
 // ─── Daily Status quick-access (admin home banner) ─────────────────────────
 // v0.9.2: prominent at-a-glance card on the admin home for users with
 // can_edit_course_status. Shows current state per facility + 1-tap into
 // the Daily Status form (the morning opener's most-frequent action).
+// v0.9.8: uses effectiveState() + 60s tick so banner auto-flips when
+// hours cross dawn/dusk/scheduled time. Previously displayed the raw
+// DB state field, which stays "open" overnight even after dusk closes
+// the facility.
 function DailyStatusQuickAccess({ onOpen }) {
   const { data: pills, loading } = useClubStatus();
+  const { club } = useAuth();
+  const dusk = useDusk();
+  const dawn = useDawn();
+  useMinuteTick();
   if (loading || !pills?.length) return null;
+  const tz = club?.timezone || DEFAULT_TIMEZONE;
+  const sun = { dusk, dawn };
   return (
     <div onClick={onOpen} data-tap style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, marginBottom: 14, cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -654,10 +676,11 @@ function DailyStatusQuickAccess({ onOpen }) {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {pills.map(p => {
-          const cfg = gCfg(p.st);
+          const effSt = effectiveState(p, new Date(), sun, tz);
+          const cfg = gCfg(effSt);
           return (
             <div key={p.id} style={{ padding: '4px 8px', background: cfg.bg, borderRadius: 3 }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#F2EDE0', textTransform: 'capitalize' }}>{p.label}: {p.st}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#F2EDE0', textTransform: 'capitalize' }}>{p.label}: {effSt}</span>
             </div>
           );
         })}
@@ -674,10 +697,15 @@ function DailyStatusQuickAccess({ onOpen }) {
 // have to wade through schedule setup.
 function DailyStatusAdmin({ club }) {
   const { data: pills, loading } = useClubStatus();
+  const dusk = useDusk();
+  const dawn = useDawn();
+  useMinuteTick();                              // v0.9.8: live update at dawn/dusk
   const [draft, setDraft] = useState({});       // { category: { state, staff_note } }
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const dirty = useRef(false);
+  const tz = club?.timezone || DEFAULT_TIMEZONE;
+  const sun = { dusk, dawn };
 
   // Re-sync the draft whenever fresh data arrives — UNLESS the user has unsaved edits.
   useEffect(() => {
@@ -724,9 +752,19 @@ function DailyStatusAdmin({ club }) {
       {pills.map(item => {
         const d = draft[item.id] || { state: item.st, staff_note: item.note };
         const summary = summarizeWeek(item.hoursByDay);
+        // v0.9.8: effective state = what members are actually seeing
+        // RIGHT NOW (raw DB state + hours + dawn/dusk + manual override).
+        // Surfaced as a live read-only chip so the morning opener can
+        // sanity-check what the schedule has computed before flipping
+        // a manual override.
+        const effSt = effectiveState(item, new Date(), sun, tz);
+        const effCfg = gCfg(effSt);
         return (
           <div key={item.id} style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}` }}>
-            <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 10px' }}>{item.label}</h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>{item.label}</h4>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2EDE0', background: effCfg.bg, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }} title="Live computed state (auto-updates at dawn/dusk)">Live: {effSt}</span>
+            </div>
             {/* State buttons */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {['open', 'limited', 'closed'].map(st => (

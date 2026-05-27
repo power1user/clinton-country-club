@@ -25,6 +25,71 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.8** — Four bug fixes from Marc's v0.9.7 smoke test.
+
+  **1. Member Guide editor — slug hidden, icon picker added.**
+    · Slug input + label removed entirely from the editor UI.
+      Slug is an internal URL identifier — members never see it,
+      and no `/guide/<slug>` deep links exist in the app today.
+      Exposing it as a required field was leftover from copying
+      the legacy CrudSection pattern. Auto-derived from title on
+      save with numeric collision suffix: two "Welcome" pages
+      now save cleanly as `welcome` and `welcome-2` instead of
+      failing the unique check. Existing rows keep their slug
+      on edit (URL stability for any future deep-linking).
+    · Icon field gains an emoji **palette picker** (18 club-
+      relevant icons: 👋⛳🏌️🏆🌳🍽️🍷☕📅📜🚗🅿️🏊🎾ℹ️📍☎️⚠️).
+      Tap to select (selected emoji highlighted in green); tap
+      again to clear. Free-text input remains underneath as the
+      fallback for anything outside the palette.
+
+  **2. Dessert (and any null-priced item) Add-to-Cart crash —
+  fixed.** The old `cartTotal` reducer called
+  `i.price.replace('$', '')` directly, which throws TypeError
+  the moment `price` is null. `menus.price` is nullable text,
+  and Clinton's 7 desserts had `price = NULL`. The TypeError
+  propagated up through the React tree → unmounted everything
+  → black screen.
+    · New `priceToNumber(p)` helper in `useNav.jsx` (exported)
+      coerces anything unparseable to 0: null / undefined / '' /
+      "Market" / "Half $15 / Full $25" / etc. all become 0
+      instead of crashing.
+    · Used in both the cart total math AND `CourseOrder`'s
+      per-row total. CourseOrder also shows "Ask staff for
+      price" instead of an empty space when `item.price` is
+      null, so the data issue is visible to staff.
+    · The underlying data should still get prices — but the
+      app no longer dies when one is missing.
+
+  **3. Admin status pills now auto-update at dawn/dusk.** The
+  Home `StatusPill` correctly computed effective state from
+  hours + dawn + dusk + current time and ticked every 60s. The
+  admin surfaces I shipped in v0.9.2 (`DailyStatusQuickAccess`
+  banner + `DailyStatusAdmin` editor) displayed `pill.st` —
+  the raw DB state — and never re-rendered on time change. So
+  when the course auto-closed at dusk, the admin UI stayed
+  "OPEN" all night.
+    · Imported `effectiveState`, `useDusk`, `useDawn` from
+      useClubData.
+    · New `useMinuteTick()` hook (mirrors StatusPill pattern):
+      forces a re-render every 60s so time-driven transitions
+      land without manual refresh.
+    · `DailyStatusQuickAccess`: each pill now shows
+      `effectiveState(item, now, sun, tz)` instead of `p.st`.
+    · `DailyStatusAdmin`: adds a live "Live: open/limited/
+      closed" chip per facility (color-coded), updated every
+      minute. The manual override buttons + staff_note still
+      operate on the raw `state` column — distinct from the
+      computed live state so the morning opener sees both.
+
+  **4. Audit of other time-driven surfaces.** Only the two
+  admin surfaces I added in v0.9.2 had this problem. Member-
+  facing StatusPill (the surface members see) already had the
+  effectiveState + minute-tick pattern from earlier phases. No
+  other admin surface displays time-driven state — `hours_note`
+  / `opens_at` / `closes_at` summaries are static text from
+  the DB so the no-update behavior is correct there.
+
 - **v0.9.7** — Cleanup: remove duplicate queues + README refresh.
 
   Closes Phase 9. Now that all six Comms sub-queues are polished

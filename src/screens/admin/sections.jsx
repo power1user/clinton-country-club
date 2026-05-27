@@ -1469,34 +1469,44 @@ export function MemberGuideAdmin() {
   );
 }
 
+// v0.9.8: curated emoji palette for the Member Guide icon picker.
+// Picked to cover the most common section topics a club ships in its
+// onboarding guide. Click an icon to select; the free-text input
+// below the palette stays as the fallback for anything custom.
+const GUIDE_ICONS = ['👋', '⛳', '🏌️', '🏆', '🌳', '🍽️', '🍷', '☕', '📅', '📜', '🚗', '🅿️', '🏊', '🎾', 'ℹ️', '📍', '☎️', '⚠️'];
+
 function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({ ...row }));
-  // Track whether the slug has been manually edited — if not, keep auto-deriving from title
-  const [slugLocked, setSlugLocked] = useState(() => !isAdd && !!row.slug);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  const setTitle = (v) => {
-    setForm(prev => ({
-      ...prev,
-      title: v,
-      slug: slugLocked ? prev.slug : slugify(v),
-    }));
-  };
-  const setSlug = (v) => {
-    setSlugLocked(true);
-    setForm(prev => ({ ...prev, slug: slugify(v) }));
-  };
+  // v0.9.8: slug is fully internal — never shown to members, never
+  // used in any URL today. Editor no longer exposes it. We auto-derive
+  // from title on save with a numeric collision suffix so duplicate
+  // titles ("Welcome", "Welcome") get distinct slugs ("welcome",
+  // "welcome-2") instead of failing the unique check.
+  function uniqueSlug(title) {
+    const base = slugify(title) || 'page';
+    if (!existingSlugs.includes(base)) return base;
+    for (let i = 2; i < 100; i++) {
+      const candidate = `${base}-${i}`;
+      if (!existingSlugs.includes(candidate)) return candidate;
+    }
+    return `${base}-${Date.now()}`;          // last-resort uniqueness
+  }
 
   const save = async () => {
     setErr(null);
     if (!form.title?.trim()) { setErr('Title is required.'); return; }
-    if (!form.slug?.trim()) { setErr('Slug is required.'); return; }
-    if (existingSlugs.includes(form.slug)) { setErr(`Slug "${form.slug}" is already used by another page. Pick a different one.`); return; }
     if (!form.body?.trim()) { setErr('Body is required (even a short blurb).'); return; }
     setBusy(true);
+    // Preserve existing slug on edit (URL stability); auto-disambiguate
+    // on add.
+    const slug = isAdd
+      ? uniqueSlug(form.title)
+      : (row.slug || uniqueSlug(form.title));
     const payload = {
-      slug: form.slug,
+      slug,
       title: form.title.trim(),
       icon: form.icon || null,
       body: form.body,
@@ -1537,22 +1547,52 @@ function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, 
 
         <div style={{ marginBottom: 10 }}>
           <label style={label}>Title <span style={{ color: G.clsDot }}>*</span></label>
-          <input value={form.title || ''} onChange={e => setTitle(e.target.value)} placeholder="Welcome, Dress Code, Tee Times…" style={input} />
+          <input value={form.title || ''} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Welcome, Dress Code, Tee Times…" style={input} />
         </div>
+
+        {/* v0.9.8: icon picker — palette of common club-context emojis +
+            free-text fallback. Selected icon highlighted in green; tap
+            again to clear. Free input also accepts any 1-2 emoji. */}
         <div style={{ marginBottom: 10 }}>
-          <label style={label}>Slug <span style={{ color: G.clsDot }}>*</span> · auto from title{slugLocked ? ' (overridden)' : ''}</label>
-          <input value={form.slug || ''} onChange={e => setSlug(e.target.value)} placeholder="welcome, dress-code, tee-times…" style={input} />
+          <label style={label}>Icon · tap to pick, or type your own below</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {GUIDE_ICONS.map(em => {
+              const selected = (form.icon || '') === em;
+              return (
+                <div
+                  key={em}
+                  onClick={() => setForm(p => ({ ...p, icon: selected ? '' : em }))}
+                  data-tap
+                  style={{
+                    width: 38, height: 38, borderRadius: 4,
+                    background: selected ? G.green : G.card,
+                    border: `1px solid ${selected ? G.green : G.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, cursor: 'pointer',
+                  }}
+                  aria-label={`Select ${em}`}
+                  aria-pressed={selected}
+                >
+                  {em}
+                </div>
+              );
+            })}
+          </div>
+          <input
+            value={form.icon || ''}
+            onChange={e => setForm(p => ({ ...p, icon: e.target.value }))}
+            placeholder="Or paste a custom emoji"
+            style={input}
+            maxLength={4}
+          />
         </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={label}>Icon (emoji) · optional</label>
-          <input value={form.icon || ''} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} placeholder="🏌️ ⛳ 👋 🍽️ 📅" style={input} maxLength={4} />
-        </div>
+
         <div style={{ marginBottom: 10 }}>
           <label style={label}>Body <span style={{ color: G.clsDot }}>*</span></label>
           <textarea value={form.body || ''} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} placeholder="Welcome to the club. Here's what you need to know…" style={{ ...input, height: 160, resize: 'none', lineHeight: 1.5 }} />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={label}>Sort Order · lower numbers appear first</label>
+          <label style={label}>Sort Order · lower numbers appear first (or use ↑↓ arrows on the list)</label>
           <input type="number" value={form.sort_order ?? ''} onChange={e => setForm(p => ({ ...p, sort_order: e.target.value === '' ? 0 : Number(e.target.value) }))} style={input} />
         </div>
 
