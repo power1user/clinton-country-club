@@ -25,6 +25,85 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.12** — Recurring events + time-picker migration.
+
+  Per Marc's spec: managers can create recurring event series with
+  weekly / monthly-first / monthly-last / monthly-Nth patterns;
+  each occurrence materializes as its own row so RSVPs, replies,
+  cancellations, and per-occurrence overrides all "just work."
+  Time entry switches from free-form text to start/end time
+  pickers so data quality stays clean across long recurring runs.
+
+  **Migration 52** adds three columns to events:
+    · `recurrence_group_id uuid` — rows sharing the value belong
+      to the same series. NULL = standalone. Indexed (partial
+      index on non-NULL).
+    · `event_time_start time` — structured start time.
+    · `event_time_end time` — structured end (optional).
+    · Legacy `event_time text` retained as a display fallback for
+      pre-migration rows (no risky backfill across the wild
+      variety of strings managers have typed).
+
+  **EventsAdmin rewritten** as a custom component (was generic
+  CrudSection). Three new capabilities:
+
+  1. **Time picker.** Two `<input type="time">` controls (Start +
+     End optional) replace the old free-text Time field. Validates
+     end > start. Format helper renders "7:00pm – 9:30pm" or
+     "7:00pm" depending on whether end is set. Old rows show
+     whatever text they had (display fallback in formatEventTime).
+
+  2. **Recurrence picker** (only shown on add). Options:
+       · Does not repeat
+       · Weekly on the same day (auto-anchors to start date's DOW;
+         editable)
+       · Monthly · first of the month (pick weekday)
+       · Monthly · last of the month (pick weekday)
+       · Monthly · Nth weekday (pick N + weekday)
+     Plus a **Recurs until** date picker capped at today + 1 year.
+     **Live occurrence-count preview** below the picker:
+     *"Will create 26 occurrences — first Thu Jun 5, last Thu Dec 4."*
+     **Dual cap** at min(1 year out, 52 occurrences) prevents
+     runaway materialization. On save, `crypto.randomUUID()`
+     generates the group_id; rows insert in a single payload.
+
+  3. **Series-aware edit + delete.** When the manager opens an
+     event that has a recurrence_group_id, a radio at the top of
+     the editor offers:
+       · **Just this one occurrence** (default)
+       · **This and all future occurrences in the series**
+     Edit-future propagates field changes (title, category, time,
+     spots, price, description) to all sibling rows where
+     event_date > the touched row's event_date. Per-occurrence
+     fields (event_date itself + denormalized dow/day_num/
+     date_label) are NEVER propagated — they're inherently
+     per-occurrence. Delete-future scopes the DELETE the same
+     way. Past occurrences in the series stay as historical
+     record.
+
+  **Admin Events list grouped by series.** Recurring series
+  collapse into a single header row:
+  *"🔁 Thursday Cookout · 26 occurrences · Thu Jun 5 → Thu Dec 4"*
+  Tap to expand → individual occurrence rows underneath, sorted
+  by date. Standalone events render as plain rows below the
+  series list. Volume problem solved — a manager with 4 weekly
+  series sees 4 headers + their one-offs, not 100+ flat rows.
+
+  **Data shape changes used by display surfaces.** useEvents
+  hook now surfaces `time` (formatted from start/end with legacy
+  fallback), `timeStart`, `timeEnd`, and `recurrenceGroupId` on
+  each event object. Existing consumers (Home Next Event card,
+  EventsCalendar lists, EventsUpcoming, EventDetail) keep using
+  `ev.time` and get clean formatted output automatically.
+
+  **What's NOT in v1 (deliberately):**
+    · Changing the recurrence rule on an existing series. Delete
+      + recreate is the v1 workflow. We can add "edit series
+      rule" later if it becomes a real friction point.
+    · Auto-extension toast ("series ends in 2 weeks — extend?").
+      Manager re-opens the last occurrence and uses "this and
+      all future" or just creates a new series.
+
 - **v0.9.11** — Events UX: past-filter, Next Event card, paginated upcoming, search.
 
   Member-facing events surfaces now correctly hide past events from

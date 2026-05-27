@@ -1572,39 +1572,650 @@ export function MenuItemsAdmin() {
 // ============================================================
 // EventsAdmin — create/edit events (RSVPs are a separate section)
 // ============================================================
+// ============================================================
+// EventsAdmin — v0.9.12 custom component (was a generic
+// CrudSection). Handles three things the old version couldn't:
+//   · Time picker (start + optional end) replacing the free-text
+//     event_time field. Legacy text stays for display fallback on
+//     pre-Migration-52 rows.
+//   · Recurring events — manager picks a recurrence rule + an end
+//     date, and the app materializes N concrete event rows sharing
+//     a recurrence_group_id. Hard cap at min(1 year out, 52 rows).
+//   · Series-aware edit + delete — when the user opens an event in
+//     a series, a radio at the top of the editor lets them apply
+//     the change to just that one occurrence OR to that one + all
+//     future occurrences in the series.
+// Admin list groups events by recurrence_group_id into collapsible
+// series headers so a Thursday Cookout × 26 doesn't drown the list.
+// ============================================================
+const EVENT_CATEGORIES = ['Golf', 'Social', 'Dining'];
+const RECURRENCE_OPTIONS = [
+  { value: 'none',           label: 'Does not repeat' },
+  { value: 'weekly',         label: 'Weekly on the same day' },
+  { value: 'monthly_first',  label: 'Monthly · first of the month' },
+  { value: 'monthly_last',   label: 'Monthly · last of the month' },
+  { value: 'monthly_nth',    label: 'Monthly · Nth weekday' },
+];
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MAX_OCCURRENCES = 52;
+const MAX_RECUR_DAYS = 365;
+
+// Helpers used by the materializer and the preview-count line.
+function toIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function parseIsoLocal(iso) {
+  // Construct as local noon to dodge tz edge cases when we only
+  // care about the date (not the time-of-day).
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
+}
+function firstWeekdayOf(year, month, dow) {
+  const d = new Date(year, month, 1, 12, 0, 0);
+  while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
+  return d;
+}
+function lastWeekdayOf(year, month, dow) {
+  const d = new Date(year, month + 1, 0, 12, 0, 0); // last day of month
+  while (d.getDay() !== dow) d.setDate(d.getDate() - 1);
+  return d;
+}
+function nthWeekdayOf(year, month, dow, n) {
+  const first = firstWeekdayOf(year, month, dow);
+  const d = new Date(first);
+  d.setDate(d.getDate() + 7 * (n - 1));
+  if (d.getMonth() !== month) return null; // overflow into next month
+  return d;
+}
+
+// Given a rule + start date + end-by date, return ISO date strings
+// for every occurrence. Capped at MAX_OCCURRENCES.
+function generateOccurrences({ rule, startIso, endIso, weeklyDow, nth }) {
+  if (rule === 'none' || !startIso) return [startIso].filter(Boolean);
+  const start = parseIsoLocal(startIso);
+  const end = endIso ? parseIsoLocal(endIso) : null;
+  const hardCap = MAX_OCCURRENCES;
+  const out = [];
+
+  if (rule === 'weekly') {
+    // First occurrence: the soonest weeklyDow on/after startDate
+    const cursor = new Date(start);
+    while (cursor.getDay() !== weeklyDow) cursor.setDate(cursor.getDate() + 1);
+    while (out.length < hardCap) {
+      if (end && cursor > end) break;
+      out.push(toIso(cursor));
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return out;
+  }
+
+  if (rule === 'monthly_first' || rule === 'monthly_last' || rule === 'monthly_nth') {
+    const dow = weeklyDow;
+    let year = start.getFullYear();
+    let month = start.getMonth();
+    while (out.length < hardCap) {
+      let candidate;
+      if (rule === 'monthly_first')  candidate = firstWeekdayOf(year, month, dow);
+      else if (rule === 'monthly_last') candidate = lastWeekdayOf(year, month, dow);
+      else                              candidate = nthWeekdayOf(year, month, dow, nth);
+      if (candidate && candidate >= start && (!end || candidate <= end)) {
+        out.push(toIso(candidate));
+      }
+      // Advance one month
+      month += 1;
+      if (month > 11) { month = 0; year += 1; }
+      if (end && new Date(year, month, 1) > end) break;
+    }
+    return out;
+  }
+
+  return [startIso];
+}
+
+// Friendly summary for the series-header line in the admin list.
+function recurrenceSummary(rows) {
+  if (!rows || rows.length === 0) return '';
+  const first = rows[0]?.event_date;
+  const last = rows[rows.length - 1]?.event_date;
+  if (!first || !last) return `${rows.length} occurrences`;
+  const f = new Date(first + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const l = new Date(last  + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return `${rows.length} occurrences · ${f} → ${l}`;
+}
+
+// Auto-derive the denormalized display fields from event_date.
+function denormalize(form) {
+  if (!form.event_date) return form;
+  const d = new Date(form.event_date + 'T12:00:00');
+  return {
+    ...form,
+    dow: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+    day_num: d.getDate().toString(),
+    date_label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+  };
+}
+
 export function EventsAdmin() {
-  const { hasPerm } = useAuth();
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_manage_events');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // row | 'new' | null
+  const [version, setVersion] = useState(0);
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('events')
+        .select('id, club_id, title, description, category, event_date, event_time, event_time_start, event_time_end, date_label, dow, day_num, spots, price, recurrence_group_id')
+        .eq('club_id', club.id)
+        .order('event_date', { ascending: true })
+        .limit(500);
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    })();
+    const channel = supabase
+      .channel(`events_admin:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id, version]);
+
+  // Group rows by recurrence_group_id; standalones stay as themselves.
+  // Render order: groups first (sorted by their earliest event_date),
+  // standalones interleaved by event_date. Simpler approach for v1:
+  // groups together at top, standalones at bottom. Manager will scan
+  // either way.
+  const { groups, standalones } = useMemo(() => {
+    const g = new Map();
+    const s = [];
+    for (const r of rows) {
+      if (r.recurrence_group_id) {
+        const arr = g.get(r.recurrence_group_id) || [];
+        arr.push(r);
+        g.set(r.recurrence_group_id, arr);
+      } else {
+        s.push(r);
+      }
+    }
+    return { groups: Array.from(g.entries()), standalones: s };
+  }, [rows]);
+
+  const toggleGroup = (gid) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(gid)) next.delete(gid); else next.add(gid);
+      return next;
+    });
+  };
+
   return (
-    <CrudSection
-      canEdit={hasPerm('can_manage_events')}
-      table="events"
-      title="Event"
-      emptyMsg="No events scheduled yet."
-      columns={['id', 'title', 'description', 'category', 'event_date', 'event_time', 'date_label', 'dow', 'day_num', 'spots', 'price']}
-      order={{ column: 'event_date', ascending: true }}
-      primaryField="title"
-      secondaryFn={r => [r.category, r.event_date ? new Date(r.event_date + 'T12:00:00').toLocaleDateString() : null, r.event_time, r.spots != null && `${r.spots} spots`].filter(Boolean).join(' · ')}
-      defaultRow={{ title: '', description: '', category: 'Social', event_date: new Date().toISOString().slice(0, 10), event_time: '', spots: 0, price: '' }}
-      beforeSave={(form) => {
-        // Auto-derive the denormalized display fields from event_date
-        if (form.event_date) {
-          const d = new Date(form.event_date + 'T12:00:00');
-          form.dow = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-          form.day_num = d.getDate().toString();
-          form.date_label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        }
-        return form;
-      }}
-      fields={[
-        { key: 'title',       label: 'Title', type: 'text', required: true },
-        { key: 'category',    label: 'Category', type: 'select', options: ['Golf', 'Social', 'Dining'] },
-        { key: 'event_date',  label: 'Date', type: 'date' },
-        { key: 'event_time',  label: 'Time (display string)', type: 'text', placeholder: '7:30am shotgun · 6:00pm – 9:00pm' },
-        { key: 'spots',       label: 'Spots available', type: 'number' },
-        { key: 'price',       label: 'Price (display string)', type: 'text', placeholder: '$125, Free, Market…' },
-        { key: 'description', label: 'Description', type: 'textarea' },
-      ]}
-    />
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+          {rows.length} event{rows.length === 1 ? '' : 's'} ({standalones.length} standalone, {groups.length} series)
+          {!canEdit && ' · view only'}
+        </p>
+        {canEdit && (
+          <div onClick={() => setEditing('new')} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add event</span>
+          </div>
+        )}
+      </div>
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {!loading && rows.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No events scheduled yet.</p>
+        </div>
+      )}
+
+      {/* Recurring-series headers (collapsible) */}
+      {groups.map(([gid, groupRows]) => {
+        const sorted = [...groupRows].sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''));
+        const expanded = expandedGroups.has(gid);
+        return (
+          <div key={gid} style={{ marginBottom: 10, background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            <div onClick={() => toggleGroup(gid)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', cursor: 'pointer', gap: 8 }}>
+              <span style={{ fontSize: 14 }} aria-hidden>🔁</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {sorted[0]?.title || '(untitled series)'}
+                </p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                  {recurrenceSummary(sorted)}
+                </p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
+            </div>
+            {expanded && (
+              <div style={{ borderTop: `1px solid ${G.border}` }}>
+                {sorted.map(r => (
+                  <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 8px 36px', borderTop: `1px solid ${G.border}`, cursor: 'pointer', gap: 8, background: G.bg }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0 }}>
+                        {r.date_label || (r.event_date ? new Date(r.event_date + 'T12:00:00').toLocaleDateString() : '')}
+                        {' · '}
+                        {formatEventTimeShort(r)}
+                      </p>
+                    </div>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Standalone (non-recurring) events */}
+      {standalones.length > 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {standalones.map((r, i) => (
+            <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title || '(untitled)'}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                  {[r.category, r.event_date && new Date(r.event_date + 'T12:00:00').toLocaleDateString(), formatEventTimeShort(r), r.spots != null && `${r.spots} spots`].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <EventEditor
+          club={club}
+          canEdit={canEdit}
+          row={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => setVersion(v => v + 1)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Local mirror of the public format helper in useClubData. Kept in
+// sections.jsx to avoid the round-trip import; same logic.
+function formatEventTimeShort(r) {
+  if (r.event_time_start) {
+    const fmt = (t) => {
+      if (!t) return '';
+      const m = /^(\d{1,2}):(\d{2})/.exec(t);
+      if (!m) return t;
+      const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+      const period = h >= 12 ? 'pm' : 'am';
+      const h12 = ((h + 11) % 12) + 1;
+      return min === 0 ? `${h12}${period}` : `${h12}:${String(min).padStart(2, '0')}${period}`;
+    };
+    const s = fmt(r.event_time_start);
+    return r.event_time_end ? `${s} – ${fmt(r.event_time_end)}` : s;
+  }
+  return r.event_time || '';
+}
+
+function EventEditor({ club, canEdit, row, onClose, onSaved }) {
+  const isAdd = !row;
+  const isInSeries = !!row?.recurrence_group_id;
+  // Apply-scope only matters when editing a row in a series.
+  // "single" = just this occurrence, "future" = this + all later
+  // occurrences in the group.
+  const [applyScope, setApplyScope] = useState('single');
+
+  const [form, setForm] = useState(() => row
+    ? {
+        title:       row.title || '',
+        category:    row.category || 'Social',
+        event_date:  row.event_date || toIso(new Date()),
+        event_time_start: row.event_time_start ? row.event_time_start.slice(0, 5) : '',
+        event_time_end:   row.event_time_end   ? row.event_time_end.slice(0, 5)   : '',
+        spots:       row.spots ?? 0,
+        price:       row.price || '',
+        description: row.description || '',
+      }
+    : {
+        title: '', category: 'Social',
+        event_date: toIso(new Date()),
+        event_time_start: '', event_time_end: '',
+        spots: 0, price: '', description: '',
+      });
+
+  // Recurrence settings — only used at create time.
+  const todayPlusYear = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + MAX_RECUR_DAYS);
+    return toIso(d);
+  })();
+  const [recurrence, setRecurrence] = useState({
+    rule: 'none',
+    weeklyDow: new Date(form.event_date + 'T12:00:00').getDay(),
+    nth: 1,
+    endIso: '',
+  });
+  // Re-anchor the weekly DOW when the user changes the start date
+  // (UNLESS they've already picked a custom weeklyDow).
+  const [dowTouched, setDowTouched] = useState(false);
+  const setEventDate = (v) => {
+    setForm(p => ({ ...p, event_date: v }));
+    if (!dowTouched && v) {
+      setRecurrence(p => ({ ...p, weeklyDow: new Date(v + 'T12:00:00').getDay() }));
+    }
+  };
+  const setRecurrenceField = (k, v) => {
+    if (k === 'weeklyDow') setDowTouched(true);
+    setRecurrence(p => ({ ...p, [k]: v }));
+  };
+
+  // Live preview of occurrence dates so the manager sees the count
+  // before they save. Effective endIso = min(picked, today+1y).
+  const previewDates = useMemo(() => {
+    if (recurrence.rule === 'none' || !form.event_date) return [];
+    const cappedEnd = recurrence.endIso && recurrence.endIso < todayPlusYear
+      ? recurrence.endIso
+      : todayPlusYear;
+    return generateOccurrences({
+      rule: recurrence.rule,
+      startIso: form.event_date,
+      endIso: cappedEnd,
+      weeklyDow: recurrence.weeklyDow,
+      nth: recurrence.nth,
+    });
+  }, [recurrence, form.event_date]);
+
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const save = async () => {
+    setErr(null);
+    if (!form.title?.trim()) { setErr('Title is required.'); return; }
+    if (!form.event_date) { setErr('Date is required.'); return; }
+    if (form.event_time_start && form.event_time_end && form.event_time_end <= form.event_time_start) {
+      setErr('End time must be after start time.'); return;
+    }
+    setBusy(true);
+
+    if (isAdd) {
+      // ── CREATE path ────────────────────────────────────────────────
+      const baseRow = denormalize({
+        club_id: club.id,
+        title: form.title.trim(),
+        category: form.category,
+        description: form.description || null,
+        event_time: null,                                  // legacy text intentionally null on new rows
+        event_time_start: form.event_time_start || null,
+        event_time_end:   form.event_time_end || null,
+        spots: form.spots ?? 0,
+        price: form.price || null,
+        event_date: form.event_date,
+      });
+      let payload;
+      if (recurrence.rule === 'none') {
+        payload = [baseRow];
+      } else {
+        const groupId = crypto.randomUUID();
+        payload = previewDates.map(iso => denormalize({
+          ...baseRow,
+          event_date: iso,
+          recurrence_group_id: groupId,
+        }));
+      }
+      const { error } = await supabase.from('events').insert(payload);
+      setBusy(false);
+      if (error) { setErr(error.message); return; }
+    } else {
+      // ── EDIT path ─────────────────────────────────────────────────
+      // Fields propagated to "all future" siblings — everything EXCEPT
+      // the per-occurrence date fields (which would clobber siblings).
+      const propagatable = {
+        title: form.title.trim(),
+        category: form.category,
+        description: form.description || null,
+        event_time_start: form.event_time_start || null,
+        event_time_end:   form.event_time_end || null,
+        spots: form.spots ?? 0,
+        price: form.price || null,
+      };
+      // Always update the touched row's own date fields.
+      const thisRowPayload = denormalize({
+        ...propagatable,
+        event_date: form.event_date,
+      });
+
+      if (isInSeries && applyScope === 'future') {
+        // Update sibling rows (not this one) with propagatable fields
+        // only. Then update THIS row with the full payload including
+        // the touched event_date.
+        const { error: sibErr } = await supabase
+          .from('events')
+          .update(propagatable)
+          .eq('recurrence_group_id', row.recurrence_group_id)
+          .gt('event_date', row.event_date);
+        if (sibErr) { setBusy(false); setErr(sibErr.message); return; }
+      }
+      const { error } = await supabase
+        .from('events')
+        .update(thisRowPayload)
+        .eq('id', row.id);
+      setBusy(false);
+      if (error) { setErr(error.message); return; }
+    }
+    onSaved?.();
+    onClose();
+  };
+
+  const remove = async () => {
+    if (!row) return;
+    const scope = isInSeries ? applyScope : 'single';
+    const confirmMsg = isInSeries && scope === 'future'
+      ? `Delete "${row.title}" AND all later occurrences in this series? This cannot be undone.`
+      : `Delete "${row.title}"? This cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
+    setBusy(true);
+    if (isInSeries && scope === 'future') {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('recurrence_group_id', row.recurrence_group_id)
+        .gte('event_date', row.event_date);
+      setBusy(false);
+      if (error) { setErr(error.message); return; }
+    } else {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', row.id);
+      setBusy(false);
+      if (error) { setErr(error.message); return; }
+    }
+    onSaved?.();
+    onClose();
+  };
+
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const label = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{isAdd ? 'Add Event' : 'Edit Event'}</h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        {/* "Apply to" radio — only when editing a row that's in a series */}
+        {isInSeries && (
+          <div style={{ marginBottom: 14, padding: '10px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span aria-hidden>🔁</span>
+              <span>This event is part of a recurring series. Apply changes to:</span>
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer' }}>
+              <input type="radio" name="applyScope" checked={applyScope === 'single'} onChange={() => setApplyScope('single')} />
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>Just this one occurrence</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer' }}>
+              <input type="radio" name="applyScope" checked={applyScope === 'future'} onChange={() => setApplyScope('future')} />
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>This and all future occurrences</span>
+            </label>
+          </div>
+        )}
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Title <span style={{ color: G.clsDot }}>*</span></label>
+          <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Thursday Cookout, Member Tournament…" style={input} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Category</label>
+          <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={input}>
+            {EVENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>{isAdd && recurrence.rule !== 'none' ? 'First-occurrence date' : 'Date'} <span style={{ color: G.clsDot }}>*</span></label>
+          <input type="date" value={form.event_date} onChange={e => setEventDate(e.target.value)} style={input} />
+        </div>
+
+        {/* Time picker: start + end. v0.9.12. Replaces the old free-text
+            event_time. Empty = no time shown on the event card. */}
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={label}>Start time</label>
+            <input type="time" value={form.event_time_start} onChange={e => setForm(p => ({ ...p, event_time_start: e.target.value }))} style={input} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={label}>End time (optional)</label>
+            <input type="time" value={form.event_time_end} onChange={e => setForm(p => ({ ...p, event_time_end: e.target.value }))} style={input} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 10, display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={label}>Spots available</label>
+            <input type="number" value={form.spots ?? ''} onChange={e => setForm(p => ({ ...p, spots: e.target.value === '' ? 0 : Number(e.target.value) }))} style={input} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={label}>Price (display text)</label>
+            <input value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="$125, Free, Market…" style={input} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={label}>Description</label>
+          <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What members should know about this event." style={{ ...input, height: 100, resize: 'none', lineHeight: 1.5 }} />
+        </div>
+
+        {/* Recurrence — only shown when adding a NEW event. Editing
+            an existing recurring event is per-occurrence (managed via
+            the Apply-to radio above) — changing the rule itself isn't
+            supported in v1; delete + recreate the series for that. */}
+        {isAdd && (
+          <div style={{ marginBottom: 14, padding: '12px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
+            <label style={label}>Repeat</label>
+            <select value={recurrence.rule} onChange={e => setRecurrenceField('rule', e.target.value)} style={input}>
+              {RECURRENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
+            {recurrence.rule === 'weekly' && (
+              <div style={{ marginTop: 8 }}>
+                <label style={label}>On</label>
+                <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
+                  {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              </div>
+            )}
+            {(recurrence.rule === 'monthly_first' || recurrence.rule === 'monthly_last') && (
+              <div style={{ marginTop: 8 }}>
+                <label style={label}>Weekday</label>
+                <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
+                  {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              </div>
+            )}
+            {recurrence.rule === 'monthly_nth' && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={label}>Nth</label>
+                  <select value={recurrence.nth} onChange={e => setRecurrenceField('nth', Number(e.target.value))} style={input}>
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{['1st', '2nd', '3rd', '4th', '5th'][n - 1]}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={label}>Weekday</label>
+                  <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
+                    {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {recurrence.rule !== 'none' && (
+              <>
+                <div style={{ marginTop: 8 }}>
+                  <label style={label}>Recurs until (max {todayPlusYear})</label>
+                  <input
+                    type="date"
+                    value={recurrence.endIso}
+                    max={todayPlusYear}
+                    min={form.event_date}
+                    onChange={e => setRecurrenceField('endIso', e.target.value)}
+                    style={input}
+                  />
+                </div>
+                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: previewDates.length === 0 ? G.clsDot : G.brass, margin: '8px 0 0', lineHeight: 1.45 }}>
+                  {previewDates.length === 0
+                    ? 'Pick an "until" date to preview occurrences.'
+                    : `Will create ${previewDates.length} occurrence${previewDates.length === 1 ? '' : 's'}${previewDates.length >= MAX_OCCURRENCES ? ` (capped at ${MAX_OCCURRENCES})` : ''} — first ${new Date(previewDates[0] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, last ${new Date(previewDates[previewDates.length - 1] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
+        {err && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 10, background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.45, flex: 1 }}>{err}</p>
+          </div>
+        )}
+
+        {canEdit ? (
+          <>
+            <div onClick={busy ? undefined : save} data-tap style={{ marginTop: 8, padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>
+                {busy
+                  ? 'Saving…'
+                  : (isAdd
+                      ? (recurrence.rule === 'none' ? 'Save Event' : `Save Series (${previewDates.length})`)
+                      : 'Save Changes')}
+              </span>
+            </div>
+            {!isAdd && (
+              <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                  {isInSeries && applyScope === 'future' ? 'Delete this and all future' : 'Delete'}
+                </span>
+              </div>
+            )}
+          </>
+        ) : (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, textAlign: 'center', margin: '12px 0 0' }}>
+            View only. Ask your club manager to grant edit permission.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

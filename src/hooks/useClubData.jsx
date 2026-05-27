@@ -25,6 +25,33 @@ function formatNewsDate(label, publishedAt) {
   return new Date(publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// v0.9.12: Format event time for display. Prefers the structured
+// start/end columns (added in Migration 52) and falls back to the
+// legacy free-text `event_time` for rows that predate the picker.
+// Output examples:
+//   start="19:00" end="21:30"  → "7:00pm – 9:30pm"
+//   start="19:00" end=null     → "7:00pm"
+//   start=null   end=null      → whatever the legacy text said
+function formatEventTime(start, end, legacyText) {
+  if (start) {
+    const s = formatHMS(start);
+    if (end) return `${s} – ${formatHMS(end)}`;
+    return s;
+  }
+  return legacyText || '';
+}
+function formatHMS(hms) {
+  if (!hms) return '';
+  // Postgres time comes back as "HH:MM:SS" or "HH:MM"
+  const m = /^(\d{1,2}):(\d{2})/.exec(hms);
+  if (!m) return hms;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const period = h >= 12 ? 'pm' : 'am';
+  const h12 = ((h + 11) % 12) + 1;
+  return min === 0 ? `${h12}${period}` : `${h12}:${String(min).padStart(2, '0')}${period}`;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Status pills (real-time)
 // ────────────────────────────────────────────────────────────────────────────
@@ -230,7 +257,7 @@ export function useEvents() {
     const load = async () => {
       const { data: rows } = await supabase
         .from('events')
-        .select('id, title, description, category, event_date, event_time, date_label, dow, day_num, spots, price')
+        .select('id, title, description, category, event_date, event_time, event_time_start, event_time_end, date_label, dow, day_num, spots, price, recurrence_group_id')
         .eq('club_id', club.id)
         .order('event_date', { ascending: true });
       if (cancelled) return;
@@ -240,7 +267,13 @@ export function useEvents() {
           date: r.date_label,         // display string ("Sat May 24")
           eventDate: r.event_date,    // raw ISO date for calendar bucketing (v0.6.0)
           dow: r.dow, day: r.day_num, title: r.title,
-          time: r.event_time, cat: r.category, spots: r.spots, price: r.price, desc: r.description,
+          // v0.9.12: prefer the structured start/end columns. Fall back
+          // to legacy text event_time for rows that predate the picker.
+          time: formatEventTime(r.event_time_start, r.event_time_end, r.event_time),
+          timeStart: r.event_time_start,
+          timeEnd:   r.event_time_end,
+          recurrenceGroupId: r.recurrence_group_id,
+          cat: r.category, spots: r.spots, price: r.price, desc: r.description,
         })));
       }
       setLoading(false);
