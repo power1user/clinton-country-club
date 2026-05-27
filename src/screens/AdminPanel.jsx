@@ -20,7 +20,7 @@ import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 //
 // v0.7.13 reorg (per Marc-approved UI audit recommendations):
 //   · Order: Communications → Events → Golf Course → Pro Shop →
-//     Dining → People → Club Setup → Platform. Marketing /
+//     Dining → People → Club Settings → Platform. Marketing /
 //     content-heavy stuff up top, ops in the middle, setup at the
 //     bottom, super-admin last. Matches the daily-touch frequency
 //     for the average club manager.
@@ -33,10 +33,12 @@ import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 //   · Moderate Posts (renamed from "Member Posts") moved Comms →
 //     People (the posts are FROM members; moderation is about
 //     people, not staff-generated content).
-//   · Club Settings moved People → new "Club Setup" area.
-//   · Features (was its own 1-section area) folded into Club Setup
-//     alongside Club Settings. Two-section area kills the
-//     wasted-click problem from the v0.7.0 single-section design.
+//   · Club Settings moved People → new "Club Settings" area
+//     (originally shipped as "Club Setup" in v0.7.13, renamed to
+//     "Club Settings" in v0.9.0 — see CHANGELOG).
+//   · Features (was its own 1-section area) folded into Club
+//     Settings alongside Branding & Contact. Two-section area kills
+//     the wasted-click problem from the v0.7.0 single-section design.
 //   · Section relabels per audit: Schedule Overrides → Date
 //     Overrides; Pace of Play → Pace; Pin Positions → Daily Pins;
 //     Holes → Hole Details; Notifications → Push Broadcasts;
@@ -113,23 +115,26 @@ const AREAS = [
       { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',   d: 'Hide/delete bulletin + partner posts',         icon: IconList   },
       // v0.8.4: guest management. Section renders an "off" state when
       // the guest_registration flag is off so the entry is still
-      // discoverable; flipping the flag in Club Setup activates it.
+      // discoverable; flipping the flag in Club Settings activates it.
       { id: 'guests',      permKey: 'can_manage_members', l: 'Guest Management', d: 'Registrations, clubhouse QR, settings',         icon: IconPeople, managerOnly: true },
       { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',            d: 'Manage admins + grant permissions',            icon: IconShield, managerOnly: true },
     ],
   },
-  // Club Setup — manager-only configuration. Replaces the v0.7.0
+  // Club Settings — manager-only configuration. Replaces the v0.7.0
   // standalone "Features" area (which had the wasted-click problem
-  // of being a single-section area). Subscription will land here
-  // when we ship a read-only tier viewer.
+  // of being a single-section area). Renamed from "Club Setup" →
+  // "Club Settings" in v0.9.0; the inner "Club Settings" section
+  // (now "Branding & Contact") was renamed to avoid duplicate names
+  // in the navigation breadcrumb. Subscription will land here when
+  // we ship a read-only tier viewer.
   {
     id: 'clubsetup',
-    l: 'Club Setup',
+    l: 'Club Settings',
     d: 'Branding, features, subscription',
     icon: IconCog,
     sections: [
-      { id: 'clubsettings', l: 'Club Settings',   d: 'Logo, colors, contact, gating',  icon: IconCog, managerOnly: true },
-      { id: 'features',     l: 'Feature Toggles', d: 'Member-facing features on/off',  icon: IconCog, managerOnly: true },
+      { id: 'clubsettings', l: 'Branding & Contact', d: 'Logo, colors, contact, gating',  icon: IconCog, managerOnly: true },
+      { id: 'features',     l: 'Feature Toggles',    d: 'Member-facing features on/off',  icon: IconCog, managerOnly: true },
       // Future: { id: 'subscription', l: 'Subscription', d: 'Tier + active features summary', icon: IconList, managerOnly: true },
     ],
   },

@@ -2052,7 +2052,7 @@ export function GuestManagementAdmin() {
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '20px 18px', textAlign: 'center' }}>
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 16, color: G.text, margin: '0 0 8px' }}>Guest registration is off</p>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
-            Turn on <strong>Guest Registration</strong> in <strong>Admin → Club Setup → Feature Toggles</strong> to start collecting guest registrations and surface QR codes.
+            Turn on <strong>Guest Registration</strong> in <strong>Admin → Club Settings → Feature Toggles</strong> to start collecting guest registrations and surface QR codes.
           </p>
         </div>
       </div>

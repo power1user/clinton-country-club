@@ -206,7 +206,7 @@ logo + 3 brand colors + hero photo + tagline.
 4. **Pro Shop** — Items · Lesson Requests queue
 5. **Dining** — Menu Categories · Menu Items · Food Orders queue
 6. **People** — Members (search + CSV import + magic-link invites) · Staff · Clubhouse Inbox · Guest Management
-7. **Club Setup** — Club Settings (branding · DM toggle · pending access · guest defaults · ToU) · Feature Flags Control Panel · Lesson Pros
+7. **Club Settings** — Branding & Contact (logo · colors · DM toggle · pending access · guest defaults · ToU) · Feature Toggles · Lesson Pros
 8. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
 
 ---
@@ -423,7 +423,7 @@ fresh build (push any commit to trigger).
    provisioning log if anything looks off.
 4. You land in that new club's Settings — upload logo, hero photo, set
    colors, contact phone/email, pending access mode, guest defaults.
-5. Configure feature flags under **Club Setup → Features** (turn on what
+5. Configure feature flags under **Club Settings → Feature Toggles** (turn on what
    the club has paid for; pin any flags via platform lock).
 6. Seed the new club's content (or import via CSV). News, events, menu
    items, holes, club guide pages — all via the admin UI.

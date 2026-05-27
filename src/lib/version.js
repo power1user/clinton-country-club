@@ -44,6 +44,16 @@
 //             (signed URLs, referring_member_id auto-populated) +
 //             clubhouse QR (no referring member, for public play).
 //             New guests + guest_visits tables (migration 44).
+//   v0.9.x — Phase 9: Communications triage center + admin reorg.
+//             New top-level Communications area unifies inbound
+//             activity (food orders, lesson requests, pro shop
+//             inquiries, guest registrations, clubhouse messages,
+//             event RSVPs) into role-scoped sub-queues with unread
+//             badges and realtime. Club Setup renamed to Club
+//             Settings; club status config moved there. Member
+//             Guide CRUD lands under Club Settings. Partner Board
+//             redesigned with handicap field + wired Contact
+//             button (DM → clubhouse fallback).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
@@ -52,7 +62,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.8.11';
+export const VERSION = '0.9.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

@@ -9,6 +9,51 @@ All notable changes to this project. Convention:
 
 ---
 
+## v0.9.x — Phase 9: Communications triage center + admin reorg
+
+A new top-level Communications area unifies all inbound activity
+(food orders, lesson requests, pro shop inquiries, guest
+registrations, clubhouse messages, event RSVPs) into role-scoped
+sub-queues with realtime + unread badges. Configuration-side reorg
+moves Club Status setup into Club Settings (renamed from Club
+Setup) and adds Member Guide CRUD there. Partner Board redesigned
+with a stripped-down card, handicap field, and a Contact button
+that finally works.
+
+Shipping plan (multi-commit minor per Marc's preference):
+v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
+→ 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
+0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
+
+- **v0.9.0** — Rename pass: Club Setup → Club Settings.
+
+  Prerequisite for the rest of Phase 9 — gets the find-and-replace
+  out of the way before downstream chunks add new sections inside
+  the renamed area. Three live-code changes:
+    · `AdminPanel.jsx` AREAS array: area label `'Club Setup'` →
+      `'Club Settings'`. Comments updated to match.
+    · `AdminPanel.jsx` AREAS array: inner section label
+      `'Club Settings'` → `'Branding & Contact'`. The inner section
+      had the same name as the renamed area, which would have
+      created a "Club Settings → Club Settings → form" breadcrumb.
+      The new label matches the section's description ("Logo,
+      colors, contact, gating"). Section id `clubsettings` and
+      area id `clubsetup` are unchanged — they're internal-only
+      strings used by the section router; preserving them avoids
+      churn risk.
+    · `sections.jsx` GuestList empty-state CTA: copy updated to
+      point at "Admin → Club Settings → Feature Toggles".
+
+  README.md updated for both admin hub area listing (item 7) and
+  onboarding runbook (step 5). CHANGELOG history retained verbatim
+  — historical entries that mention "Club Setup" describe what
+  actually shipped under that name in v0.7.13 – v0.8.11; rewriting
+  them would falsify the record.
+
+  Excluded from the rename per spec: unrelated "setup" references
+  (subdomain manual setup language in the new-club provisioning
+  banner, feature-flag-setup mentions, Supabase setup docs).
+
 ## v0.8.x — Phase 8: Guest Management
 
 Fifth user role alongside super_admin, club_manager, club_admin, and
