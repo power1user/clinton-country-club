@@ -12,6 +12,7 @@ import {
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, MemberGuideAdmin, MemberPostsAdmin,
   SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin, GuestManagementAdmin,
+  GuestRegistrationsFeed,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -288,16 +289,17 @@ export default function AdminPanel() {
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
-          {/* v0.9.4 scaffold; v0.9.5 polished Food Orders + split
-              the pro_shop_inquiries queue by kind for the two
-              separate Comms sub-queues. v0.9.6 polishes
-              Guests/Clubhouse/RSVPs. */}
+          {/* Communications sub-queues:
+              v0.9.5 — Food / Lessons / Pro Shop polish
+              v0.9.6 — Guest Registrations feed + flat RSVPs timeline.
+              Clubhouse Messages reuses existing grouped-by-topic
+              component as-is (already matches spec). */}
           {sec === 'inbox_food'      && <FoodOrdersAdmin />}
           {sec === 'inbox_lessons'   && <LessonRequestsAdmin mode="lessons" />}
           {sec === 'inbox_proshop'   && <LessonRequestsAdmin mode="inquiries" />}
-          {sec === 'inbox_guests'    && isManager && <GuestManagementAdmin />}
+          {sec === 'inbox_guests'    && <GuestRegistrationsFeed />}
           {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
-          {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin />}
+          {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin mode="flat" />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
           {sec === 'features'       && isManager && <FeaturesAdmin />}
           {sec === 'guests'         && isManager && <GuestManagementAdmin />}

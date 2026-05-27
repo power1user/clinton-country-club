@@ -465,7 +465,12 @@ export function FoodOrdersAdmin() {
 // ============================================================
 // event_registrations — list grouped by event
 // ============================================================
-export function EventRegistrationsAdmin() {
+export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
+  // v0.9.6: `mode='flat'` renders a reverse-chronological feed
+  // (registrations + waitlist changes as they come in) — used by
+  // the Communications inbox_rsvps sub-queue. `mode='grouped'`
+  // (default, back-compat) groups by event for the legacy
+  // Events area entry.
   const { club, hasPerm } = useAuth();
   const canEdit = hasPerm('can_manage_events');
   const [rows, setRows] = useState([]);
@@ -496,7 +501,51 @@ export function EventRegistrationsAdmin() {
     await supabase.from('event_registrations').update({ status }).eq('id', id);
   };
 
-  // Group by event
+  // ── Flat timeline (Comms inbox mode) ─────────────────────────────
+  if (mode === 'flat') {
+    const STATUS_COLORS = { registered: G.openBg, waitlist: G.limBg, cancelled: G.clsBg };
+    return (
+      <div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+          Recent registrations and waitlist changes, newest first. Live updates.
+        </p>
+        {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+        {!loading && rows.length === 0 && (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No registrations yet.</p>
+          </div>
+        )}
+        {!loading && rows.length > 0 && (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            {rows.map((r, i) => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.members?.name || 'Unknown'} <span style={{ color: G.muted, fontWeight: 400 }}>· {r.events?.title || 'Event'}</span>
+                  </p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                    {new Date(r.registered_at).toLocaleString()}
+                    {r.guests_count ? ` · +${r.guests_count} guests` : ''}
+                  </p>
+                </div>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>{r.status}</span>
+                <select
+                  value={r.status}
+                  onChange={e => setStatus(r.id, e.target.value)}
+                  disabled={!canEdit}
+                  style={{ padding: '3px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+                >
+                  {['registered', 'waitlist', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Grouped by event (legacy default) ────────────────────────────
   const grouped = rows.reduce((acc, r) => {
     const key = r.event_id;
     if (!acc[key]) acc[key] = { event: r.events, registrations: [] };
@@ -2279,6 +2328,107 @@ function CreateClubModal({ onClose, onCreated }) {
 //   4. Guests list: search by name/email, filter by visit type +
 //      date range + referring member, CSV export of everything
 //      visible (respects current filters). Click a row to expand.
+// ============================================================
+// GuestRegistrationsFeed — lightweight Comms inbox sub-queue.
+// v0.9.6: shows recent guest registrations as a live feed (name,
+// time, visit_type, referring_member). Tap a row to expand for
+// full details (email, phone, access_level, expires_at) without
+// leaving the Comms area. Edit + QR + settings still live in
+// GuestManagementAdmin under People area.
+// ============================================================
+export function GuestRegistrationsFeed() {
+  const { club } = useAuth();
+  const guestFlagOn = useFlag('guest_registration');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('guests')
+        .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name, membership_number)')
+        .eq('club_id', club.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    };
+    load();
+    const channel = supabase
+      .channel(`guests_feed:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'guests', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  if (!guestFlagOn) {
+    return (
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '20px 18px', textAlign: 'center' }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.text, margin: '0 0 6px' }}>Guest registration is off</p>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Turn it on under Club Settings → Feature Toggles to start collecting registrations.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        Live feed of new guest registrations. Tap a row to expand; full edit + QR controls live in <strong>People → Guest Management</strong>.
+      </p>
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {!loading && rows.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No guest registrations yet.</p>
+        </div>
+      )}
+      {!loading && rows.length > 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {rows.map((r, i) => {
+            const isOpen = expanded === r.id;
+            const ref = r.members?.name;
+            return (
+              <div key={r.id} style={{ borderTop: i === 0 ? 'none' : `1px solid ${G.border}` }}>
+                <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', gap: 8, cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.name || '(no name)'}{' '}
+                      <span style={{ color: G.muted, fontWeight: 400, fontSize: 11 }}>· {(r.visit_type || 'visit').replace(/_/g, ' ')}</span>
+                    </p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                      {new Date(r.created_at).toLocaleString()}
+                      {ref && <span> · invited by {ref}</span>}
+                    </p>
+                  </div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: '0 14px 12px', background: G.bg, borderTop: `1px solid ${G.border}` }}>
+                    <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontFamily: '"Lora",serif', fontSize: 12, margin: '10px 0 0' }}>
+                      <dt style={{ color: G.muted }}>Email</dt><dd style={{ margin: 0, color: G.text }}>{r.email || '—'}</dd>
+                      <dt style={{ color: G.muted }}>Phone</dt><dd style={{ margin: 0, color: G.text }}>{r.phone || '—'}</dd>
+                      <dt style={{ color: G.muted }}>ZIP</dt><dd style={{ margin: 0, color: G.text }}>{r.zip || '—'}</dd>
+                      <dt style={{ color: G.muted }}>Visit type</dt><dd style={{ margin: 0, color: G.text }}>{(r.visit_type || '—').replace(/_/g, ' ')}</dd>
+                      <dt style={{ color: G.muted }}>Visit date</dt><dd style={{ margin: 0, color: G.text }}>{r.visit_date ? new Date(r.visit_date).toLocaleDateString() : '—'}</dd>
+                      <dt style={{ color: G.muted }}>Access</dt><dd style={{ margin: 0, color: G.text }}>{(r.access_level || '—').replace(/_/g, ' ')}</dd>
+                      <dt style={{ color: G.muted }}>Status</dt><dd style={{ margin: 0, color: G.text }}>{r.status || '—'}</dd>
+                      <dt style={{ color: G.muted }}>Expires</dt><dd style={{ margin: 0, color: G.text }}>{r.expires_at ? new Date(r.expires_at).toLocaleString() : 'no expiry'}</dd>
+                      <dt style={{ color: G.muted }}>Referring member</dt><dd style={{ margin: 0, color: G.text }}>{ref || '—'}</dd>
+                    </dl>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 export function GuestManagementAdmin() {
   const { club } = useAuth();

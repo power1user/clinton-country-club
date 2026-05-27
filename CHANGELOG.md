@@ -25,6 +25,50 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.6** — Communications sub-queues 2/2: Guests / Clubhouse / RSVPs.
+
+  Polishes the remaining three Comms sub-queues. After this ship,
+  every Comms sub-queue has the operational shape Marc specced;
+  v0.9.7 removes the legacy duplicate entries and refreshes README.
+
+  **Guest Registrations** (`inbox_guests`):
+    · New lightweight `GuestRegistrationsFeed` component (NOT the
+      full GuestManagementAdmin section). Pure read-only feed —
+      no settings, no QR controls, no member-edit. Those stay
+      with the full section under People → Guest Management.
+    · Row: name + visit_type + registration time + referring
+      member when applicable.
+    · Tap row → inline expand showing email, phone, ZIP, visit
+      type, visit date, access level, status, expires_at,
+      referring member. Tap again to collapse.
+    · Realtime subscription on `guests` table.
+    · Flag-off state: same "guest registration is off" panel as
+      the main admin section, with pointer to Feature Toggles.
+
+  **Clubhouse Messages** (`inbox_clubhouse`):
+    · Reuses the existing `ClubhouseInboxAdmin` component
+      unchanged — already groups threads by subject (topic) and
+      shows member + preview + time per row. Already matches
+      Marc's spec verbatim. Routing now points here as the
+      canonical home; the old Broadcasts → Clubhouse Inbox entry
+      removed in v0.9.4. (Visible to anyone with
+      `can_view_clubhouse_inbox`.)
+
+  **Event RSVPs** (`inbox_rsvps`):
+    · `EventRegistrationsAdmin` now accepts `mode` prop:
+        - `mode='flat'`    → reverse-chronological timeline of
+                              recent registrations + waitlist
+                              changes (used by Comms sub-queue).
+                              One row per registration with member,
+                              event name, time, status, status
+                              transitions inline.
+        - `mode='grouped'` → back-compat default (grouped by
+                              event) used by Events area.
+    · Heading copy + empty-state copy switch per mode so each
+      surface reads coherently.
+
+  No schema changes. Section IDs preserved.
+
 - **v0.9.5** — Communications sub-queues 1/2: Food / Lessons / Pro Shop.
 
   Polishes three of the six Comms sub-queues with the operational
