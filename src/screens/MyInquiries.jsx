@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import FeatureOff from '../components/FeatureOff.jsx';
@@ -69,6 +70,7 @@ export default function MyInquiries() {
   const { club, member } = useAuth();
   const proShopOn = useFlag('pro_shop');
   const lessonsOn = useFlag('lesson_booking');
+  const { push } = useNav();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null); // inquiry id
@@ -132,9 +134,26 @@ export default function MyInquiries() {
               <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
             </svg>
             <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 15, color: G.muted, margin: '0 0 6px' }}>No inquiries yet</p>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px', lineHeight: 1.5 }}>
               When you book a lesson or submit a pro shop inquiry, it'll show up here so you can track the status.
             </p>
+            {/* v0.9.14: empty-state CTAs per Marc's spec — wire members
+                to the next action so this screen doesn't dead-end on a
+                first visit. Lesson booking shown when the flag is on;
+                the Pro Shop catalog link is always shown (entry to ask
+                staff about anything else). */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {lessonsOn && (
+                <div onClick={() => push('myclub/lessons')} data-tap style={{ padding: '9px 16px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Book a lesson →</span>
+                </div>
+              )}
+              {proShopOn && (
+                <div onClick={() => push('myclub/proshop')} data-tap style={{ padding: '9px 16px', background: G.card, border: `1px solid ${G.green}`, borderRadius: 3, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.green, fontWeight: 500 }}>Browse Pro Shop →</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

@@ -25,6 +25,23 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.14** — MyInquiries empty-state CTAs.
+
+  Marc's My Inquiries spec asked for an empty state with "a button
+  linking to the lesson booking or pro shop contact form." The
+  existing empty state (v0.7.6) had clean copy but no action — it
+  was a dead-end on a first visit.
+
+  Added two CTAs side-by-side in the empty state:
+    · **Book a lesson →** (green) — links to `myclub/lessons`.
+      Only renders when the `lesson_booking` flag is on.
+    · **Browse Pro Shop →** (outline) — links to `myclub/proshop`.
+      Only renders when the `pro_shop` flag is on.
+
+  If both flags are off the FeatureOff screen catches the route
+  earlier so the empty state never renders without at least one
+  CTA. No schema or hook changes.
+
 - **v0.9.13** — Fix EventsAdmin black screen.
 
   Missing import in v0.9.12: the new `EventsAdmin` component used
