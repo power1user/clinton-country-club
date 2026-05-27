@@ -25,6 +25,21 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.19** — Fix PeopleAdmin black screen (missing useMemo import).
+
+  Exact repeat of the v0.9.13 EventsAdmin bug. PeopleAdmin uses
+  `useMemo` four times (rolesByUser, people, visible, counts) but
+  AdminPanel.jsx's React import was `useState, useEffect, useRef`
+  only. ReferenceError on first render → React unmounts the
+  AdminPanel tree → black screen the moment a staff member taps
+  the new People card.
+
+  One-line fix: add `useMemo` to the import.
+
+  Lesson re-applied: preview-test every new admin surface in
+  Chrome before declaring a ship done. The local build catches
+  syntax errors but not undefined runtime identifiers.
+
 - **v0.9.18** — Unified People view + orphan-signup fix.
 
   Real-world bug: Marc reported a guest (Brian Jones, Clinton)
