@@ -25,6 +25,58 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.11** — Events UX: past-filter, Next Event card, paginated upcoming, search.
+
+  Member-facing events surfaces now correctly hide past events from
+  every flat list. Calendar tapping past dates still works for
+  reviewing what happened (RSVPs, photos, etc. tied to historical
+  events stay accessible). No schema changes.
+
+  **Home → "Next Event" card** (was "Today's Events"):
+    · Shows the single next upcoming event in a large card with
+      date medallion + category chip + relative-date chip
+      ("Today" / "Tomorrow" / "Sat May 30") + RSVP target.
+    · If a 2nd event lands within 7 days, a small "Also this
+      week: <title> · <date>" chip appears below the main card so
+      same-week density isn't hidden.
+    · Past events never appear — even after midnight on a past
+      cookout, Home flips to the next future event.
+
+  **EventsCalendar restructure**:
+    · Two distinct sections under the calendar grid now:
+        ◇ **Day detail** (only when selected date has events) —
+          shows that day's events, past or future. Tapping a past
+          date with events still works for history.
+        ◇ **Upcoming** (always visible) — next 5 future events,
+          excluding anything already shown in the day-detail
+          section above to avoid double-rendering today's events.
+    · Empty-state copy differentiates "Nothing on <selected
+      date>" from "No upcoming events scheduled."
+    · New **"See all upcoming events · Search →"** link below
+      the Upcoming list — opens the full paginated/searchable
+      list (new screen below).
+
+  **New screen `EventsUpcoming`** (`community/upcoming`):
+    · All upcoming events (event_date >= today), sorted chrono.
+    · **Search box** — live filter by title, category, time,
+      relative-date string. Empty matches show "No events match
+      <query>." Search resets pagination to page 1.
+    · **10 per page** with prev/next pagination + page indicator.
+      Hidden when only one page (no chrome when not useful).
+    · Same card shape as the Calendar's day list for visual
+      consistency.
+    · Gated by `events_calendar` flag (same gate as calendar
+      screen) — direct nav lands on FeatureOff if disabled.
+
+  **Past-event semantics — no leaks confirmed:**
+    · Home: filters event_date >= today
+    · EventsCalendar Upcoming section: filters event_date >= today
+    · EventsUpcoming screen: filters event_date >= today
+    · EventsCalendar Day Detail: NO filter (correct — historical
+      events appear when manager taps their past date)
+    · Today comparison done with isoToday() in client tz; v0.9.12
+      may switch to club tz once the migration lands.
+
 - **v0.9.10** — News archive (expires_at) + new splash tagline.
 
   **Migration 51** adds `news.expires_at timestamptz NULL`. NULL =

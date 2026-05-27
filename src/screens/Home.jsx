@@ -38,13 +38,39 @@ export default function Home() {
   // uppercase prefix). No more literal "Country Club" placeholder
   // text when a club hasn't set a tagline.
   const headerTitle = brand.tagline || club?.name || '';
-  // v0.7.9: today's events surfaced above News so members opening
-  // the app aren't surprised by "wait, was there something tonight?"
-  // Pulls from the same useEvents() hook the Community calendar uses
-  // (realtime) so a same-day add by staff shows up live.
+  // v0.9.11: Home now shows the NEXT upcoming event (instead of
+  // filtering to today-only). Past events never leak onto Home.
+  // If a second event lands within the next 7 days, we surface it
+  // as a small "Also this week" chip so same-week density isn't
+  // hidden behind the more-events drill.
   const todayIso = isoToday();
-  const todayEvents = events.filter(e => String(e.eventDate || '').slice(0, 10) === todayIso);
+  const upcomingEvents = events
+    .filter(e => e.eventDate && String(e.eventDate).slice(0, 10) >= todayIso);
+  const nextEvent = upcomingEvents[0];
+  const sevenDaysOutIso = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const alsoThisWeek = upcomingEvents
+    .slice(1, 2)
+    .find(e => String(e.eventDate).slice(0, 10) <= sevenDaysOutIso);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
+
+  // Friendly "Today / Tomorrow / Sat May 30" relative label for the
+  // next-event card. Avoids the cold ISO date when something's right
+  // around the corner.
+  const relativeEventDate = (eventDateStr) => {
+    if (!eventDateStr) return '';
+    const iso = String(eventDateStr).slice(0, 10);
+    if (iso === todayIso) return 'Today';
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowIso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    if (iso === tomorrowIso) return 'Tomorrow';
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -178,29 +204,42 @@ export default function Home() {
           );
         })()}
 
-        {/* v0.7.9: Today's Events — hidden when there are none, so the
-            section never reads as an empty stub. Each row links to the
-            event detail screen (same target as Community → tap event).
-            Realtime via useEvents() so a same-day add by staff appears
-            without refresh.
+        {/* v0.9.11: Home shows the NEXT upcoming event (large card
+            with full details + RSVP CTA), with an optional "Also
+            this week" chip below if a second event lands within 7
+            days. Past events are filtered out entirely; the Home
+            never shows yesterday's cookout.
             v0.8.5: also hidden from read_only guests (events are
             full_temporary-only). */}
-        {todayEventsVisible && todayEvents.length > 0 && (
+        {todayEventsVisible && nextEvent && (
           <div style={{ padding: '14px 20px 6px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>
-              <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Today's Events</h2>
+              <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Next Event</h2>
               <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted }}>at the club</span>
             </div>
-            {todayEvents.map(ev => (
-              <div key={ev.id} onClick={() => push('community/event', { event: ev })} data-tap style={{ display: 'flex', gap: 10, padding: '10px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, cursor: 'pointer', alignItems: 'center' }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'white', background: catColors[ev.cat] || G.muted, padding: '2px 7px', borderRadius: 2, flexShrink: 0 }}>{ev.cat}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>{ev.time}{ev.spots === 0 ? ' · Full' : ''}</p>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            <div onClick={() => push('community/event', { event: nextEvent })} data-tap style={{ display: 'flex', gap: 12, padding: '14px 14px', background: G.card, borderRadius: 6, border: `1px solid ${G.border}`, cursor: 'pointer', alignItems: 'flex-start' }}>
+              <div style={{ width: 56, height: 60, background: G.green, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 8, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{nextEvent.dow}</span>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', lineHeight: 1 }}>{nextEvent.day}</span>
               </div>
-            ))}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'white', background: catColors[nextEvent.cat] || G.muted, padding: '2px 7px', borderRadius: 2 }}>{nextEvent.cat}</span>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, fontWeight: 600 }}>{relativeEventDate(nextEvent.eventDate)}</span>
+                  {nextEvent.spots === 0 && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot }}>Full</span>}
+                </div>
+                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 3px', lineHeight: 1.25 }}>{nextEvent.title}</h3>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>{nextEvent.time}{nextEvent.price ? ` · ${nextEvent.price}` : ''}</p>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ flexShrink: 0, marginTop: 4 }}><path d="M9 18l6-6-6-6" /></svg>
+            </div>
+            {alsoThisWeek && (
+              <div onClick={() => push('community/event', { event: alsoThisWeek })} data-tap style={{ marginTop: 6, padding: '8px 12px', background: G.bg, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted }}>Also this week:</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alsoThisWeek.title}</span>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, flexShrink: 0 }}>{relativeEventDate(alsoThisWeek.eventDate)}</span>
+              </div>
+            )}
           </div>
         )}
 

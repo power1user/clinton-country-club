@@ -31,6 +31,7 @@ import CourseOrder from './screens/CourseOrder.jsx';
 import OrderConfirm from './screens/OrderConfirm.jsx';
 import Events from './screens/Events.jsx';
 import EventsCalendar from './screens/EventsCalendar.jsx';
+import EventsUpcoming from './screens/EventsUpcoming.jsx';
 import EventDetail from './screens/EventDetail.jsx';
 import BulletinBoard from './screens/BulletinBoard.jsx';
 import MyClub from './screens/MyClub.jsx';
@@ -63,6 +64,7 @@ const SCREENS = {
   'food/confirm': OrderConfirm,
   community: Events,
   'community/calendar': EventsCalendar,
+  'community/upcoming': EventsUpcoming,
   'community/event': EventDetail,
   'community/bulletin': BulletinBoard,
   myclub: MyClub,
