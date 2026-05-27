@@ -130,8 +130,12 @@ export default function Home() {
             Bottom row: 2 pills × 3 cols. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {(() => {
-            const row1 = statusList.slice(0, 3);
-            const row2 = statusList.slice(3);
+            // v0.9.15: filter out facilities the manager has marked
+            // inactive. Admin surfaces (Daily Status admin, Facility
+            // Hours) still show all rows with an "off" indicator.
+            const visiblePills = statusList.filter(p => p.active !== false);
+            const row1 = visiblePills.slice(0, 3);
+            const row2 = visiblePills.slice(3);
             return (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 5 }}>

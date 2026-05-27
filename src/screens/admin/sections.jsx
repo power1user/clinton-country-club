@@ -598,6 +598,220 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
 // pushes back via the realtime subscription in useAuth so the visual
 // updates live for everyone.)
 // ============================================================
+// ============================================================
+// FacilitiesAdmin — v0.9.15. Catalog of which facilities this
+// club has. Source of truth for the display name on status
+// pills, hours editor, schedule overrides. Real-time updates
+// push to every open member session.
+//
+// Spec'd behaviors:
+//   · Inline-editable display_name with debounced save
+//   · Active toggle (inactive = hidden from members, visible
+//     to admin with a faded look + "off" tag)
+//   · ↑↓ reorder buttons (sort_order swap with neighbor)
+//   · "+ Add Facility" form (auto-derives facility_key via
+//     slugify; collision-suffix for uniqueness)
+//   · Delete only on custom (is_default=false) facilities;
+//     defaults can be renamed and toggled off but never deleted
+// ============================================================
+
+function facilityKeyFromName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
+    || 'facility';
+}
+
+export function FacilitiesAdmin() {
+  const { club, hasPerm } = useAuth();
+  // Re-use the same permission gate Daily Status uses — anyone
+  // who can flip today's status is qualified to manage the
+  // catalog of facility names.
+  const canEdit = hasPerm('can_edit_course_status');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('club_facilities')
+        .select('id, facility_key, display_name, default_name, is_default, active, sort_order')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    })();
+    const channel = supabase
+      .channel(`club_facilities_admin:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_facilities', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id, version]);
+
+  const updateRow = async (id, patch) => {
+    setBusyId(id); setErr(null);
+    const { error } = await supabase.from('club_facilities').update(patch).eq('id', id);
+    setBusyId(null);
+    if (error) setErr(error.message);
+  };
+
+  const move = async (row, direction) => {
+    if (!canEdit) return;
+    const idx = rows.findIndex(r => r.id === row.id);
+    const neighborIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (neighborIdx < 0 || neighborIdx >= rows.length) return;
+    const neighbor = rows[neighborIdx];
+    await Promise.all([
+      supabase.from('club_facilities').update({ sort_order: neighbor.sort_order }).eq('id', row.id),
+      supabase.from('club_facilities').update({ sort_order: row.sort_order }).eq('id', neighbor.id),
+    ]);
+  };
+
+  const remove = async (row) => {
+    if (row.is_default) return; // belt-and-suspenders; UI also hides the button
+    if (!confirm(`Delete "${row.display_name}"? Members will stop seeing this facility immediately.`)) return;
+    setBusyId(row.id); setErr(null);
+    const { error } = await supabase.from('club_facilities').delete().eq('id', row.id);
+    setBusyId(null);
+    if (error) setErr(error.message);
+  };
+
+  const addFacility = async () => {
+    if (!canEdit || !club) return;
+    const trimmed = newName.trim();
+    if (!trimmed) { setErr('Name is required.'); return; }
+    // Slug + uniqueness collision suffix (matches the Member Guide pattern)
+    const existingKeys = new Set(rows.map(r => r.facility_key));
+    let key = facilityKeyFromName(trimmed);
+    if (existingKeys.has(key)) {
+      for (let i = 2; i < 100; i++) {
+        const candidate = `${key}_${i}`;
+        if (!existingKeys.has(candidate)) { key = candidate; break; }
+      }
+    }
+    const nextSort = (rows[rows.length - 1]?.sort_order ?? 0) + 1;
+    setBusyId('new'); setErr(null);
+    const { error } = await supabase.from('club_facilities').insert({
+      club_id: club.id,
+      facility_key: key,
+      display_name: trimmed,
+      default_name: trimmed,
+      is_default: false,
+      active: true,
+      sort_order: nextSort,
+    });
+    setBusyId(null);
+    if (error) { setErr(error.message); return; }
+    setNewName('');
+    setAdding(false);
+  };
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+        What facilities does {club?.name || 'this club'} have? Renaming a facility here updates every status pill, hours editor, and member screen instantly. Inactive facilities stay in the catalog but disappear from member view.
+      </p>
+
+      {err && (
+        <div onClick={() => setErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4, padding: '8px 12px', marginBottom: 10, cursor: 'pointer' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0 }}>{err} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
+        </div>
+      )}
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {!loading && rows.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No facilities yet — add one below to start your status dashboard.</p>
+        </div>
+      )}
+      {!loading && rows.length > 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {rows.map((row, i) => (
+            <div key={row.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8, opacity: row.active ? 1 : 0.55 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  value={row.display_name}
+                  disabled={!canEdit || busyId === row.id}
+                  onChange={e => setRows(prev => prev.map(r => r.id === row.id ? { ...r, display_name: e.target.value } : r))}
+                  onBlur={e => {
+                    const v = e.target.value.trim();
+                    if (!v) {
+                      // Revert to default_name if cleared
+                      setRows(prev => prev.map(r => r.id === row.id ? { ...r, display_name: row.default_name } : r));
+                      updateRow(row.id, { display_name: row.default_name });
+                    } else if (v !== row.display_name) {
+                      updateRow(row.id, { display_name: v });
+                    }
+                  }}
+                  style={{ flex: 1, padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', minWidth: 0 }}
+                />
+                {!row.active && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.12)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>OFF</span>}
+                {!row.is_default && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, background: 'rgba(155,122,30,0.10)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>CUSTOM</span>}
+              </div>
+              {canEdit && (
+                <>
+                  <Toggle checked={row.active} onChange={(next) => updateRow(row.id, { active: next })} ariaLabel={`Toggle ${row.display_name} active`} />
+                  <button onClick={() => move(row, 'up')} disabled={i === 0} style={{ width: 26, height: 26, padding: 0, background: 'transparent', border: 'none', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.25 : 1 }} aria-label="Move up">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
+                  </button>
+                  <button onClick={() => move(row, 'down')} disabled={i === rows.length - 1} style={{ width: 26, height: 26, padding: 0, background: 'transparent', border: 'none', cursor: i === rows.length - 1 ? 'default' : 'pointer', opacity: i === rows.length - 1 ? 0.25 : 1 }} aria-label="Move down">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                  {!row.is_default && (
+                    <button onClick={() => remove(row)} style={{ padding: '4px 6px', background: 'transparent', border: 'none', cursor: 'pointer' }} aria-label={`Delete ${row.display_name}`}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /></svg>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Facility form */}
+      {canEdit && !adding && (
+        <div onClick={() => setAdding(true)} data-tap style={{ marginTop: 12, padding: '10px 14px', background: G.bg, border: `1px dashed ${G.border}`, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass, fontWeight: 500 }}>Add facility (Pickleball, Tennis, Locker Room…)</span>
+        </div>
+      )}
+      {adding && (
+        <div style={{ marginTop: 12, padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
+          <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>New facility name</label>
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Pickleball, Tennis, Locker Room…"
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && addFacility()}
+            style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div onClick={busyId === 'new' ? undefined : addFacility} data-tap style={{ flex: 1, padding: 10, background: busyId === 'new' ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busyId === 'new' ? 'wait' : 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>{busyId === 'new' ? 'Adding…' : 'Add'}</span>
+            </div>
+            <div onClick={() => { setAdding(false); setNewName(''); setErr(null); }} data-tap style={{ flex: 1, padding: 10, background: G.bg, border: `1px solid ${G.border}`, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>Cancel</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ClubSettingsAdmin() {
   const { club } = useAuth();
   return (

@@ -13,7 +13,7 @@ import {
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, MemberGuideAdmin, MemberPostsAdmin,
   SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin, GuestManagementAdmin,
-  GuestRegistrationsFeed,
+  GuestRegistrationsFeed, FacilitiesAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 
@@ -184,6 +184,10 @@ const AREAS = [
     icon: IconCog,
     sections: [
       { id: 'clubsettings',                              l: 'Branding & Contact', d: 'Logo, colors, contact, gating',                 icon: IconCog,      managerOnly: true },
+      // v0.9.15: Facilities catalog. Renames + reorder + add/remove
+      // facilities. Display names everywhere (pills, hours, overrides)
+      // resolve from this list.
+      { id: 'facilities',    permKey: 'can_edit_course_status', l: 'Facilities',        d: 'Rename, reorder, add/remove facilities',                 icon: IconCog,      managerOnly: true },
       { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,      managerOnly: true },
       // v0.9.2: Facility configuration moved here from Golf Course.
       // Weekly hours / dawn / dusk / members_only / one-off date
@@ -307,6 +311,7 @@ export default function AdminPanel() {
           {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
           {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin mode="flat" />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
+          {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
           {sec === 'features'       && isManager && <FeaturesAdmin />}
           {sec === 'guests'         && isManager && <GuestManagementAdmin />}
           {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
@@ -659,11 +664,15 @@ function useMinuteTick() {
 // DB state field, which stays "open" overnight even after dusk closes
 // the facility.
 function DailyStatusQuickAccess({ onOpen }) {
-  const { data: pills, loading } = useClubStatus();
+  const { data: pillsAll, loading } = useClubStatus();
   const { club } = useAuth();
   const dusk = useDusk();
   const dawn = useDawn();
   useMinuteTick();
+  // v0.9.15: quick-access banner mirrors what members see — only
+  // active facilities. Inactive ones surface in DailyStatusAdmin
+  // with their OFF tag.
+  const pills = (pillsAll || []).filter(p => p.active !== false);
   if (loading || !pills?.length) return null;
   const tz = club?.timezone || DEFAULT_TIMEZONE;
   const sun = { dusk, dawn };
@@ -763,6 +772,12 @@ function DailyStatusAdmin({ club }) {
           <div key={item.id} style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>{item.label}</h4>
+              {/* v0.9.15: "OFF" tag when the facility is inactive
+                  in the catalog. Members don't see this facility,
+                  but admin still does for transparency. */}
+              {item.active === false && (
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.12)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }} title="Inactive — hidden from members. Manage in Club Settings → Facilities.">OFF</span>
+              )}
               <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2EDE0', background: effCfg.bg, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }} title="Live computed state (auto-updates at dawn/dusk)">Live: {effSt}</span>
             </div>
             {/* State buttons */}
@@ -816,9 +831,15 @@ function FacilityHoursAdmin() {
       {pills.map(item => {
         const summary = summarizeWeek(item.hoursByDay);
         return (
-          <div key={item.id} onClick={() => setEditingFor(item)} data-tap style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div key={item.id} onClick={() => setEditingFor(item)} data-tap style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, opacity: item.active === false ? 0.55 : 1 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{item.label}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{item.label}</p>
+                {/* v0.9.15: "OFF" tag for catalog-inactive facilities */}
+                {item.active === false && (
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.12)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }} title="Inactive — hidden from members.">OFF</span>
+                )}
+              </div>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.4 }}>{summary}</p>
             </div>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2, flexShrink: 0 }}>Edit hours</span>

@@ -25,6 +25,102 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.15** — Custom Facility Names (Migration 53 + admin).
+
+  Display names for the five status pills move from being baked
+  into `club_status.label` (per-row, scattered) to a normalized
+  catalog table `club_facilities`. Managers can rename, reorder,
+  toggle off, and add custom facilities (Pickleball, Tennis,
+  Locker Room) without code changes. Display name + ordering
+  propagate to every facility-name surface live via realtime.
+
+  **Migration 53 (`53_club_facilities`):**
+    · New table `club_facilities` with `id, club_id, facility_key,
+      display_name, default_name, is_default, active, sort_order,
+      created_at, updated_at`. Unique `(club_id, facility_key)`.
+    · Index on `(club_id, sort_order)`.
+    · `updated_at` trigger.
+    · **Seeded existing clubs by mirroring their current
+      `club_status` rows** — Clinton's 5 facilities (Restaurant,
+      Bar, Banquet Room, Course, Pool) come over exactly as they
+      are. Each marked `is_default=true` so they can't be deleted
+      (renamable + toggleable yes; deletable no).
+    · **Seeded empty clubs** (Oakgrove, Windhaven) with the
+      Marc-approved standard starter set: Course, Bar,
+      Restaurant, Pool, Banquet Room. All active. All
+      is_default=true.
+    · `club_status.facility_id` FK added + backfilled by joining
+      on `(club_id, category = facility_key)`.
+    · Added to `supabase_realtime` publication.
+    · RLS: read = club members + staff + active guests; write =
+      staff of the club only.
+
+  **`useFacilities()` hook** (`useClubData.jsx`):
+    · Returns `{ data, all, byKey, loading }` where `data` is
+      active facilities sorted by `sort_order`, `all` includes
+      inactive (for admin), and `byKey` is `{ facility_key: row }`
+      for label lookups.
+    · Realtime sub on `club_facilities` — manager edits push live.
+
+  **`useClubStatus` upgraded** (same file):
+    · Joins `club_facilities` via the new `facility_id` FK.
+    · Surfaces `label` from `facility.display_name` (fallback to
+      legacy `club_status.label` for any unlinked row).
+    · Surfaces `active` from facility.
+    · Re-sorts result by `facility.sort_order` so manager-driven
+      reordering propagates everywhere.
+    · Additional realtime sub on `club_facilities` so a rename
+      pushes through to every open member session.
+
+  **New admin section `FacilitiesAdmin`** (Club Settings →
+  Facilities):
+    · List of all facilities with inline-editable display_name
+      input (blur saves; clearing reverts to default_name).
+    · Active toggle (Toggle.jsx) — flip flips the facility on/off
+      for members instantly.
+    · ↑↓ reorder buttons (sort_order swap with neighbor;
+      atomic two-statement update).
+    · Inline tags: "OFF" (red) when inactive, "CUSTOM" (brass)
+      for manager-added facilities.
+    · Delete button only shown for custom facilities. Defaults
+      are renamable + toggle-off-able, never deletable
+      (UI + spec contract; not enforced in DB since DELETE RLS
+      already requires staff anyway).
+    · "+ Add facility" form: name field + Enter to submit. Auto-
+      derives `facility_key` via slugify (a→z, 0-9, underscores;
+      length-capped 40); collision suffix on name conflict.
+    · Permission: gated by `can_edit_course_status` (same gate
+      as Daily Status — managing the facility catalog is a
+      facility-config decision).
+    · Realtime sub keeps the admin list synced when another
+      session edits.
+
+  **OFF indicators added to admin surfaces:**
+    · `DailyStatusAdmin` per-facility header now shows a red
+      "OFF" chip when the underlying facility is inactive.
+    · `FacilityHoursAdmin` rows fade (opacity 0.55) + show the
+      OFF chip when inactive.
+    · `DailyStatusQuickAccess` (admin home banner) filters to
+      active-only so the banner mirrors what members see.
+    · Member-facing Home status pill row filters
+      `pill.active !== false` so inactive facilities disappear
+      from the dashboard live.
+
+  **Wired into Club Settings area:**
+    · New `facilities` section card sits between Branding &
+      Contact and Feature Toggles. Description: "Rename,
+      reorder, add/remove facilities."
+    · Manager-only.
+
+  **Scope notes:**
+    · Communications sub-queues stayed OUT of facility naming
+      per Marc's call (Q1) — they're work-kind queues, not
+      facilities.
+    · `ScheduleOverridesAdmin` facility selector still uses the
+      pill data from `useClubStatus`, which now resolves names
+      via the new system, so override entries automatically pick
+      up renames. No separate refactor needed.
+
 - **v0.9.14** — MyInquiries empty-state CTAs.
 
   Marc's My Inquiries spec asked for an empty state with "a button

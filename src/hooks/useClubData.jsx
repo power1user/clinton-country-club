@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAuth } from './useAuth.jsx';
 import { clubLocalParts, DEFAULT_TIMEZONE, todayInClubTz } from '../lib/timezone.js';
@@ -53,6 +53,57 @@ function formatHMS(hms) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Facilities catalog (v0.9.15) — what facilities does this club have,
+// and what does the manager call them? Source of truth for the display
+// name on every status pill, hours editor, schedule override, etc.
+// Replaces the old "label baked into club_status row" pattern.
+//
+// Returns:
+//   data   — array of active facilities sorted by sort_order
+//   all    — array of ALL facilities (active + inactive) for admin
+//   byKey  — { [facility_key]: { id, display_name, active, sort_order, ... } }
+//            convenient for "look up the label for facility 'pool'"
+//   loading
+//
+// Realtime: any change to club_facilities by a manager pushes through
+// here, so renaming a facility updates every open member session.
+// ────────────────────────────────────────────────────────────────────────────
+export function useFacilities() {
+  const { club } = useAuth();
+  const [all, setAll] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConfigured || !club) { setAll([]); setLoading(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('club_facilities')
+        .select('id, facility_key, display_name, default_name, is_default, active, sort_order')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      setAll(data || []);
+      setLoading(false);
+    };
+    load();
+    const channel = supabase
+      .channel(`club_facilities:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_facilities', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id]);
+
+  const data = useMemo(() => all.filter(f => f.active), [all]);
+  const byKey = useMemo(() => {
+    const m = {};
+    for (const f of all) m[f.facility_key] = f;
+    return m;
+  }, [all]);
+  return { data, all, byKey, loading };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Status pills (real-time)
 // ────────────────────────────────────────────────────────────────────────────
 export function useClubStatus() {
@@ -74,7 +125,8 @@ export function useClubStatus() {
           .from('club_status')
           .select(`
             id, category, label, sort_order, state, hours_note, staff_note,
-            opens_at, closes_at,
+            opens_at, closes_at, facility_id,
+            facility:club_facilities!facility_id (display_name, active, sort_order, facility_key, is_default),
             hours:club_status_hours (day_of_week, opens_at, opens_at_dawn, closes_at, closes_at_dusk, is_closed, members_only)
           `)
           .eq('club_id', club.id)
@@ -111,10 +163,18 @@ export function useClubStatus() {
         }
         const specific = byStatus.get(r.id);
         const todayOverride = specific || allFacOverride || null;
+        // v0.9.15: prefer the facility catalog's display_name + active
+        // + sort_order. Fall back to the legacy club_status.label when
+        // the row has no facility link yet (defensive; backfill should
+        // cover every existing row).
+        const facility = r.facility || null;
         return {
           id: r.category,
           statusId: r.id,                          // needed for admin per-day writes
-          label: r.label,
+          label: facility?.display_name || r.label,
+          active: facility ? facility.active : true,
+          facilitySortOrder: facility?.sort_order ?? r.sort_order,
+          facilityId: r.facility_id,
           st: r.state,
           note: r.staff_note || '',
           opens_at:  r.opens_at,
@@ -125,7 +185,13 @@ export function useClubStatus() {
           // hoursByDay when present.
           todayOverride,
         };
-      }));
+      })
+      // v0.9.15: re-sort by facility.sort_order so manager-driven
+      // reordering in Club Settings → Facilities propagates to the
+      // member dashboard immediately. Falls back to the original
+      // club_status.sort_order for unlinked rows.
+      .sort((a, b) => (a.facilitySortOrder ?? 0) - (b.facilitySortOrder ?? 0))
+      );
       setLoading(false);
     };
     load();
@@ -143,6 +209,12 @@ export function useClubStatus() {
       // Today's override changes (admin adds/removes a date closure)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'schedule_overrides', filter: `club_id=eq.${club.id}` },
+        () => load(),
+      )
+      // v0.9.15: facility renames + reorder + active toggles push live
+      // to every open member session through useClubStatus's data.
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'club_facilities', filter: `club_id=eq.${club.id}` },
         () => load(),
       )
       .subscribe();
