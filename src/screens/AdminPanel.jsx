@@ -78,11 +78,16 @@ const AREAS = [
     d: 'Status, pace, pins, hole details',
     icon: IconFlag,
     sections: [
-      { id: 'status',    permKey: 'can_edit_course_status', l: 'Club Status',     d: 'Hours, open/closed, member-only days',      icon: IconStatus   },
-      { id: 'overrides', permKey: 'can_edit_course_status', l: 'Date Overrides',  d: 'One-off date closures / tournament hours',  icon: IconCalendar },
+      // v0.9.2: 'status' (daily operational toggle) stays here +
+      // surfaces as a quick-access card on the admin home so the
+      // morning opener can flip pills in 2 taps. Renamed Club Status
+      // → Daily Status to reflect that hours config has moved.
+      { id: 'status',    permKey: 'can_edit_course_status', l: 'Daily Status',    d: "Today's open/limited/closed + staff note",  icon: IconStatus   },
       { id: 'pace',      permKey: 'can_edit_course_status', l: 'Pace',            d: "Set today's pace indicator",                icon: IconClock    },
       { id: 'pins',      permKey: 'can_edit_pins',          l: 'Daily Pins',      d: "Place today's pin on each green",           icon: IconFlag     },
       { id: 'holes',     permKey: 'can_edit_pins',          l: 'Hole Details',    d: 'Par, yardage, names + descriptions',        icon: IconList     },
+      // v0.9.2: 'overrides' moved → Club Settings (configuration, not
+      // daily ops).
     ],
   },
   {
@@ -132,16 +137,23 @@ const AREAS = [
   {
     id: 'clubsetup',
     l: 'Club Settings',
-    d: 'Branding, features, subscription',
+    d: 'Branding, hours, features, guide',
     icon: IconCog,
     sections: [
-      { id: 'clubsettings',                              l: 'Branding & Contact', d: 'Logo, colors, contact, gating',                 icon: IconCog,  managerOnly: true },
-      { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,  managerOnly: true },
+      { id: 'clubsettings',                              l: 'Branding & Contact', d: 'Logo, colors, contact, gating',                 icon: IconCog,      managerOnly: true },
+      { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,      managerOnly: true },
+      // v0.9.2: Facility configuration moved here from Golf Course.
+      // Weekly hours / dawn / dusk / members_only / one-off date
+      // overrides are setup decisions a manager makes once, not
+      // operational toggles staff flip daily. Daily ops stays as
+      // Daily Status in Golf Course (with a home-screen quick-access).
+      { id: 'facilityhours', permKey: 'can_edit_course_status', l: 'Facility Hours',    d: 'Weekly base hours per facility (dawn/dusk, member-only)', icon: IconClock,    managerOnly: true },
+      { id: 'overrides',     permKey: 'can_edit_course_status', l: 'Date Overrides',    d: 'One-off date closures / tournament hours',                icon: IconCalendar, managerOnly: true },
       // v0.9.1: Member Guide moved here from Communications. Pages are
       // configuration of how the club presents itself to new members,
       // not a comms surface. Reuses permKey 'can_post_news' (same role
       // that maintains other documentation surfaces).
-      { id: 'clubguide',    permKey: 'can_post_news',  l: 'Member Guide',       d: 'Onboarding pages members read on first run',    icon: IconList, managerOnly: true },
+      { id: 'clubguide',    permKey: 'can_post_news',  l: 'Member Guide',       d: 'Onboarding pages members read on first run',    icon: IconList,     managerOnly: true },
       // Future: { id: 'subscription', l: 'Subscription', d: 'Tier + active features summary', icon: IconList, managerOnly: true },
     ],
   },
@@ -210,7 +222,8 @@ export default function AdminPanel() {
           right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
         />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-          {sec === 'status'         && <StatusAdmin club={club} />}
+          {sec === 'status'         && <DailyStatusAdmin club={club} />}
+          {sec === 'facilityhours'  && isManager && <FacilityHoursAdmin />}
           {sec === 'overrides'      && <ScheduleOverridesAdmin />}
           {sec === 'pace'           && <PaceAdmin club={club} />}
           {sec === 'pins'           && <PinsAdmin club={club} />}
@@ -294,6 +307,12 @@ export default function AdminPanel() {
             <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px', textAlign: 'center' }}>
               Welcome back{member?.name ? `, ${member.name.split(' ')[0]}` : ''}. Choose an area to manage.
             </p>
+            {/* v0.9.2: Daily Status quick-access for the morning opener.
+                Shows live state per facility + 1-tap into the form. Only
+                renders for users with can_edit_course_status. */}
+            {hasPerm('can_edit_course_status') && (
+              <DailyStatusQuickAccess onOpen={() => setSec('status')} />
+            )}
             <CardGrid items={AREAS.filter(areaVisible)} onSelect={setArea} />
             {AREAS.filter(areaVisible).length === 0 && (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
@@ -521,13 +540,45 @@ function IconCog({ color = '#fff' }) {
   );
 }
 
-// ─── Status pills editor ───────────────────────────────────────────────────
-function StatusAdmin({ club }) {
+// ─── Daily Status quick-access (admin home banner) ─────────────────────────
+// v0.9.2: prominent at-a-glance card on the admin home for users with
+// can_edit_course_status. Shows current state per facility + 1-tap into
+// the Daily Status form (the morning opener's most-frequent action).
+function DailyStatusQuickAccess({ onOpen }) {
+  const { data: pills, loading } = useClubStatus();
+  if (loading || !pills?.length) return null;
+  return (
+    <div onClick={onOpen} data-tap style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, marginBottom: 14, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.green} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>Today's Status</p>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Update</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {pills.map(p => {
+          const cfg = gCfg(p.st);
+          return (
+            <div key={p.id} style={{ padding: '4px 8px', background: cfg.bg, borderRadius: 3 }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#F2EDE0', textTransform: 'capitalize' }}>{p.label}: {p.st}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Daily Status (operational toggle, not config) ─────────────────────────
+// v0.9.2: split out of the old StatusAdmin. Renders just the state buttons
+// (open/limited/closed) + staff_note per pill. The hours-editing
+// affordance moved to FacilityHoursAdmin under Club Settings — daily ops
+// vs. config separation, so whoever opens the club each morning doesn't
+// have to wade through schedule setup.
+function DailyStatusAdmin({ club }) {
   const { data: pills, loading } = useClubStatus();
   const [draft, setDraft] = useState({});       // { category: { state, staff_note } }
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
-  const [editingHoursFor, setEditingHoursFor] = useState(null);  // status object or null
   const dirty = useRef(false);
 
   // Re-sync the draft whenever fresh data arrives — UNLESS the user has unsaved edits.
@@ -568,9 +619,9 @@ function StatusAdmin({ club }) {
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
-        Pills auto-toggle Open ↔ Closed based on the weekly hours you set per facility.
+        Pills auto-toggle Open ↔ Closed based on the weekly hours configured per facility.
         State buttons override (use "Limited" for partial service or "Closed" to force-close
-        regardless of hours).
+        regardless of hours). Set the weekly schedule under <strong>Club Settings → Facility Hours</strong>.
       </p>
       {pills.map(item => {
         const d = draft[item.id] || { state: item.st, staff_note: item.note };
@@ -586,11 +637,10 @@ function StatusAdmin({ club }) {
                 </div>
               ))}
             </div>
-            {/* Weekly hours summary + edit */}
-            <div onClick={() => setEditingHoursFor(item)} data-tap style={{ padding: '8px 10px', background: G.bg, borderRadius: 3, border: `1px solid ${G.border}`, cursor: 'pointer', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, flex: 1 }}>{summary}</span>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Edit hours</span>
+            {/* Read-only weekly summary so the daily opener can sanity-check the schedule */}
+            <div style={{ padding: '6px 10px', background: G.bg, borderRadius: 3, border: `1px solid ${G.border}`, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flex: 1 }}>{summary}</span>
             </div>
             <input
               value={d.staff_note}
@@ -606,13 +656,40 @@ function StatusAdmin({ club }) {
           {busy ? 'Publishing…' : savedAt ? '✓ State + notes published' : 'Publish State + Notes'}
         </span>
       </div>
+    </div>
+  );
+}
 
-      {editingHoursFor && (
-        <WeeklyHoursModal
-          pill={editingHoursFor}
-          onClose={() => setEditingHoursFor(null)}
-        />
-      )}
+// ─── Facility Hours (configuration, manager-only) ──────────────────────────
+// v0.9.2: lives under Club Settings. Lists each facility/pill with a
+// summary of the weekly schedule + "Edit hours" → opens the existing
+// WeeklyHoursModal. Decoupled from daily ops so morning staff don't
+// accidentally rewrite the schedule while flipping today's state.
+function FacilityHoursAdmin() {
+  const { data: pills, loading } = useClubStatus();
+  const [editingFor, setEditingFor] = useState(null);
+
+  if (loading) return <Loading label="Loading facility schedules…" />;
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+        Weekly base hours per facility. Auto-toggles the open/closed pills members see on the home screen.
+        Use <strong>Date Overrides</strong> below for one-off closures or tournament hours.
+      </p>
+      {pills.map(item => {
+        const summary = summarizeWeek(item.hoursByDay);
+        return (
+          <div key={item.id} onClick={() => setEditingFor(item)} data-tap style={{ padding: '13px 14px', background: G.card, borderRadius: 4, marginBottom: 9, border: `1px solid ${G.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{item.label}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.4 }}>{summary}</p>
+            </div>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2, flexShrink: 0 }}>Edit hours</span>
+          </div>
+        );
+      })}
+      {editingFor && <WeeklyHoursModal pill={editingFor} onClose={() => setEditingFor(null)} />}
     </div>
   );
 }

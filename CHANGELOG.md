@@ -25,6 +25,42 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.2** — Split Club Status: daily ops vs. configuration.
+
+  The old `StatusAdmin` conflated two very different jobs in one
+  screen: flipping today's open/closed state (a morning-opener
+  action) and configuring the weekly schedule (a once-per-season
+  manager decision). Anyone tapping into Club Status had to wade
+  past schedule-editing affordances to set a staff note. Split now
+  matches Marc's clean separation: configuration → Club Settings,
+  daily operation → top level + quick-access from home.
+
+  Changes:
+    · `StatusAdmin` renamed `DailyStatusAdmin` — keeps the state
+      buttons (open/limited/closed) + staff_note input per pill.
+      The "Edit hours" link + WeeklyHoursModal trigger are gone;
+      replaced with a read-only weekly summary line + a copy
+      pointer to "Club Settings → Facility Hours".
+    · New `FacilityHoursAdmin` section in Club Settings — lists
+      each facility with its weekly summary; click → opens the
+      existing WeeklyHoursModal. Manager-only.
+    · `ScheduleOverridesAdmin` (Date Overrides) moved from Golf
+      Course → Club Settings. Same component, same id; only the
+      parent area changed.
+    · Golf Course section relabeled: "Club Status" → "Daily
+      Status" + description "Today's open/limited/closed + staff
+      note" so the operational intent is unmistakable.
+    · New `DailyStatusQuickAccess` banner on the admin home for
+      users with can_edit_course_status. Shows current state per
+      facility (color-coded pills) + 1-tap into the Daily Status
+      form. The morning opener now flips today's status in 2 taps
+      from cold-load: home → quick-access banner → form.
+
+  No schema work. No new permission keys (`can_edit_course_status`
+  already gates the operational side; manager-only flag covers the
+  config side). Section ids `status`, `overrides`, and the new
+  `facilityhours` are stable so deep-links survive.
+
 - **v0.9.1** — Member Guide CRUD in Club Settings.
 
   The Member Guide section existed in admin (Communications area)
