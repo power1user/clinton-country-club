@@ -288,13 +288,13 @@ export default function AdminPanel() {
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
-          {/* v0.9.4: Communications sub-queues. For this scaffold ship,
-              each routes to the existing component so the area is
-              wired end-to-end. v0.9.5 + v0.9.6 polish each with the
-              new pattern (realtime, group-by-topic, etc). */}
+          {/* v0.9.4 scaffold; v0.9.5 polished Food Orders + split
+              the pro_shop_inquiries queue by kind for the two
+              separate Comms sub-queues. v0.9.6 polishes
+              Guests/Clubhouse/RSVPs. */}
           {sec === 'inbox_food'      && <FoodOrdersAdmin />}
-          {sec === 'inbox_lessons'   && <LessonRequestsAdmin />}
-          {sec === 'inbox_proshop'   && <LessonRequestsAdmin />}
+          {sec === 'inbox_lessons'   && <LessonRequestsAdmin mode="lessons" />}
+          {sec === 'inbox_proshop'   && <LessonRequestsAdmin mode="inquiries" />}
           {sec === 'inbox_guests'    && isManager && <GuestManagementAdmin />}
           {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
           {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin />}

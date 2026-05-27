@@ -25,6 +25,46 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.5** — Communications sub-queues 1/2: Food / Lessons / Pro Shop.
+
+  Polishes three of the six Comms sub-queues with the operational
+  improvements Marc specced.
+
+  **Food Orders** (`inbox_food`):
+    · Default-filters to **active** statuses (pending, preparing,
+      out_for_delivery). The morning kitchen lead no longer
+      scrolls past yesterday's delivered orders.
+    · "Show completed (N)" toggle reveals the full 100-row
+      window; "Active only" toggle hides them again.
+    · Empty state for "all caught up" reads "All caught up — no
+      active orders." (vs. "No orders yet." for an empty history).
+    · Realtime unchanged; status transitions still push to members.
+
+  **Lesson Requests + Pro Shop Inquiries** (`inbox_lessons`,
+  `inbox_proshop`) — same underlying `pro_shop_inquiries` table,
+  discriminated by the `kind` column:
+    · `LessonRequestsAdmin` now accepts `mode` prop:
+        - `mode="lessons"`   → `kind = 'lesson'` only
+        - `mode="inquiries"` → `kind != 'lesson'` (general)
+        - `mode="all"`       → no filter (back-compat default
+                                for the legacy Pro Shop area
+                                until v0.9.7 removes it)
+    · Heading copy changes per mode so the sub-queue purpose is
+      unambiguous.
+    · New **"Reply via clubhouse"** button per row — creates a
+      clubhouse thread with subject "Lesson Request: <member>"
+      or "Pro Shop Inquiry: <member>" and adds both the staff
+      user and the requesting member as participants. Navigates
+      straight into the thread. Replaces the "open your email
+      client and copy-paste" workflow.
+    · Defensive: shows an inline error if the requesting member
+      has no linked Supabase user (rare; happens for very old
+      member rows or CSV imports never claimed by signup).
+
+  No schema changes. Existing `LessonRequestsAdmin` callers (the
+  legacy Pro Shop → Lesson Queue entry) get back-compat default
+  `mode='all'` — same behavior as before.
+
 - **v0.9.4** — Communications area scaffold (inbound triage).
 
   New top-level **Communications** area in the admin hub for

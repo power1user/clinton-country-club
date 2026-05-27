@@ -357,12 +357,17 @@ function ComposeNotificationModal({ club, authorId, onClose, onSaved }) {
 
 // ============================================================
 // food_orders — queue with status transitions
+// v0.9.5: defaults to "active" filter (pending + preparing +
+// out_for_delivery) so the morning kitchen lead isn't wading
+// through yesterday's delivered orders. Tap "Show completed"
+// to see everything.
 // ============================================================
 export function FoodOrdersAdmin() {
   const { club, hasPerm } = useAuth();
   const canEdit = hasPerm('can_edit_orders');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     if (!club) return;
@@ -393,19 +398,36 @@ export function FoodOrdersAdmin() {
 
   const STATUS_OPTIONS = ['pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
   const STATUS_COLORS = { pending: G.brass, preparing: G.limBg, out_for_delivery: G.openBg, delivered: G.muted, cancelled: G.clsBg };
+  const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'out_for_delivery']);
+  const visibleRows = showCompleted ? rows : rows.filter(r => ACTIVE_STATUSES.has(r.status));
+  const hiddenCount = rows.length - visibleRows.length;
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-        Most recent 100 orders. Status updates push to members in realtime.
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+          {showCompleted ? 'All orders (most recent 100)' : 'Active orders (pending, preparing, on the way)'} · live updates
+        </p>
+        {hiddenCount > 0 && !showCompleted && (
+          <div onClick={() => setShowCompleted(true)} data-tap style={{ padding: '5px 10px', background: G.bg, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass }}>Show completed ({hiddenCount})</span>
+          </div>
+        )}
+        {showCompleted && (
+          <div onClick={() => setShowCompleted(false)} data-tap style={{ padding: '5px 10px', background: G.bg, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.brass }}>Active only</span>
+          </div>
+        )}
+      </div>
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
-      {!loading && rows.length === 0 && (
+      {!loading && visibleRows.length === 0 && (
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No orders yet.</p>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+            {showCompleted ? 'No orders yet.' : 'All caught up — no active orders.'}
+          </p>
         </div>
       )}
-      {rows.map(r => (
+      {visibleRows.map(r => (
         <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>
@@ -2962,75 +2984,152 @@ function DetailRow({ label, value }) {
 }
 
 // ============================================================
-// lesson_requests (pro_shop_inquiries) — queue
+// lesson_requests / pro_shop_inquiries — queue
+// v0.9.5: split into two flavors via `mode` prop so the
+// Communications area can route lessons + general inquiries
+// into separate sub-queues:
+//   mode='lessons'   → kind = 'lesson'        (rendered as "Lesson Requests")
+//   mode='inquiries' → kind != 'lesson'       (rendered as "Pro Shop Inquiries")
+//   mode='all'       → no filter (back-compat default)
+// Also adds a "Reply via clubhouse" button per row that opens
+// (or creates) a clubhouse thread tied to the inquiry so staff
+// can respond without copy-pasting an email.
 // ============================================================
-export function LessonRequestsAdmin() {
-  const { club, hasPerm } = useAuth();
+export function LessonRequestsAdmin({ mode = 'all' } = {}) {
+  const { club, member, session, hasPerm } = useAuth();
+  const { push } = useNav();
   const canEdit = hasPerm('can_manage_lessons');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busyReply, setBusyReply] = useState(null);
+  const [replyErr, setReplyErr] = useState(null);
 
   useEffect(() => {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('pro_shop_inquiries')
-        .select('id, kind, pro, preferred_date, preferred_time, skill_level, focus_areas, notes, status, created_at, member_id, members(name, membership_number, email)')
+        .select('id, kind, pro, preferred_date, preferred_time, skill_level, focus_areas, notes, status, created_at, member_id, members(name, membership_number, email, user_id)')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
+      if (mode === 'lessons')   q = q.eq('kind', 'lesson');
+      if (mode === 'inquiries') q = q.neq('kind', 'lesson');
+      const { data } = await q;
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);
     };
     load();
     const channel = supabase
-      .channel(`pro_shop_inquiries_admin:${club.id}`)
+      .channel(`pro_shop_inquiries_admin:${club.id}:${mode}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pro_shop_inquiries', filter: `club_id=eq.${club.id}` }, () => load())
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, [club?.id]);
+  }, [club?.id, mode]);
 
   const setStatus = async (id, status) => {
     await supabase.from('pro_shop_inquiries').update({ status }).eq('id', id);
   };
 
+  // Open or create a clubhouse thread with the requesting member.
+  // Subject ties back to the inquiry so the front office can pair
+  // the reply with the source request.
+  const replyViaClubhouse = async (r) => {
+    if (!session?.user?.id || !club || busyReply) return;
+    if (!r.members?.user_id) {
+      setReplyErr('This member has no linked account — reach out via email or phone instead.');
+      return;
+    }
+    setBusyReply(r.id); setReplyErr(null);
+    try {
+      const subjectKind = (r.kind === 'lesson') ? 'Lesson Request' : 'Pro Shop Inquiry';
+      const subject = `${subjectKind}: ${r.members?.name || 'Member'}`;
+      const { data: thread, error: tErr } = await supabase
+        .from('threads')
+        .insert({ club_id: club.id, kind: 'clubhouse', subject, created_by: session.user.id })
+        .select()
+        .single();
+      if (tErr) throw tErr;
+      // Both staff (current user) AND the requesting member need to
+      // be participants so the member sees the reply in their Inbox.
+      const { error: pErr } = await supabase
+        .from('thread_participants')
+        .insert([
+          { thread_id: thread.id, user_id: session.user.id,    member_id: member?.id || null,   role: 'staff'  },
+          { thread_id: thread.id, user_id: r.members.user_id,  member_id: r.member_id || null,  role: 'member' },
+        ]);
+      if (pErr) throw pErr;
+      push('thread', { threadId: thread.id });
+    } catch (e) {
+      setReplyErr(e?.message?.includes('row-level security')
+        ? "You don't have permission to open this thread."
+        : (e?.message || 'Could not open the reply thread.'));
+    } finally {
+      setBusyReply(null);
+    }
+  };
+
   const STATUS_COLORS = { pending: G.brass, contacted: G.limBg, scheduled: G.openBg, done: G.muted, cancelled: G.clsBg };
+  const heading = mode === 'lessons'   ? 'Lesson requests routed to your pros.'
+                : mode === 'inquiries' ? 'General pro shop inquiries from members.'
+                : 'Lesson requests and pro-shop inquiries.';
 
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-        Lesson requests and pro-shop inquiries. Update status as you contact members.
+        {heading} Update status as you respond. Tap "Reply via clubhouse" to open a thread with the requester.
       </p>
+      {replyErr && (
+        <div onClick={() => setReplyErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4, padding: '8px 12px', marginBottom: 10, cursor: 'pointer' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0 }}>{replyErr} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
+        </div>
+      )}
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
       {!loading && rows.length === 0 && (
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No requests yet.</p>
         </div>
       )}
-      {rows.map(r => (
-        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.members?.name || 'Unknown'}</p>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.status}</span>
+      {rows.map(r => {
+        const isReplying = busyReply === r.id;
+        return (
+          <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.members?.name || 'Unknown'}</p>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.status}</span>
+            </div>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 4px' }}>
+              {r.members?.email || '—'} · {r.kind || 'lesson'} {r.pro && `· Pro: ${r.pro}`}
+            </p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '0 0 4px' }}>
+              {[r.preferred_date && new Date(r.preferred_date).toLocaleDateString(), r.preferred_time, r.skill_level && `Skill: ${r.skill_level}`].filter(Boolean).join(' · ')}
+            </p>
+            {r.notes && <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '4px 0 8px' }}>{r.notes}</p>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <select
+                value={r.status}
+                onChange={e => setStatus(r.id, e.target.value)}
+                disabled={!canEdit}
+                style={{ padding: '5px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+              >
+                {['pending', 'contacted', 'scheduled', 'done', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {canEdit && (
+                <div
+                  onClick={isReplying ? undefined : () => replyViaClubhouse(r)}
+                  data-tap
+                  style={{ padding: '5px 12px', background: isReplying ? G.muted : G.green, borderRadius: 3, cursor: isReplying ? 'wait' : 'pointer' }}
+                >
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 500 }}>
+                    {isReplying ? 'Opening…' : 'Reply via clubhouse'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 4px' }}>
-            {r.members?.email || '—'} · {r.kind || 'lesson'} {r.pro && `· Pro: ${r.pro}`}
-          </p>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '0 0 4px' }}>
-            {[r.preferred_date && new Date(r.preferred_date).toLocaleDateString(), r.preferred_time, r.skill_level && `Skill: ${r.skill_level}`].filter(Boolean).join(' · ')}
-          </p>
-          {r.notes && <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '4px 0 8px' }}>{r.notes}</p>}
-          <select
-            value={r.status}
-            onChange={e => setStatus(r.id, e.target.value)}
-            disabled={!canEdit}
-            style={{ padding: '4px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
-          >
-            {['pending', 'contacted', 'scheduled', 'done', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
