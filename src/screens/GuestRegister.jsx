@@ -119,6 +119,11 @@ export default function GuestRegister() {
       // QR codes minted before signing rolled out keep working —
       // remove that fallback after rotating member QRs.
       const isSignedToken = typeof ref === 'string' && ref.includes('.');
+      // v0.9.18: the Edge Function now sends the magic link itself
+      // (writes the guests row FIRST with status='pending_authentication',
+      // then calls signInWithOtp). Client no longer fires signInWithOtp —
+      // that double-call could leave an auth.users row orphaned without
+      // a matching guests row when the function failed mid-flow.
       const { data, error } = await supabase.functions.invoke('guest-register', {
         body: {
           club_slug: CLUB_SLUG,
@@ -128,13 +133,10 @@ export default function GuestRegister() {
           zip: zip.trim(),
           ref_token: isSignedToken ? ref : null,
           referring_member_id: isSignedToken ? null : ref,
-          // v0.8.4: clubhouse QR token (HMAC over club:clubhouse:version).
-          // Edge Function validates against the current
-          // clubs.clubhouse_qr_version so regenerated QRs invalidate
-          // every prior one.
           clubhouse_token: clubhouseToken || null,
           visit_type: via === 'member_qr' ? 'member_guest' : 'public_play',
           check_in_method: via === 'member_qr' ? 'member_qr' : 'clubhouse_qr',
+          redirect_to: `${window.location.origin}/`,
         },
       });
       if (error || !data?.ok) {
@@ -142,21 +144,12 @@ export default function GuestRegister() {
         setBusy(false);
         return;
       }
-
-      // 2. Send the magic-link email. Even if the guest was rejected
-      //    as 'pending' (auto_approve off), they still need to verify
-      //    their email — staff can approve them later from admin.
-      const { error: otpErr } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          // Send them back to whatever host they registered from. For
-          // an apex-domain registration this lands them at the apex,
-          // which then routes via the subdomain when they navigate.
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
-      if (otpErr) {
-        setErr(`Registration recorded but couldn't send the access email: ${otpErr.message}. Please contact ${club?.name || 'the club'} for help.`);
+      // If the OTP send failed on the server side, the registration
+      // is still recorded — staff will see it in People and can
+      // reach out manually. Show a softer message but still confirm.
+      if (data?.ok && data?.otp_sent === false) {
+        setErr(`We've recorded your registration, but couldn't send the access email automatically: ${data.otp_error || 'unknown error'}. ${club?.name || 'The club'} will reach out shortly.`);
+        setSubmitted(true);
         setBusy(false);
         return;
       }

@@ -25,6 +25,83 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.18** — Unified People view + orphan-signup fix.
+
+  Real-world bug: Marc reported a guest (Brian Jones, Clinton)
+  signed up but didn't appear in any admin section. Forensics:
+    · `auth.users` had Brian (May 25 15:17 UTC, email_verified=false,
+      never clicked the magic link)
+    · `guests` table had zero rows for him
+    · So guest-register either failed mid-flow OR the row was
+      deleted later; either way he was invisible to staff
+
+  The architectural fix has three parts:
+
+  **Migration 54:**
+    · Widened `guests.status` CHECK constraint to allow a new value
+      `pending_authentication` — used while a guest has submitted the
+      form but hasn't verified their email yet.
+    · New `fn_guest_email_verified()` trigger function on
+      `auth.users` UPDATE OF email_confirmed_at: when a guest
+      verifies their email, flip any matching guests row from
+      `pending_authentication` to `active` or `pending` (per the
+      club's `guest_auto_approve` setting) AND link
+      `guests.user_id = auth.users.id`.
+    · Backfilled Brian Jones with a `guests` row at status
+      `pending_authentication` so he shows up in the new People
+      list. Staff can now see him and decide what to do.
+
+  **guest-register v10:**
+    · Inserts the `guests` row FIRST with status
+      `pending_authentication` — order matters, so a partial
+      failure can never leave an orphan auth user.
+    · Then logs the visit attempt.
+    · Then calls `auth.signInWithOtp` server-side (was previously
+      called by the client). Returns `ok: true, otp_sent: bool`
+      regardless of OTP outcome — the guests row exists either
+      way, so staff can follow up if the email send fails.
+
+  **GuestRegister.jsx:**
+    · Removed the redundant client-side `signInWithOtp` call.
+      Function handles OTP now.
+    · New softer error path when `otp_sent === false`: confirm
+      registration is recorded + tell the user the club will reach
+      out. They're not stuck.
+
+  **New `PeopleAdmin` section** (People area, first card):
+    · One unified list of every member + guest + staff at the
+      club. Color-coded role badges:
+        - **Member** (green) — primary identity
+        - **Guest** (brass) — registered guest
+        - **Manager / Admin / Super** (dark green / red) —
+          staff role stacks on top of Member badge
+    · Status sub-badges for guests: `pending auth` /
+      `pending` / `active` / `revoked`. The `pending auth`
+      badge is red so orphan signups stand out.
+    · Search by name or email.
+    · Filter chips: All / Members / Guests / Staff / Pending
+      auth. The "Pending auth" chip is hidden when there are
+      none — keeps the row uncluttered until there's something
+      to deal with.
+    · Tap a row → inline detail panel with all relevant fields.
+      Member panel points to "Member Roster" section for edits;
+      Guest panel points to "Guest Management" for QR codes +
+      settings. The unified view is a browse surface, not a
+      replacement for the deep editors.
+    · Realtime subscriptions on members + guests + user_roles
+      so changes anywhere propagate.
+
+  **AREAS reorg** — People area now leads with:
+    1. **People** (NEW) — unified browse
+    2. **Member Roster** (renamed from "Members") — CSV + invites
+    3. Moderate Posts
+    4. Guest Management — settings + QR codes
+    5. Staff
+
+  Brian Jones now visible in `People → Guests → Pending auth`. If
+  he eventually clicks the May-25 magic link, the trigger fires
+  and flips him to `active` automatically.
+
 - **v0.9.17** — Architecture doc: switch flowchart to ELK renderer.
 
   System architecture flowchart was bombing with "Syntax error in

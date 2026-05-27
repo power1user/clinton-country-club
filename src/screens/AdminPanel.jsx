@@ -158,11 +158,15 @@ const AREAS = [
   {
     id: 'people',
     l: 'People',
-    d: 'Members, post moderation, staff, guests',
+    d: 'Unified directory: members, guests, staff',
     icon: IconPeople,
     sections: [
-      { id: 'members',     permKey: 'can_manage_members', l: 'Members',          d: 'Roster, CSV import, invites',                  icon: IconPeople },
-      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',   d: 'Hide/delete bulletin + partner posts',         icon: IconList   },
+      // v0.9.18: unified browse — every person at the club in one
+      // list with role + status badges. Orphan signups (pending_auth
+      // guests) surface here so nobody falls through the cracks.
+      { id: 'people_all',  permKey: 'can_manage_members', l: 'People',           d: 'Everyone at the club, search + filter',         icon: IconPeople },
+      { id: 'members',     permKey: 'can_manage_members', l: 'Member Roster',    d: 'CSV import + magic-link invites + edit',        icon: IconPeople },
+      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',   d: 'Hide/delete bulletin + partner posts',          icon: IconList   },
       // v0.8.4: guest management. Section renders an "off" state when
       // the guest_registration flag is off so the entry is still
       // discoverable; flipping the flag in Club Settings activates it.
@@ -296,6 +300,7 @@ export default function AdminPanel() {
           {sec === 'clubguide'      && <MemberGuideAdmin />}
           {sec === 'proitems'       && <ProShopItemsAdmin />}
           {sec === 'lessonpros'     && <LessonProsAdmin />}
+          {sec === 'people_all'     && <PeopleAdmin club={club} />}
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
@@ -1270,6 +1275,297 @@ function PinsAdmin({ club }) {
       <div onClick={publish} data-tap style={{ marginTop: 8, padding: 12, background: savedAt ? G.openBg : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
         <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Updating…' : savedAt ? `✓ Hole ${h.n} updated` : `Publish Hole ${h.n}`}</span>
       </div>
+    </div>
+  );
+}
+
+// ─── People admin — v0.9.18 unified browse of everyone at the club ─
+// Members + Guests + Staff in one list. Role badges, status sub-
+// badges, search by name/email, filter chips. Tap to expand for
+// inline details. Edit ops still live in MembersAdmin / Guest
+// Management / StaffAdmin under the hood — this is a unified
+// browse surface, not a replacement for the deep editors.
+//
+// Why: Marc's spec — "make that a Person section that has the
+// delineation as to what group they are a part of." Surfaces
+// orphan signups (Brian Jones at status='pending_authentication')
+// that previously fell through the cracks.
+function PeopleAdmin({ club }) {
+  const [members, setMembers]   = useState([]);
+  const [guests,  setGuests]    = useState([]);
+  const [roles,   setRoles]     = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [query,   setQuery]     = useState('');
+  const [filter,  setFilter]    = useState('all');
+  const [expanded, setExpanded] = useState(null);
+  const [version, setVersion]   = useState(0);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      const [{ data: m }, { data: g }, { data: r }] = await Promise.all([
+        supabase.from('members')
+          .select('id, name, membership_number, tier, status, email, user_id, photo_url, created_at')
+          .eq('club_id', club.id),
+        supabase.from('guests')
+          .select('id, name, email, phone, visit_type, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name)')
+          .eq('club_id', club.id),
+        supabase.from('user_roles')
+          .select('user_id, role, display_name')
+          .eq('club_id', club.id),
+      ]);
+      if (cancelled) return;
+      setMembers(m || []);
+      setGuests(g || []);
+      setRoles(r || []);
+      setLoading(false);
+    })();
+
+    const channels = [
+      supabase.channel(`people:m:${club.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+        .subscribe(),
+      supabase.channel(`people:g:${club.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'guests', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+        .subscribe(),
+      supabase.channel(`people:r:${club.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+        .subscribe(),
+    ];
+    return () => { cancelled = true; channels.forEach(c => supabase.removeChannel(c)); };
+  }, [club?.id, version]);
+
+  // Merge members + guests + role grants into one unified list. Each
+  // member's row carries any matching user_role as a staffRole field
+  // so the "Staff" badge stacks alongside the Member badge.
+  const rolesByUser = useMemo(() => {
+    const map = new Map();
+    for (const r of roles) if (r.user_id) map.set(r.user_id, r);
+    return map;
+  }, [roles]);
+
+  const people = useMemo(() => {
+    const all = [];
+    for (const m of members) {
+      const role = m.user_id ? rolesByUser.get(m.user_id) : null;
+      all.push({
+        kind: 'member',
+        id: m.id,
+        name: m.name || '(no name)',
+        email: m.email,
+        member: m,
+        staffRole: role?.role || null,
+      });
+    }
+    for (const g of guests) {
+      all.push({
+        kind: 'guest',
+        id: g.id,
+        name: g.name || '(no name)',
+        email: g.email,
+        guest: g,
+      });
+    }
+    return all.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [members, guests, rolesByUser]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return people.filter(p => {
+      if (filter === 'members'      && p.kind !== 'member')   return false;
+      if (filter === 'guests'       && p.kind !== 'guest')    return false;
+      if (filter === 'staff'        && !p.staffRole)          return false;
+      if (filter === 'pending_auth' && !(p.kind === 'guest' && p.guest.status === 'pending_authentication')) return false;
+      if (!q) return true;
+      return (p.name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
+    });
+  }, [people, query, filter]);
+
+  // Counts for the filter chip labels
+  const counts = useMemo(() => ({
+    all:      people.length,
+    members:  people.filter(p => p.kind === 'member').length,
+    guests:   people.filter(p => p.kind === 'guest').length,
+    staff:    people.filter(p => p.staffRole).length,
+    pending_auth: people.filter(p => p.kind === 'guest' && p.guest.status === 'pending_authentication').length,
+  }), [people]);
+
+  const filterChips = [
+    { id: 'all',          label: 'All',                  count: counts.all },
+    { id: 'members',      label: 'Members',              count: counts.members },
+    { id: 'guests',       label: 'Guests',               count: counts.guests },
+    { id: 'staff',        label: 'Staff',                count: counts.staff },
+    { id: 'pending_auth', label: 'Pending auth',         count: counts.pending_auth },
+  ];
+
+  // Color tokens for role + status badges
+  const badge = (text, color, bg) => (
+    <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, color, background: bg, padding: '2px 7px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{text}</span>
+  );
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+        Everyone at {club?.name || 'this club'} — members, guests, and staff in one list. Tap a row to see details. Use the chips to filter by group, or the search box to find someone by name or email.
+      </p>
+
+      {/* Search */}
+      <div style={{ position: 'relative', marginBottom: 10 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by name or email…"
+          style={{ width: '100%', padding: '8px 12px 8px 32px', border: `1px solid ${G.border}`, borderRadius: 4, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {query && (
+          <div onClick={() => setQuery('')} data-tap style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', padding: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        )}
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+        {filterChips.map(c => {
+          const active = filter === c.id;
+          // Hide pending_auth chip when there are none — keeps the
+          // filter row uncluttered until there's actually something
+          // urgent.
+          if (c.id === 'pending_auth' && c.count === 0 && !active) return null;
+          return (
+            <div
+              key={c.id}
+              onClick={() => setFilter(c.id)}
+              data-tap
+              style={{
+                padding: '5px 11px',
+                background: active ? G.green : G.card,
+                border: `1px solid ${active ? G.green : G.border}`,
+                borderRadius: 12,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: active ? '#F2EDE0' : G.text, fontWeight: 500 }}>{c.label}</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: active ? '#A8D8B8' : G.muted }}>{c.count}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {!loading && visible.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+            {query ? `No matches for "${query}".` : 'No people in this filter.'}
+          </p>
+        </div>
+      )}
+
+      {!loading && visible.length > 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {visible.map((p, i) => {
+            const isOpen = expanded === `${p.kind}:${p.id}`;
+            const badges = [];
+            if (p.kind === 'member') {
+              badges.push(badge('Member', '#F2EDE0', G.green));
+              if (p.member.status === 'pending') badges.push(badge('pending', G.brass, 'rgba(155,122,30,0.12)'));
+              if (p.member.status === 'inactive') badges.push(badge('inactive', G.cls || '#6B2020', 'rgba(107,32,32,0.12)'));
+            }
+            if (p.kind === 'guest') {
+              badges.push(badge('Guest', G.brass, 'rgba(155,122,30,0.12)'));
+              const s = p.guest.status;
+              if (s === 'pending_authentication') badges.push(badge('pending auth', G.clsDot || '#B05151', 'rgba(176,81,81,0.14)'));
+              else if (s === 'pending')            badges.push(badge('pending', G.brass, 'rgba(155,122,30,0.12)'));
+              else if (s === 'active')             badges.push(badge('active', G.openTxt || '#54A36B', 'rgba(82,193,120,0.12)'));
+              else if (s === 'revoked')            badges.push(badge('revoked', G.clsDot || '#B05151', 'rgba(176,81,81,0.14)'));
+            }
+            if (p.staffRole) {
+              const isSuper = p.staffRole === 'super_admin';
+              const isMgr   = p.staffRole === 'club_manager';
+              const text = isSuper ? 'Super' : isMgr ? 'Manager' : 'Admin';
+              badges.push(badge(text, '#F2EDE0', isSuper ? G.cls || '#6B2020' : G.greenMid || '#2D4D3E'));
+            }
+            return (
+              <div key={`${p.kind}:${p.id}`} style={{ borderTop: i === 0 ? 'none' : `1px solid ${G.border}` }}>
+                <div onClick={() => setExpanded(isOpen ? null : `${p.kind}:${p.id}`)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', gap: 8, cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email || '—'}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>{badges}</div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: '12px 14px', background: G.bg, borderTop: `1px solid ${G.border}` }}>
+                    {p.kind === 'member' && <MemberDetailPanel m={p.member} staffRole={p.staffRole} />}
+                    {p.kind === 'guest'  && <GuestDetailPanel  g={p.guest} />}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline detail panels — read-only summary. Deep edit ops still live
+// in the dedicated sections (Member Roster, Guest Management, Staff).
+function MemberDetailPanel({ m, staffRole }) {
+  const Row = ({ label, value }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, padding: '3px 0', fontFamily: '"Lora",serif', fontSize: 12 }}>
+      <span style={{ color: G.muted }}>{label}</span>
+      <span style={{ color: G.text }}>{value || '—'}</span>
+    </div>
+  );
+  return (
+    <div>
+      <Row label="Membership #" value={m.membership_number} />
+      <Row label="Tier"          value={m.tier} />
+      <Row label="Status"        value={m.status} />
+      <Row label="Email"         value={m.email} />
+      <Row label="Joined"        value={m.created_at ? new Date(m.created_at).toLocaleDateString() : null} />
+      {staffRole && <Row label="Staff role" value={staffRole.replace(/_/g, ' ')} />}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '10px 0 0' }}>
+        For edits, CSV import, or magic-link invites: <strong>Member Roster</strong> section.
+      </p>
+    </div>
+  );
+}
+function GuestDetailPanel({ g }) {
+  const Row = ({ label, value }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, padding: '3px 0', fontFamily: '"Lora",serif', fontSize: 12 }}>
+      <span style={{ color: G.muted }}>{label}</span>
+      <span style={{ color: G.text }}>{value || '—'}</span>
+    </div>
+  );
+  const ref = g.members?.name;
+  return (
+    <div>
+      <Row label="Email"         value={g.email} />
+      <Row label="Phone"         value={g.phone} />
+      <Row label="Visit type"    value={g.visit_type ? String(g.visit_type).replace(/_/g, ' ') : null} />
+      <Row label="Access level"  value={g.access_level ? String(g.access_level).replace(/_/g, ' ') : null} />
+      <Row label="Status"        value={g.status ? g.status.replace(/_/g, ' ') : null} />
+      <Row label="Registered"    value={g.created_at ? new Date(g.created_at).toLocaleString() : null} />
+      <Row label="Expires"       value={g.expires_at ? new Date(g.expires_at).toLocaleString() : 'no expiry'} />
+      <Row label="Invited by"    value={ref} />
+      {g.status === 'pending_authentication' && (
+        <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(176,81,81,0.10)', border: `1px solid ${G.clsDot || '#B05151'}`, borderRadius: 3 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0, lineHeight: 1.5 }}>
+            <strong style={{ color: G.clsDot || '#B05151' }}>This guest hasn't verified their email yet.</strong> They submitted the registration form but never clicked the magic link. Status will auto-flip to active/pending once they verify. Reach out at the email above if they need a nudge.
+          </p>
+        </div>
+      )}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '10px 0 0' }}>
+        For QR codes + per-club guest settings: <strong>Guest Management</strong> section.
+      </p>
     </div>
   );
 }
