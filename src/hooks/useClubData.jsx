@@ -177,10 +177,16 @@ export function useNews() {
 
     let cancelled = false;
     const load = async () => {
+      // v0.9.10: filter out archived items. `expires_at IS NULL` =
+      // evergreen; otherwise the row only shows while expires_at > now().
+      // Equivalent .or() syntax: Supabase supports a NULL check via
+      // 'expires_at.is.null' and a comparison via 'expires_at.gt.<iso>'.
+      const nowIso = new Date().toISOString();
       const { data: rows, error } = await supabase
         .from('news')
-        .select('id, category, headline, body, date_label, published_at')
+        .select('id, category, headline, body, date_label, published_at, expires_at')
         .eq('club_id', club.id)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
         .order('published_at', { ascending: false });
       if (cancelled) return;
       if (!error && rows) {

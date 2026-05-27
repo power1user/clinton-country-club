@@ -62,9 +62,9 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.9.9';
+export const VERSION = '0.9.10';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
 export const PLATFORM_NAME = 'The Grounds';
-export const PLATFORM_TAGLINE = 'Country-club apps, white-labeled.';
+export const PLATFORM_TAGLINE = 'Your club. Your community. Always on.';

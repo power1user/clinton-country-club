@@ -25,6 +25,50 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.10** — News archive (expires_at) + new splash tagline.
+
+  **Migration 51** adds `news.expires_at timestamptz NULL`. NULL =
+  evergreen (never archives). Otherwise the row only shows on the
+  member feed while expires_at > now().
+
+  **Member-facing `useNews`** now filters
+  `expires_at IS NULL OR expires_at > now()` via a Supabase `.or()`
+  predicate. Archived items disappear from the Home + News feed at
+  their archive moment without any manual refresh.
+
+  **NewsAdminFull rewritten** as a custom component (was a generic
+  CrudSection) to wire the archive UX Marc specced:
+    · `expires_at` date picker with **smart default = 14 days after
+      max(today, event-date)** — prefilled when adding, so the
+      no-thought case archives sensibly two weeks after the event.
+      The default is also re-suggested when the event date is
+      changed on a new item (unless the manager has already
+      manually touched the archive date — then their pick is sticky).
+    · **"Never" button** next to the picker clears expires_at to
+      NULL = evergreen for the rare permanent announcement.
+    · Inline helper text below the picker reads either "Evergreen —
+      stays on the member feed forever." or "Hidden from the member
+      feed on <date>." so the manager always knows the consequence
+      of the current setting.
+    · Admin list shows **all** items with archived rows visually
+      faded + an "ARCHIVED" tag inline. Default view hides archived
+      to mirror what members see; "Show archived" / "Hide archived"
+      toggles flip between modes.
+    · Smart parser only treats date_label as a real date when it
+      matches the strict ISO YYYY-MM-DD shape (the v0.6.0+ format).
+      Legacy free-text labels like "Today" or "May 14" are
+      ignored for the smart-default calculation and just don't
+      contribute to the baseline.
+
+  **Splash tagline** changed from
+  `Country-club apps, white-labeled.` to
+  `Your club. Your community. Always on.`
+  (Constant in `src/lib/version.js` → rendered by the splash screen
+  + any other surface that reads PLATFORM_TAGLINE.)
+
+  No back-compat issues: existing news rows get expires_at = NULL
+  → evergreen → visible as they were pre-migration.
+
 - **v0.9.9** — Event signup RLS denial: missing club_id in insert.
 
   Member tap Register on an event → "new row violates row-level
