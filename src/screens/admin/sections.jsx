@@ -1,7 +1,7 @@
 // New Phase 1 admin sub-sections. Most use the generic CrudSection scaffold;
 // the queue-style sections (food orders, event registrations, lesson
 // requests) have custom UIs because they're read-mostly with state changes.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useNav } from '../../hooks/useNav.jsx';

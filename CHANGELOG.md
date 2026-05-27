@@ -25,6 +25,21 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.13** — Fix EventsAdmin black screen.
+
+  Missing import in v0.9.12: the new `EventsAdmin` component used
+  `useMemo` to group rows by `recurrence_group_id`, but
+  `sections.jsx`'s React import only included `useEffect, useRef,
+  useState`. ReferenceError on the module's first render →
+  AdminPanel tree unmounted → black screen the moment a staff
+  member tapped the Events admin section.
+
+  One-line fix: add `useMemo` to the import.
+
+  Build was clean because the bundler doesn't resolve runtime
+  globals at build time. Lesson: also run the area once in the
+  preview tab before declaring a ship done.
+
 - **v0.9.12** — Recurring events + time-picker migration.
 
   Per Marc's spec: managers can create recurring event series with
