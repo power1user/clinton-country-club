@@ -1,17 +1,28 @@
-// Golf Partner Board — members post requests for tee-time partners and
-// browse other members' open posts.
+// Golf Partner Board — members post requests for tee-time partners
+// and browse other members' open posts.
 //
-// Card surfaces at-a-glance: poster (with circle initial + tier + Hcp),
-// game type (foursome / single / etc) as a chip, the date they want to
-// play (if specified) as a second chip, and a Contact action.
+// v0.9.3 redesign per Marc's spec. The card surfaces FOUR essentials
+// at a glance, in priority order, without tapping in:
+//   1. WHO is posting        — avatar + name
+//   2. WHAT type of game     — chip: Foursome / Threesome / Single / etc
+//   3. WHEN they want to play — chip: Sat May 24 (omitted if open-ended)
+//   4. HOW many spots needed — chip: "3 spots needed"
+// Plus HCP as a small optional tag if provided. Everything else
+// (member-since, tier, free-form note) is secondary and de-emphasized.
 //
-// Contact flow:
-//  · If DMs are on AND we know the poster's user_id → open or create a
-//    DM with that user (uses get_or_create_dm RPC).
-//  · Otherwise (DMs disabled per-club, or the poster is an anonymous /
-//    orphan record with no user_id) → open a clubhouse thread with
-//    subject "Golf Partner Inquiry: <post title>" so the front office
-//    can route them. Never a dead-end button.
+// Compose flow matches the same minimalism:
+//   · Game type chip selector  · Date picker
+//   · Spots needed (1-3)       · Optional HCP  · Optional short note
+// Post in under 30 seconds.
+//
+// Contact button — three states:
+//   A. DM available  → "Message" button → get_or_create_dm RPC
+//                      (requires: club DMs enabled AND poster has
+//                      user_id AND poster's allow_dms !== false)
+//   B. Clubhouse fallback → "Contact via clubhouse" → new thread
+//                      with subject "Golf Partner Inquiry: ..."
+//                      (always available unless viewer can't write)
+//   C. Neither → button hidden, plain-text "Contact at the front desk"
 import { useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
@@ -25,11 +36,29 @@ import Replies from '../components/Replies.jsx';
 import Avatar from '../components/Avatar.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
-// Pretty short date — "Sat May 24" — for the "when" chip on a card.
+const GAME_TYPES = ['Foursome', 'Threesome', 'Single', 'Practice', 'Cart Share'];
+
+// Compact date chip — "Sat May 24" — for the "when" pill on a card.
 function fmtDateChip(iso) {
   if (!iso) return null;
   const d = new Date(iso + 'T12:00:00');   // noon to dodge tz edge cases
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// One reusable chip component so all four card pills share spacing/feel.
+function Chip({ children, tone = 'brass' }) {
+  const tones = {
+    brass: { bg: 'rgba(155,122,30,0.10)', fg: G.brass },
+    green: { bg: 'rgba(82,193,120,0.12)', fg: G.openTxt },
+    red:   { bg: 'rgba(107,32,32,0.12)',  fg: G.clsDot },
+    grey:  { bg: G.bg,                     fg: G.muted },
+  };
+  const { bg, fg } = tones[tone] || tones.brass;
+  return (
+    <span style={{ fontFamily: '"Lora",serif', fontSize: 10, fontWeight: 700, color: fg, textTransform: 'uppercase', letterSpacing: '0.06em', background: bg, padding: '3px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+      {children}
+    </span>
+  );
 }
 
 export default function PartnerBoard() {
@@ -44,28 +73,30 @@ export default function PartnerBoard() {
   const [showForm, setShowForm] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState(null);
-  // Phase 7 gating — default ON. GolfHub also filters its tile.
+
   if (!partnerBoardOn) return <FeatureOff label="Golf Partners" />;
-  // v0.8.2: guests can never see member-to-member coordination.
   if (isGuest) return <FeatureOff label="Golf Partners" body="Finding playing partners is for club members only." />;
 
-  const cats = [{ id: 'all', l: 'All' }, { id: 'Foursome', l: 'Foursome' }, { id: 'Single', l: 'Single' }, { id: 'Cart Share', l: 'Cart Share' }];
-  const filtered = cat === 'all' ? posts : posts.filter(p => p.cat === cat);
+  const cats = [{ id: 'all', l: 'All' }, ...GAME_TYPES.map(g => ({ id: g, l: g }))];
+  const filtered = cat === 'all' ? posts : posts.filter(p => (p.gameType || p.cat) === cat);
 
-  // Open or create the right kind of thread for contacting the poster.
-  // Returns silently after navigation; we surface errors via the `err`
-  // banner just under the category nav.
+  // Decide which contact path applies to a given post. Returned
+  // values: 'dm' | 'clubhouse' | 'none'. 'none' means we hide the
+  // button entirely and show plain text.
+  const contactMode = (p) => {
+    if (!canMemberWrite) return 'none';           // pending member can't message
+    const canDm = dmsOn && p.authorUserId && p.authorUserId !== session?.user?.id && p.authorAllowDms;
+    if (canDm) return 'dm';
+    return 'clubhouse';
+  };
+
   const contact = async (p) => {
     if (!session?.user?.id || !club || busyId) return;
+    const mode = contactMode(p);
+    if (mode === 'none') return;
     setBusyId(p.id); setErr(null);
-
-    // Can we open a real DM? Need: DMs enabled at the club, and the
-    // post has a known author user_id (orphan/anonymous posts can't
-    // be DM'd — fall through to clubhouse).
-    const canDm = dmsOn && p.authorUserId && p.authorUserId !== session.user.id;
-
     try {
-      if (canDm) {
+      if (mode === 'dm') {
         const { data: threadId, error } = await supabase.rpc('get_or_create_dm', {
           p_other_user_id: p.authorUserId,
         });
@@ -73,28 +104,18 @@ export default function PartnerBoard() {
         push('thread', { threadId });
         return;
       }
-      // Fallback path — clubhouse thread with subject tying back to
-      // the partner post. Same pattern as MessageClubhouse.startThread.
-      const subject = `Golf Partner Inquiry: ${p.title}`;
+      // Clubhouse fallback — subject ties back to the partner post
+      // so the front office can route the inquiry.
+      const subject = `Golf Partner Inquiry: ${synthTitle(p)}`;
       const { data: thread, error: tErr } = await supabase
         .from('threads')
-        .insert({
-          club_id: club.id,
-          kind: 'clubhouse',
-          subject,
-          created_by: session.user.id,
-        })
+        .insert({ club_id: club.id, kind: 'clubhouse', subject, created_by: session.user.id })
         .select()
         .single();
       if (tErr) throw tErr;
       const { error: pErr } = await supabase
         .from('thread_participants')
-        .insert({
-          thread_id: thread.id,
-          user_id: session.user.id,
-          member_id: member?.id || null,
-          role: 'member',
-        });
+        .insert({ thread_id: thread.id, user_id: session.user.id, member_id: member?.id || null, role: 'member' });
       if (pErr) throw pErr;
       push('thread', { threadId: thread.id });
     } catch (e) {
@@ -113,7 +134,7 @@ export default function PartnerBoard() {
       <div style={{ display: 'flex', gap: 0, padding: '0 16px', background: G.greenMid, flexShrink: 0, overflowX: 'auto' }}>
         {cats.map(c => (
           <div key={c.id} onClick={() => setCat(c.id)} data-tap style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: cat === c.id ? `2px solid ${G.brass}` : '2px solid transparent', marginBottom: -1 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: cat === c.id ? '#F2EDE0' : '#A8D8B8', fontWeight: cat === c.id ? 600 : 400 }}>{c.l}</span>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: cat === c.id ? '#F2EDE0' : '#A8D8B8', fontWeight: cat === c.id ? 600 : 400, whiteSpace: 'nowrap' }}>{c.l}</span>
           </div>
         ))}
       </div>
@@ -124,7 +145,7 @@ export default function PartnerBoard() {
         </div>
       )}
 
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 80px' }}>
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 80px' }}>
         {filtered.length === 0 && (
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '40px 0' }}>
             No partner requests yet. Tap + to post the first one.
@@ -134,68 +155,75 @@ export default function PartnerBoard() {
           const whenChip = fmtDateChip(p.dateWanted);
           const isOwn = p.authorUserId && p.authorUserId === session?.user?.id;
           const busy = busyId === p.id;
+          const mode = contactMode(p);
+          const game = p.gameType || p.cat || 'Partner';
+          const spotsLabel = p.spotsNeeded != null
+            ? `${p.spotsNeeded} ${p.spotsNeeded === 1 ? 'spot' : 'spots'} needed`
+            : null;
+          const note = p.body && p.body.trim() ? p.body.trim() : null;
           return (
-            <div key={p.id} style={{ marginBottom: 12, padding: '14px 16px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
-              {/* Top chips row: game type, when, filled status, posted-on */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 8 }}>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
-                  <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, color: G.brass, textTransform: 'uppercase', letterSpacing: '0.08em', background: 'rgba(155,122,30,0.1)', padding: '2px 8px', borderRadius: 2 }}>{p.cat || 'Partner'}</span>
-                  {whenChip && (
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 9, fontWeight: 700, color: G.openTxt, textTransform: 'uppercase', letterSpacing: '0.08em', background: 'rgba(82,193,120,0.10)', padding: '2px 8px', borderRadius: 2 }}>{whenChip}</span>
-                  )}
-                  {!p.open && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.1)', padding: '2px 8px', borderRadius: 2 }}>Filled</span>}
-                </div>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{p.date}</span>
-              </div>
-
-              {/* Author row */}
+            <div key={p.id} style={{ marginBottom: 10, padding: '10px 12px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
+              {/* Row 1: WHO + HCP tag (top-right). Avatar + name front and center. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Avatar photoUrl={profilePhotosOn ? p.authorPhotoUrl : null} name={p.author} size={28} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.author}</p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>
-                    {[
-                      p.authorTier,
-                      p.authorSince && `Member since ${p.authorSince}`,
-                      p.hcp != null && `Hcp ${p.hcp}`,
-                    ].filter(Boolean).join(' · ')}
-                  </p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 600, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.author}</p>
+                  {p.authorTier && (
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.authorTier}</p>
+                  )}
                 </div>
+                {p.hcp != null && (
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 10, fontWeight: 700, color: G.brass, background: 'rgba(155,122,30,0.10)', padding: '3px 8px', borderRadius: 3, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    HCP: {p.hcp}
+                  </span>
+                )}
               </div>
 
-              <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px', lineHeight: 1.25 }}>{p.title}</h3>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55, margin: '0 0 10px' }}>{p.body}</p>
+              {/* Row 2: WHAT / WHEN / SPOTS chips — the four essentials laid bare */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: note ? 6 : 8 }}>
+                <Chip tone="brass">{game}</Chip>
+                {whenChip && <Chip tone="green">{whenChip}</Chip>}
+                {spotsLabel && <Chip tone="brass">{spotsLabel}</Chip>}
+                {!p.open && <Chip tone="red">Filled</Chip>}
+              </div>
 
-              {/* Contact action — DMs the poster when DMs are on; routes
-                  through the clubhouse otherwise so the button is never
-                  a dead end. Suppressed on the member's own posts. */}
+              {/* Optional secondary note — only renders if author actually wrote one */}
+              {note && (
+                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px', lineHeight: 1.4 }}>{note}</p>
+              )}
+
+              {/* Row 3: action — DM / clubhouse / plain-text-fallback */}
               {p.open && !isOwn && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div
-                    onClick={busy ? undefined : () => contact(p)}
-                    data-tap
-                    style={{
-                      padding: '6px 16px',
-                      background: busy ? G.muted : G.green,
-                      borderRadius: 3,
-                      cursor: busy ? 'wait' : 'pointer',
-                    }}
-                  >
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 500 }}>
-                      {busy ? 'Opening…' : (dmsOn && p.authorUserId ? 'Message' : 'Contact via clubhouse')}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: 28 }}>
+                  {mode === 'none' ? (
+                    <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted }}>
+                      To contact, ask the front desk.
                     </span>
-                  </div>
+                  ) : (
+                    <div
+                      onClick={busy ? undefined : () => contact(p)}
+                      data-tap
+                      style={{
+                        padding: '5px 14px',
+                        background: busy ? G.muted : G.green,
+                        borderRadius: 3,
+                        cursor: busy ? 'wait' : 'pointer',
+                      }}
+                    >
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 500 }}>
+                        {busy ? 'Opening…' : (mode === 'dm' ? 'Message' : 'Contact via clubhouse')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
               {isOwn && (
                 <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted, margin: 0, textAlign: 'right' }}>
-                  Your post
+                  Your post · posted {p.date}
                 </p>
               )}
 
-              {/* Public reply thread — always available, regardless of
-                  DM availability or whose post it is. Lets members
-                  coordinate publicly ("count me in" / "what tee?") */}
+              {/* Public reply thread — for "count me in" / "what tee?" */}
               <Replies postTable="partner_posts" postId={p.id} />
             </div>
           );
@@ -212,25 +240,53 @@ export default function PartnerBoard() {
   );
 }
 
+// Synthesize a one-line title for the clubhouse-fallback subject and
+// for any legacy reader that still expects `title`. Form looks like
+// "Foursome · Sat May 24 · 3 spots" or "Single · open date" etc.
+function synthTitle(p) {
+  const game = p.gameType || p.cat || 'Partner';
+  const when = fmtDateChip(p.dateWanted) || 'open date';
+  const spots = p.spotsNeeded != null
+    ? ` · ${p.spotsNeeded} ${p.spotsNeeded === 1 ? 'spot' : 'spots'}`
+    : '';
+  return `${game} · ${when}${spots}`;
+}
+
 function NewPartnerSheet({ onClose, onSubmitted, club, member }) {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [cat, setCat] = useState('Foursome');
+  const [gameType, setGameType] = useState('Foursome');
   const [dateWanted, setDateWanted] = useState('');
+  const [spotsNeeded, setSpotsNeeded] = useState(1);
+  // Prepopulate handicap from the member's saved value so common case
+  // is zero-typing. Manually editable for one-off rounds where they
+  // want to declare a different range.
+  const [hcp, setHcp] = useState(() => {
+    if (member?.hcp == null || member?.hcp === '') return '';
+    const n = parseInt(member.hcp, 10);
+    return Number.isFinite(n) ? String(n) : '';
+  });
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
   const submit = async () => {
-    if (!title || !body || !club || !member) return;
+    if (!club || !member || busy) return;
     setBusy(true); setErr(null);
+    const hcpInt = hcp === '' ? null : parseInt(hcp, 10);
+    // title + body stay populated for back-compat with anything that
+    // still reads them (e.g. old admin moderation views). Synthesized
+    // values mirror what the card would display.
+    const title = `${gameType} · ${spotsNeeded} ${spotsNeeded === 1 ? 'spot' : 'spots'}${dateWanted ? ` · ${fmtDateChip(dateWanted)}` : ''}`;
+    const body = note.trim() || null;
     const { error } = await supabase.from('partner_posts').insert({
       club_id: club.id,
       member_id: member.id,
-      category: cat,
+      game_type: gameType,
+      category: gameType,                   // legacy mirror
+      spots_needed: spotsNeeded,
+      hcp: Number.isFinite(hcpInt) ? hcpInt : null,
+      date_wanted: dateWanted || null,
       title,
       body,
-      hcp: member.hcp ? parseInt(member.hcp, 10) || null : null,
-      date_wanted: dateWanted || null,
       is_open: true,
     });
     setBusy(false);
@@ -239,40 +295,79 @@ function NewPartnerSheet({ onClose, onSubmitted, club, member }) {
     onClose();
   };
 
+  const labelStyle = { fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 16, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.65)', display: 'flex', alignItems: 'flex-end', zIndex: 10 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 20px 40px', width: '100%', maxHeight: '85%', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 20px 40px', width: '100%', maxHeight: '90%', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>New Partner Post</h3>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Find a Partner</h3>
           <div onClick={onClose} data-tap style={{ cursor: 'pointer', padding: 4 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </div>
         </div>
+
+        {/* Game type chips */}
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Game Type</label>
+          <label style={labelStyle}>Game Type</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {['Foursome', 'Single', 'Threesome', 'Cart Share', 'Practice'].map(c => (
-              <div key={c} onClick={() => setCat(c)} data-tap style={{ padding: '8px 12px', borderRadius: 3, background: cat === c ? G.green : G.card, border: `1px solid ${cat === c ? G.green : G.border}`, cursor: 'pointer' }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: cat === c ? '#F2EDE0' : G.muted }}>{c}</span>
+            {GAME_TYPES.map(g => (
+              <div key={g} onClick={() => setGameType(g)} data-tap style={{ padding: '8px 12px', borderRadius: 3, background: gameType === g ? G.green : G.card, border: `1px solid ${gameType === g ? G.green : G.border}`, cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: gameType === g ? '#F2EDE0' : G.muted, fontWeight: gameType === g ? 600 : 400 }}>{g}</span>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Date */}
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>When</label>
-          <input type="date" value={dateWanted} onChange={e => setDateWanted(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 16, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+          <label style={labelStyle}>When</label>
+          <input type="date" value={dateWanted} onChange={e => setDateWanted(e.target.value)} style={inputStyle} />
         </div>
+
+        {/* Spots needed — +/- stepper for one-tap adjustments */}
         <div style={{ marginBottom: 12 }}>
-          <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Title</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Looking for 3 — Saturday 8am" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Playfair Display",serif', fontSize: 16, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+          <label style={labelStyle}>Spots Needed</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div onClick={() => setSpotsNeeded(Math.max(1, spotsNeeded - 1))} data-tap style={{ width: 38, height: 38, borderRadius: 3, background: G.card, border: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M5 12h14" /></svg>
+            </div>
+            <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 22, fontWeight: 700, color: G.text, minWidth: 32, textAlign: 'center' }}>{spotsNeeded}</span>
+            <div onClick={() => setSpotsNeeded(Math.min(7, spotsNeeded + 1))} data-tap style={{ width: 38, height: 38, borderRadius: 3, background: G.card, border: `1px solid ${G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+            </div>
+            <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, marginLeft: 8 }}>{spotsNeeded === 1 ? 'looking for 1 more' : `looking for ${spotsNeeded}`}</span>
+          </div>
         </div>
+
+        {/* Optional handicap */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Your Handicap (optional)</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={hcp}
+            onChange={e => setHcp(e.target.value.replace(/[^\d-]/g, '').slice(0, 3))}
+            placeholder="e.g. 12"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Optional short note */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Details</label>
-          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Day, time, format, handicap preference…" style={{ width: '100%', height: 90, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 16, color: G.text, background: '#F8F4EC', lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+          <label style={labelStyle}>Note (optional)</label>
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value.slice(0, 280))}
+            placeholder="Anything specific? Tee time, skill level, format…"
+            style={{ ...inputStyle, height: 70, lineHeight: 1.5, resize: 'none' }}
+          />
         </div>
+
         {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
-        <div onClick={submit} data-tap style={{ padding: 12, background: title && body && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: title && body && !busy ? 'pointer' : 'not-allowed' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: title && body && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Posting…' : 'Publish Post'}</span>
+        <div onClick={busy ? undefined : submit} data-tap style={{ padding: 12, background: busy ? G.border : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'not-allowed' : 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Posting…' : 'Post'}</span>
         </div>
       </div>
     </div>

@@ -25,6 +25,67 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.3** — Partner Board redesign + Migration 50.
+
+  Full redesign pass — strips the card to Marc's four essentials
+  (who / what / when / spots needed) with handicap as a small
+  optional tag. Compose flow now matches the same minimalism.
+  Contact button finally never dead-ends: DM → clubhouse fallback
+  → plain-text "ask the front desk" for the edge case where
+  neither method is available.
+
+  **Migration 50** (`50_partner_posts_game_type_spots`):
+    · Adds `game_type text` — replaces free-form `category`.
+      Chip-style values (Foursome / Threesome / Single / Practice
+      / Cart Share). Kept as text (no enum) so new types are
+      UI-only — no migration churn.
+    · Adds `spots_needed integer` — the "how many spots" piece
+      of the 4-essentials. Nullable = "any" / unspecified.
+    · Backfills `game_type` from existing `category` rows.
+    · Relaxes `title` and `body` NOT NULL — the new compose
+      doesn't collect a title (synthesized for back-compat) and
+      body is the optional "short note".
+    · `hcp` already existed (integer, nullable) — no change.
+
+  **Card redesign** (`PartnerBoard.jsx`):
+    · Row 1: Avatar + name front-and-center; HCP as a small
+      brass tag in the top-right when present.
+    · Row 2: chips for game type, when, spots-needed. Filled
+      tag (red) when post is closed.
+    · Row 3: optional italic short note (only renders when
+      author wrote one).
+    · Row 4: action (Message / Contact via clubhouse / plain
+      text) or "Your post · posted X" for own posts.
+    · Replies thread stays at the bottom for public coordination.
+    · Tighter padding (10/12px instead of 14/16px) and 10px row
+      gaps so 10 posts fit in well under one screen of scrolling.
+
+  **Compose redesign** (`NewPartnerSheet`):
+    · Game type chip selector (5 options, Foursome default)
+    · Date picker
+    · Spots needed +/- stepper (1–7, default 1)
+    · Optional handicap, prepopulated from `member.hcp` so the
+      common case is zero typing
+    · Optional 280-char short note
+    · Removed: the standalone title field — auto-synthesized on
+      save for back-compat with anything that still reads `title`
+      (e.g. admin moderation views).
+
+  **Contact button — three states** (`contactMode(p)`):
+    · `dm` — DMs enabled at club AND poster has user_id AND
+      poster's `allow_dms !== false`. Button label "Message"
+      → `get_or_create_dm` RPC.
+    · `clubhouse` — otherwise. Button label "Contact via
+      clubhouse" → new thread with subject
+      `Golf Partner Inquiry: <synthesized title>`.
+    · `none` — only reached when `canMemberWrite` is false (e.g.
+      pending member with no write access). Hides button entirely
+      + shows plain text "To contact, ask the front desk."
+
+  Per-member DM opt-out (members.allow_dms) is now properly
+  honored — previously the button would try a DM and the RPC
+  would deny.
+
 - **v0.9.2** — Split Club Status: daily ops vs. configuration.
 
   The old `StatusAdmin` conflated two very different jobs in one

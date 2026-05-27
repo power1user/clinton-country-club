@@ -489,9 +489,12 @@ export function usePartnerPosts() {
     // as "Anonymous Member" and lose the DM affordance but keep the
     // "Contact via clubhouse" fallback in the PartnerBoard renderer.
     const load = async () => {
+      // v0.9.3: select game_type + spots_needed (Migration 50) and the
+      // author's allow_dms so the Contact button can decide DM vs.
+      // clubhouse-fallback vs. hide-with-plaintext per Marc's spec.
       const { data: rows } = await supabase
         .from('partner_posts')
-        .select('id, category, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id, photo_url)')
+        .select('id, category, game_type, spots_needed, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id, photo_url, allow_dms)')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
       if (cancelled) return;
@@ -503,13 +506,19 @@ export function usePartnerPosts() {
           authorSince: r.members?.member_since || null,
           authorUserId: r.members?.user_id || null,
           authorPhotoUrl: r.members?.photo_url || null,
+          authorAllowDms: r.members?.allow_dms !== false, // null/true => allowed
           memberId: r.member_id,
           hcp: r.hcp,
+          spotsNeeded: r.spots_needed,
+          // game_type is the canonical field (v0.9.3+); fall back to
+          // legacy category for any pre-migration rows that somehow
+          // missed the backfill.
+          gameType: r.game_type || r.category || null,
           dateWanted: r.date_wanted,
           date: relativeDate(r.created_at),
           title: r.title,
           body: r.body,
-          cat: r.category,
+          cat: r.game_type || r.category, // back-compat for any legacy reader
           open: r.is_open,
         })));
       }
