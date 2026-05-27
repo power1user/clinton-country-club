@@ -3515,7 +3515,7 @@ export function GuestRegistrationsFeed() {
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-        Live feed of new guest registrations. Tap a row to expand; full edit + QR controls live in <strong>People → Guest Management</strong>.
+        Live feed of new guest registrations. Tap a row to expand; full edit + QR controls live in <strong>People → Guest Settings &amp; QR</strong>.
       </p>
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
       {!loading && rows.length === 0 && (
@@ -3582,7 +3582,7 @@ export function GuestManagementAdmin() {
     return (
       <div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
-          Guest Management surfaces every guest who's registered at {club.name}, plus the controls for the public QR codes.
+          Guest access rules + the public clubhouse QR code for {club.name}. The full guest list lives in the <strong>Directory</strong> section above.
         </p>
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '20px 18px', textAlign: 'center' }}>
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 16, color: G.text, margin: '0 0 8px' }}>Guest registration is off</p>

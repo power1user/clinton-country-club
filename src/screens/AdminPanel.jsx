@@ -158,20 +158,24 @@ const AREAS = [
   {
     id: 'people',
     l: 'People',
-    d: 'Unified directory: members, guests, staff',
+    d: 'Directory + member ops + guest settings + staff roles',
     icon: IconPeople,
     sections: [
       // v0.9.18: unified browse — every person at the club in one
       // list with role + status badges. Orphan signups (pending_auth
       // guests) surface here so nobody falls through the cracks.
-      { id: 'people_all',  permKey: 'can_manage_members', l: 'People',           d: 'Everyone at the club, search + filter',         icon: IconPeople },
-      { id: 'members',     permKey: 'can_manage_members', l: 'Member Roster',    d: 'CSV import + magic-link invites + edit',        icon: IconPeople },
-      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',   d: 'Hide/delete bulletin + partner posts',          icon: IconList   },
+      // v0.9.20: labels switched to action-verb pattern so each card
+      // signals its purpose at a glance (browse vs. manage vs. settings).
+      { id: 'people_all',  permKey: 'can_manage_members', l: 'Directory',         d: 'Find anyone: members, guests, staff',                  icon: IconPeople },
+      { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
+      { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',    d: 'Hide / delete bulletin + partner posts',               icon: IconList   },
       // v0.8.4: guest management. Section renders an "off" state when
       // the guest_registration flag is off so the entry is still
       // discoverable; flipping the flag in Club Settings activates it.
-      { id: 'guests',      permKey: 'can_manage_members', l: 'Guest Management', d: 'Registrations, clubhouse QR, settings',         icon: IconPeople, managerOnly: true },
-      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Staff',            d: 'Manage admins + grant permissions',            icon: IconShield, managerOnly: true },
+      // v0.9.20: renamed to clarify this is settings + QR, not the
+      // guest list (which now lives in the Directory card above).
+      { id: 'guests',      permKey: 'can_manage_members', l: 'Guest Settings & QR', d: 'Access rules, expiration, clubhouse QR code',        icon: IconPeople, managerOnly: true },
+      { id: 'staff',       permKey: 'can_manage_staff',   l: 'Manage Staff',      d: 'Roles + permissions (admin / manager / super)',        icon: IconShield, managerOnly: true },
     ],
   },
   // Club Settings — manager-only configuration. Replaces the v0.7.0
@@ -1516,7 +1520,7 @@ function PeopleAdmin({ club }) {
 }
 
 // Inline detail panels — read-only summary. Deep edit ops still live
-// in the dedicated sections (Member Roster, Guest Management, Staff).
+// in the dedicated sections (Manage Members, Guest Settings & QR, Manage Staff).
 function MemberDetailPanel({ m, staffRole }) {
   const Row = ({ label, value }) => (
     <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, padding: '3px 0', fontFamily: '"Lora",serif', fontSize: 12 }}>
@@ -1533,7 +1537,7 @@ function MemberDetailPanel({ m, staffRole }) {
       <Row label="Joined"        value={m.created_at ? new Date(m.created_at).toLocaleDateString() : null} />
       {staffRole && <Row label="Staff role" value={staffRole.replace(/_/g, ' ')} />}
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '10px 0 0' }}>
-        For edits, CSV import, or magic-link invites: <strong>Member Roster</strong> section.
+        For edits, CSV import, or magic-link invites: <strong>Manage Members</strong> section.
       </p>
     </div>
   );
@@ -1564,7 +1568,7 @@ function GuestDetailPanel({ g }) {
         </div>
       )}
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '10px 0 0' }}>
-        For QR codes + per-club guest settings: <strong>Guest Management</strong> section.
+        For QR codes + per-club guest settings: <strong>Guest Settings &amp; QR</strong> section.
       </p>
     </div>
   );

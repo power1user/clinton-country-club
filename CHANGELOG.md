@@ -25,6 +25,29 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.20** — People area: action-verb sub-card names for clarity.
+
+  The v0.9.18 names conflated browse with manage and left "Guest
+  Management" misleading after the guest list moved into the new
+  Directory card. Marc flagged the ambiguity. Renamed every sub-
+  card to a verb-led label that signals its purpose at a glance.
+
+  Old → New:
+    · **People** → **Directory** ("Find anyone: members, guests, staff")
+    · **Member Roster** → **Manage Members** ("Add, edit, import roster + magic-link invites")
+    · Moderate Posts (unchanged)
+    · **Guest Management** → **Guest Settings & QR** ("Access rules, expiration, clubhouse QR code")
+    · **Staff** → **Manage Staff** ("Roles + permissions (admin / manager / super)")
+
+  Also updated the inline cross-references in PeopleAdmin's
+  detail panels and GuestRegistrationsFeed copy so they all
+  point at the new names. Area description tweaked from
+  "Unified directory: members, guests, staff" to the broader
+  "Directory + member ops + guest settings + staff roles" so
+  the area card itself signals what's inside.
+
+  No functional change. Pure label clarity.
+
 - **v0.9.19** — Fix PeopleAdmin black screen (missing useMemo import).
 
   Exact repeat of the v0.9.13 EventsAdmin bug. PeopleAdmin uses
