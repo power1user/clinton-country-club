@@ -4,6 +4,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useClubStatus, usePaceOfPlay, usePinPlacements } from '../hooks/useClubData.jsx';
+import { useCommsUnread } from '../lib/commsUnread.js';
 import { GreenWithPin } from './PinMap.jsx';
 import {
   MenuCategoriesAdmin, MenuItemsAdmin, ProShopItemsAdmin, LessonProsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
@@ -46,20 +47,56 @@ import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 //   · Section IDs preserved everywhere (routing is keyed by id, so
 //     nothing breaks; only labels and parent areas change).
 const AREAS = [
+  // ──────────────────────────────────────────────────────────────────
+  // Communications (v0.9.4) — unified incoming triage center. Sits
+  // at the top of the area grid because it's the surface staff hit
+  // first thing in the morning: what's waiting from members. Each
+  // sub-queue has its own permKey (so a bartender only sees food
+  // orders, the pro only sees lesson requests, the manager sees
+  // everything). Unread badges on the parent card and on each
+  // sub-queue header per Marc's spec.
+  //
+  // Sub-queues are scaffolded here and routed to existing components
+  // in v0.9.4. v0.9.5 + v0.9.6 polish each in turn. v0.9.7 removes
+  // the duplicates from the old locations (Food Orders from Dining,
+  // Lesson Queue from Pro Shop) so this stays the single source of
+  // truth.
+  //
+  // Demo Requests is deferred until the landing page contact form
+  // exists (no data source yet — see CHANGELOG v0.9.4).
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: 'inbox',
+    l: 'Communications',
+    d: 'Inbound: orders, lessons, inquiries, guests, messages, RSVPs',
+    icon: IconBell,
+    sections: [
+      { id: 'inbox_food',       permKey: 'can_view_orders',          l: 'Food Orders',         d: 'Open orders queue',                       icon: IconList },
+      { id: 'inbox_lessons',    permKey: 'can_manage_lessons',       l: 'Lesson Requests',     d: 'Lesson + inquiry requests',               icon: IconList },
+      { id: 'inbox_proshop',    permKey: 'can_manage_lessons',       l: 'Pro Shop Inquiries',  d: 'General pro shop questions',              icon: IconBag },
+      { id: 'inbox_guests',     permKey: 'can_manage_members',       l: 'Guest Registrations', d: 'Live feed as guests register',            icon: IconPeople },
+      { id: 'inbox_clubhouse',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Messages',  d: 'Member messages grouped by topic',        icon: IconBell },
+      { id: 'inbox_rsvps',      permKey: 'can_manage_events',        l: 'Event RSVPs',         d: 'Registrations + waitlist changes',        icon: IconCalendar },
+    ],
+  },
+  // Broadcasts — outgoing/content surfaces. Renamed from
+  // "Communications" in v0.9.4 because the new top-level
+  // Communications area owns inbound triage. Old contents minus
+  // Clubhouse Inbox (which is now Clubhouse Messages in Comms).
   {
     id: 'comms',
-    l: 'Communications',
-    d: 'News, broadcasts, clubhouse, sponsors',
+    l: 'Broadcasts',
+    d: 'News, push, sponsors',
     icon: IconNews,
     sections: [
       { id: 'news',            permKey: 'can_post_news',            l: 'News',             d: 'List, edit, publish announcements',         icon: IconNews      },
       { id: 'notifs',          permKey: 'can_send_notifications',   l: 'Push Broadcasts',  d: 'Send push alerts to all members',           icon: IconBell      },
-      { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox',  d: 'Member messages routed to staff',           icon: IconBell      },
       { id: 'banners',         permKey: 'can_manage_sponsors',      l: 'Sponsor Banners',  d: 'Rotating sponsor banners',                  icon: IconBanner    },
       { id: 'holespons',       permKey: 'can_manage_sponsors',      l: 'Hole Sponsors',    d: 'Local sponsor per hole',                    icon: IconHandshake },
-      // v0.9.1: 'clubguide' (Member Guide) moved → Club Settings area.
-      // Pages are configuration of how the club presents itself to new
-      // members, not a comms surface.
+      // v0.9.4: 'clubhouseinbox' moved → Communications area as
+      // 'inbox_clubhouse' (Clubhouse Messages sub-queue). Single
+      // source of truth for all member→staff messages.
+      // v0.9.1: 'clubguide' moved → Club Settings.
     ],
   },
   {
@@ -184,6 +221,12 @@ export default function AdminPanel() {
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);
 
+  // v0.9.4: Communications-area unread counts. Hook is club-scoped
+  // and self-subscribes via realtime so badges stay current without
+  // any explicit refresh. Used for the area-card aggregate badge on
+  // the main hub AND per-sub-queue badges inside the Comms sub-hub.
+  const commsUnread = useCommsUnread(club?.id);
+
   // Visibility filter — a section is visible if:
   //   - not superOnly (or user is super_admin)
   //   - not managerOnly (or user is manager+)
@@ -245,6 +288,16 @@ export default function AdminPanel() {
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
+          {/* v0.9.4: Communications sub-queues. For this scaffold ship,
+              each routes to the existing component so the area is
+              wired end-to-end. v0.9.5 + v0.9.6 polish each with the
+              new pattern (realtime, group-by-topic, etc). */}
+          {sec === 'inbox_food'      && <FoodOrdersAdmin />}
+          {sec === 'inbox_lessons'   && <LessonRequestsAdmin />}
+          {sec === 'inbox_proshop'   && <LessonRequestsAdmin />}
+          {sec === 'inbox_guests'    && isManager && <GuestManagementAdmin />}
+          {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
+          {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin />}
           {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
           {sec === 'features'       && isManager && <FeaturesAdmin />}
           {sec === 'guests'         && isManager && <GuestManagementAdmin />}
@@ -259,6 +312,15 @@ export default function AdminPanel() {
   // Level 2 — area sub-hub showing that area's sections
   if (activeArea) {
     const sectionsToShow = activeArea.sections.filter(sectionVisible);
+    // v0.9.4: when this is the Communications area, surface per-
+    // sub-queue badges from the unread hook. Tapping a sub-queue
+    // also marks it viewed (clears the badge) before navigating.
+    const isCommsArea = activeArea.id === 'inbox';
+    const badgeOf = isCommsArea ? (id) => commsUnread.counts[id] || 0 : undefined;
+    const handleSelect = (id) => {
+      if (isCommsArea) commsUnread.markViewed(id);
+      setSec(id);
+    };
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
@@ -271,7 +333,7 @@ export default function AdminPanel() {
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
             {activeArea.d}
           </p>
-          <CardGrid items={sectionsToShow} onSelect={setSec} />
+          <CardGrid items={sectionsToShow} onSelect={handleSelect} badgeOf={badgeOf} />
         </div>
       </div>
     );
@@ -313,7 +375,14 @@ export default function AdminPanel() {
             {hasPerm('can_edit_course_status') && (
               <DailyStatusQuickAccess onOpen={() => setSec('status')} />
             )}
-            <CardGrid items={AREAS.filter(areaVisible)} onSelect={setArea} />
+            <CardGrid
+              items={AREAS.filter(areaVisible)}
+              onSelect={setArea}
+              /* v0.9.4: Communications area card shows aggregate
+                 unread badge — sum of all sub-queues the user can
+                 see. Other area cards have no badge. */
+              badgeOf={(id) => id === 'inbox' ? commsUnread.total : 0}
+            />
             {AREAS.filter(areaVisible).length === 0 && (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                 <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, margin: 0 }}>
@@ -381,11 +450,16 @@ function SearchResults({ query, sectionVisible, onSelect }) {
 }
 
 // Shared 2-column card grid used by both hub levels
-function CardGrid({ items, onSelect }) {
+// v0.9.4: `badgeOf` is an optional (id) => number that, when > 0,
+// renders a numeric unread badge in the card's top-right. Used by the
+// Communications area + its sub-queues; transparent to every other
+// area that doesn't pass the prop.
+function CardGrid({ items, onSelect, badgeOf }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
       {items.map(s => {
         const Icon = s.icon;
+        const badge = badgeOf ? badgeOf(s.id) : 0;
         return (
           <div
             key={s.id}
@@ -402,6 +476,7 @@ function CardGrid({ items, onSelect }) {
               alignItems: 'flex-start',
               gap: 8,
               minHeight: 124,
+              position: 'relative',
             }}
           >
             <div style={{ width: 36, height: 36, borderRadius: 6, background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -409,6 +484,22 @@ function CardGrid({ items, onSelect }) {
             </div>
             <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '4px 0 0', lineHeight: 1.1 }}>{s.l}</h3>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, lineHeight: 1.4, margin: 0 }}>{s.d}</p>
+            {badge > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: 10, right: 10,
+                minWidth: 22, height: 22,
+                padding: '0 6px',
+                borderRadius: 11,
+                background: G.clsDot,
+                color: '#F2EDE0',
+                fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+              }} aria-label={`${badge} new`}>
+                {badge > 99 ? '99+' : badge}
+              </div>
+            )}
           </div>
         );
       })}

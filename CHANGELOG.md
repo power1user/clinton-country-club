@@ -25,6 +25,50 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.4** — Communications area scaffold (inbound triage).
+
+  New top-level **Communications** area in the admin hub for
+  unified inbound triage. Sub-queues: Food Orders · Lesson
+  Requests · Pro Shop Inquiries · Guest Registrations · Clubhouse
+  Messages · Event RSVPs. Demo Requests deferred until a landing
+  page contact form exists. Each sub-queue is permission-gated
+  via existing keys so a bartender only sees Food Orders, the pro
+  only sees Lesson Requests, etc.
+
+  **Name collision resolution.** The existing "Communications"
+  area (News, Push Broadcasts, Sponsor Banners, Hole Sponsors,
+  Clubhouse Inbox) was renamed to **Broadcasts** — its remaining
+  contents are all outgoing/content surfaces. Clubhouse Inbox
+  moved out of Broadcasts into the new Communications area as
+  the `inbox_clubhouse` sub-queue (Clubhouse Messages) — single
+  source of truth for member→staff messages.
+
+  **Unread-badge infrastructure** (`src/lib/commsUnread.js`):
+    · `useCommsUnread(clubId)` — hook returning per-sub-queue
+      counts of rows added since the staff member last viewed
+      that sub-queue (per-device, localStorage-keyed by club).
+    · `markCommsViewed(clubId, sectionId)` — call on entering a
+      sub-queue to clear its badge.
+    · Realtime subs on food_orders, pro_shop_inquiries, guests,
+      event_registrations, threads — counts bump live as items
+      land without any refresh.
+    · `CardGrid` extended with optional `badgeOf={(id) => N}`
+      prop. When > 0, renders a numeric red badge in the card's
+      top-right. Aggregate badge on the Communications area card
+      = sum of all visible sub-queue counts.
+
+  **Sub-queue routing (scaffold only)** — for v0.9.4 each Comms
+  sub-queue redirects to the existing admin component so the area
+  is wired end-to-end and badges work today. v0.9.5 + v0.9.6
+  polish each sub-queue with the new pattern (group-by-topic for
+  Clubhouse Messages, live registration feed for Guests, etc.).
+
+  **Cleanup deferred to v0.9.7.** Food Orders is currently
+  reachable from both Dining (legacy) and Communications (new);
+  Lesson Requests from both Pro Shop and Comms; etc. The
+  duplicate-removal pass lands in v0.9.7 so each sub-queue gets
+  validated in its new home before its legacy entry is removed.
+
 - **v0.9.3** — Partner Board redesign + Migration 50.
 
   Full redesign pass — strips the card to Marc's four essentials
