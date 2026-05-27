@@ -25,6 +25,59 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.7** — Cleanup: remove duplicate queues + README refresh.
+
+  Closes Phase 9. Now that all six Comms sub-queues are polished
+  and live in the new Communications area, the legacy entries in
+  Dining, Pro Shop, and Events are dead weight — they pointed at
+  the same data with the same components. Removed so each queue
+  has a single source of truth.
+
+  Sections removed from AREAS:
+    · Dining → "Food Orders" (id `foodord`) — canonical home is
+      Comms → `inbox_food`
+    · Pro Shop → "Lesson Queue" (id `lessons`) — split into
+      Comms `inbox_lessons` (kind='lesson') and `inbox_proshop`
+      (kind!='lesson')
+    · Events → "Event RSVPs" (id `events`) — canonical home is
+      Comms → `inbox_rsvps`
+
+  Area descriptions updated accordingly:
+    · Dining: "Menu, items, orders" → "Menu + items"
+    · Pro Shop: "Catalog + lesson queue" → "Catalog + lesson pros"
+    · Events: "Calendar + RSVPs" → "Calendar + cancellations"
+
+  Section router branches for the removed ids cleaned up so the
+  Level 3 render stays a simple ladder of live entries (no dead
+  `sec === 'foodord' && ...` lines).
+
+  Search continues to work — search results are derived from
+  `ALL_SECTIONS = AREAS.flatMap(...)`, so a removed section
+  simply stops appearing in search results, which is correct.
+
+  **README.md fully refreshed for v0.9.x** per the every-minor
+  cadence we set in v0.8.9. Updates:
+    · Current version bumped to v0.9.7
+    · Admin hub: 8 areas → **9 areas** in new Phase 9 ordering:
+      Communications · Broadcasts · Events · Golf Course ·
+      Pro Shop · Dining · People · Club Settings · Platform
+    · New "Communications Triage" section in the feature inventory
+      documenting the 6 sub-queues, badge mechanics, permission
+      gating, and the "Reply via clubhouse" wiring
+    · Partner Finder bullet rewritten to reflect the v0.9.3
+      redesign (4-essentials card + 3-state Contact button)
+    · Daily Status quick-access banner mentioned on admin home
+    · Per-area section listings refreshed with current contents
+      and notes on what moved where
+    · Repo layout: added `src/lib/commsUnread.js` and
+      `supabase/functions/send-push/` (tracked v5 source with
+      `?diag=1` endpoint)
+
+  Phase 9 ships across v0.9.0 through v0.9.7, eight commits,
+  one minor version per Marc's multi-commit preference. Next
+  README refresh lands at v1.0.0 or v0.10.0 (whichever phase
+  comes next).
+
 - **v0.9.6** — Communications sub-queues 2/2: Guests / Clubhouse / RSVPs.
 
   Polishes the remaining three Comms sub-queues. After this ship,

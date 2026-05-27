@@ -11,10 +11,10 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.8.8` (Phase 8 — Guest Management)
+**Current version:** `v0.9.7` (Phase 9 — Communications triage + admin reorg)
 
 > This README is refreshed on every **minor** release (0.x bump). For
-> anything that shipped after v0.8.8, see [`CHANGELOG.md`](./CHANGELOG.md).
+> anything that shipped after v0.9.7, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -93,7 +93,7 @@ logo + 3 brand colors + hero photo + tagline.
 - **FoodMenu** — categories from the DB-backed `menu_categories` table;
   configurable per-club whether guests can order
 - **Bulletin Board** (classifieds / wanted / general) + member replies
-- **Partner Finder** (foursome / single / cart-share) + DM contact
+- **Partner Finder** (Phase 9 redesign): card surfaces who / game type / when / spots-needed at a glance with handicap as a small optional tag. Compose flow takes under 30 seconds. Contact button never dead-ends — DM (if poster allows) → clubhouse fallback ("Golf Partner Inquiry: …") → plain-text "ask the front desk" for the rare neither-available case
 - **Pro Shop** catalog + member-side "My Inquiries" read-only view
 - **Lesson Requests** form routed to lesson pros
 - **Membership Card** screen with QR code + display-mode toggle
@@ -195,19 +195,41 @@ logo + 3 brand colors + hero photo + tagline.
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
 
-### 🎯 Admin Hub (8 areas)
-- Two-level: 8 area cards → sub-hub of sections → section content
+### 📥 Communications Triage (Phase 9)
+- Single inbound-activity destination for staff. Six role-scoped
+  sub-queues: Food Orders · Lesson Requests · Pro Shop Inquiries ·
+  Guest Registrations · Clubhouse Messages · Event RSVPs.
+- Per-sub-queue **unread badges** (numeric red dots) on the area
+  card and on each sub-queue header. Counts are per-device
+  (`localStorage` keyed by club id), update live via Supabase
+  realtime, and clear when the staff member views the sub-queue.
+- Per-sub-queue permission gating via existing keys (`can_view_orders`,
+  `can_manage_lessons`, `can_manage_members`, `can_view_clubhouse_inbox`,
+  `can_manage_events`) so a bartender only sees Food Orders, the
+  pro only sees Lesson Requests, the manager sees everything.
+- Lesson Requests + Pro Shop Inquiries split from the shared
+  `pro_shop_inquiries` table via `kind` discriminator.
+- "Reply via clubhouse" button on Lesson + Pro Shop rows creates
+  a clubhouse thread with both staff and requester as participants
+  — no more email-and-copy-paste.
+
+### 🎯 Admin Hub (9 areas, Phase 9 reorg)
+- Two-level: 9 area cards → sub-hub of sections → section content
 - **Search bar** filters every section across all areas; jumps direct
+- **Daily Status quick-access** banner on admin home for users with
+  `can_edit_course_status` — flip today's open/limited/closed pills
+  in 2 taps from cold-load
 
 #### Area ordering
-1. **Communications** — News · Notifications composer · Sponsor Banners · Member Posts moderation · Club Guide pages
-2. **Events** — Events (full CRUD) · Event RSVPs queue
-3. **Golf Course** — Club Status · Schedule Overrides · Pace of Play · Pin Positions · Holes · Hole Sponsors
-4. **Pro Shop** — Items · Lesson Requests queue
-5. **Dining** — Menu Categories · Menu Items · Food Orders queue
-6. **People** — Members (search + CSV import + magic-link invites) · Staff · Clubhouse Inbox · Guest Management
-7. **Club Settings** — Branding & Contact (logo · colors · DM toggle · pending access · guest defaults · ToU) · Feature Toggles · Lesson Pros
-8. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
+1. **Communications** *(new in v0.9.4 — inbound triage)* — Food Orders · Lesson Requests · Pro Shop Inquiries · Guest Registrations · Clubhouse Messages · Event RSVPs. Each sub-queue is permission-gated and shows a numeric **unread badge** on the area card and its own header. Realtime. (Demo Requests deferred until landing page exists.)
+2. **Broadcasts** *(renamed from "Communications" in v0.9.4)* — News · Push Broadcasts · Sponsor Banners · Hole Sponsors
+3. **Events** — Events (full CRUD). RSVPs moved to Comms sub-queue.
+4. **Golf Course** — Daily Status · Pace · Daily Pins · Hole Details. Hours config + Date Overrides moved to Club Settings.
+5. **Pro Shop** — Pro Shop Items · Lesson Pros. Lesson Queue moved to Comms.
+6. **Dining** — Menu Categories · Menu Items. Food Orders moved to Comms.
+7. **People** — Members (search + CSV import + magic-link invites) · Moderate Posts · Guest Management (full settings + QR) · Staff
+8. **Club Settings** *(renamed from "Club Setup" in v0.9.0)* — Branding & Contact · Feature Toggles · Facility Hours · Date Overrides · Member Guide
+9. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
 
 ---
 
@@ -227,7 +249,9 @@ windhaven-app/
 │   ├── grounds-mark.png           # Service worker notification badge
 │   └── greens/                    # Hole SVG illustrations
 ├── supabase/
-│   └── README.md                  # Edge Function inventory + secrets. Schema lives in MCP-applied migrations.
+│   ├── README.md                  # Edge Function inventory + secrets. Schema lives in MCP-applied migrations.
+│   └── functions/
+│       └── send-push/             # Web Push fan-out Edge Function (v5 — tracked because the ?diag=1 endpoint is the canonical debug surface)
 ├── src/
 │   ├── App.jsx                    # Auth gate + route table + service-worker registration + splash
 │   ├── theme.js                   # CSS-var-backed palette + applyClubPalette
@@ -239,6 +263,7 @@ windhaven-app/
 │   │   ├── guestAccess.js         # Access-mode logic for guest gating
 │   │   ├── terms.js               # Terms of Use version tracking
 │   │   ├── push.js                # subscribeToPush / unsubscribe / SW registration
+│   │   ├── commsUnread.js         # Communications-area unread tracking (Phase 9)
 │   │   ├── timezone.js            # clubLocalParts (IANA-aware)
 │   │   └── version.js             # VERSION / PLATFORM_NAME / phase history
 │   ├── hooks/

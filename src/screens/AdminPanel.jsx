@@ -103,11 +103,12 @@ const AREAS = [
   {
     id: 'events',
     l: 'Events',
-    d: 'Calendar + RSVPs',
+    // v0.9.7: 'Event RSVPs' section removed — now the inbox_rsvps
+    // sub-queue under Communications (single source of truth).
+    d: 'Calendar + cancellations',
     icon: IconCalendar,
     sections: [
       { id: 'eventsadmin', permKey: 'can_manage_events', l: 'Events',      d: 'Add, edit, cancel events',     icon: IconCalendar },
-      { id: 'events',      permKey: 'can_manage_events', l: 'Event RSVPs', d: 'View + manage registrations',  icon: IconList },
     ],
   },
   {
@@ -131,23 +132,26 @@ const AREAS = [
   {
     id: 'proshop',
     l: 'Pro Shop',
-    d: 'Catalog + lesson queue',
+    // v0.9.7: 'Lesson Queue' removed — split into Communications
+    // inbox_lessons (lesson requests) + inbox_proshop (general
+    // inquiries) for cleaner triage.
+    d: 'Catalog + lesson pros',
     icon: IconBag,
     sections: [
       { id: 'proitems',   permKey: 'can_manage_proshop',  l: 'Pro Shop Items', d: 'Catalog of items for sale', icon: IconBag    },
       { id: 'lessonpros', permKey: 'can_manage_proshop',  l: 'Lesson Pros',    d: 'Roster shown when booking', icon: IconPeople },
-      { id: 'lessons',    permKey: 'can_manage_lessons',  l: 'Lesson Queue',   d: 'Member lesson + inquiry requests', icon: IconList },
     ],
   },
   {
     id: 'dining',
     l: 'Dining',
-    d: 'Menu, items, orders',
+    // v0.9.7: 'Food Orders' removed — now the inbox_food sub-queue
+    // under Communications (single source of truth for active orders).
+    d: 'Menu + items',
     icon: IconUtensils,
     sections: [
       { id: 'menucats',  permKey: 'can_manage_menu', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
       { id: 'menuitems', permKey: 'can_manage_menu', l: 'Menu Items',      d: 'Add, edit, hide individual dishes',        icon: IconUtensils },
-      { id: 'foodord',   permKey: 'can_view_orders', l: 'Food Orders',     d: 'Queue + status updates',                   icon: IconList },
     ],
   },
   {
@@ -275,9 +279,11 @@ export default function AdminPanel() {
           {sec === 'holespons'      && <HoleSponsorsAdmin />}
           {sec === 'menucats'       && <MenuCategoriesAdmin />}
           {sec === 'menuitems'      && <MenuItemsAdmin />}
-          {sec === 'foodord'        && <FoodOrdersAdmin />}
+          {/* v0.9.7: 'foodord', 'events' (registrations), 'lessons'
+              router branches removed — those section ids no longer
+              appear in AREAS. Their canonical homes are Comms
+              inbox_food / inbox_rsvps / inbox_lessons. */}
           {sec === 'eventsadmin'    && <EventsAdmin />}
-          {sec === 'events'         && <EventRegistrationsAdmin />}
           {sec === 'news'           && <NewsAdminFull />}
           {sec === 'notifs'         && <NotificationsAdmin />}
           {sec === 'banners'        && <SponsorBannersAdmin />}
@@ -285,7 +291,6 @@ export default function AdminPanel() {
           {sec === 'clubguide'      && <MemberGuideAdmin />}
           {sec === 'proitems'       && <ProShopItemsAdmin />}
           {sec === 'lessonpros'     && <LessonProsAdmin />}
-          {sec === 'lessons'        && <LessonRequestsAdmin />}
           {sec === 'members'        && <MembersAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
