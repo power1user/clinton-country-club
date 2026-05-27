@@ -25,6 +25,35 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.16** — Architecture doc moves to Cloudflare Pages.
+
+  v0.9.15's attempt to host `grounds-architecture.html` on Supabase
+  Storage + an Edge Function returned `text/plain` to every real
+  browser navigation despite the function correctly setting
+  `Content-Type: text/html`. Tested empirically via Chrome
+  automation: `document.contentType === 'text/plain'` regardless of
+  cache-busting, query strings, or any header trick I tried. Curl
+  with Chrome's exact UA + Accept headers got `text/html` cleanly,
+  but real browser top-level navigations hit a Supabase gateway
+  rewrite that downgrades HTML responses platform-wide. This is an
+  intentional security policy (prevents stored XSS via uploaded
+  HTML executing on supabase.co).
+
+  Fix: move the file to `public/grounds-arch-9a47e3b8.html` so
+  Vite includes it in `dist/` and Cloudflare Pages serves it
+  natively. Cloudflare honors the `.html` extension as text/html.
+  Filename has a random hex suffix so the URL itself is
+  unguessable on top of the password gate — two layers.
+
+  Leftovers from v0.9.15 (in Supabase, harmless, can delete via
+  Dashboard later):
+    · Storage bucket `docs` + RLS policies
+    · Edge Function `docs` (v1, ACTIVE, verify_jwt=false)
+    · The `grounds-architecture.html` blob in the bucket
+
+  No app behavior change — the architecture doc is a static asset
+  bundled with the build; member-facing app is untouched.
+
 - **v0.9.15** — Custom Facility Names (Migration 53 + admin).
 
   Display names for the five status pills move from being baked

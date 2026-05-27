@@ -1,0 +1,1321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Grounds — Architecture &amp; ERD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* The Grounds palette — pulled from src/theme.js */
+    :root {
+      --g-green:     #1B3A2D;
+      --g-green-mid: #2D4D3E;
+      --g-green-lt:  #5C9A70;
+      --g-green-vlt: #A8D8B8;
+      --g-bg:        #F2EDE0;
+      --g-card:      #F8F4EC;
+      --g-text:      #1A180F;
+      --g-muted:     #6B6859;
+      --g-border:    #D9D1BD;
+      --g-brass:     #9B7A1E;
+      --g-brass-lt:  #C49E3D;
+      --g-cls:       #6B2020;
+      --g-cls-dot:   #B05151;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--g-bg);
+      color: var(--g-text);
+      font-family: "Lora", Georgia, serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    body { padding: 0 0 60px; }
+    h1, h2, h3, h4 {
+      font-family: "Playfair Display", Georgia, serif;
+      color: var(--g-text);
+      margin: 0;
+      line-height: 1.15;
+    }
+    h1 { font-size: 36px; font-weight: 700; }
+    h2 { font-size: 26px; font-weight: 700; margin: 0 0 6px; }
+    h3 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+    h4 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+    a { color: var(--g-brass); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header strip — same deep green as the app's iOS status bar */
+    .header {
+      background: var(--g-green);
+      color: var(--g-bg);
+      padding: 40px 40px 30px;
+      border-bottom: 4px solid var(--g-brass);
+    }
+    .header .eyebrow {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--g-green-vlt);
+      margin: 0 0 6px;
+    }
+    .header h1 { color: var(--g-bg); }
+    .header .tagline {
+      font-style: italic;
+      color: var(--g-green-vlt);
+      margin: 8px 0 0;
+      font-size: 14px;
+    }
+    .header .meta {
+      margin-top: 16px;
+      display: flex; gap: 24px; flex-wrap: wrap;
+      font-size: 11px; color: var(--g-green-vlt);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .header .meta strong { color: var(--g-brass-lt); font-weight: 700; }
+
+    /* Section frames */
+    section {
+      max-width: 1200px;
+      margin: 36px auto 0;
+      padding: 0 40px;
+    }
+    section .head {
+      border-bottom: 1px solid var(--g-border);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    section .head h2 { margin: 0; }
+    section .head .label {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--g-brass);
+      font-weight: 700;
+    }
+    section .head .desc {
+      font-size: 13px; color: var(--g-muted); font-style: italic;
+      flex-basis: 100%;
+    }
+
+    /* Mermaid container — give it the cream card look */
+    .diagram {
+      background: var(--g-card);
+      border: 1px solid var(--g-border);
+      border-radius: 6px;
+      padding: 24px;
+      overflow-x: auto;
+      box-shadow: 0 2px 6px rgba(26,24,15,0.04);
+    }
+    .diagram .mermaid { font-family: "Lora", Georgia, serif; }
+    /* Lock width to viewport so the SVG can scroll horizontally */
+    .diagram svg { display: block; max-width: 100%; height: auto; }
+
+    /* Stats strip */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--g-card);
+      border: 1px solid var(--g-border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .stat .value {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 26px; font-weight: 700;
+      color: var(--g-green);
+      line-height: 1.05;
+    }
+    .stat .label {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--g-muted);
+      margin-top: 4px;
+    }
+
+    /* Table reference cards */
+    .table-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .table-card {
+      background: var(--g-card);
+      border: 1px solid var(--g-border);
+      border-radius: 6px;
+      padding: 14px 14px 12px;
+    }
+    .table-card .head-row {
+      display: flex; align-items: baseline; gap: 8px;
+      border-bottom: 1px solid var(--g-border);
+      padding-bottom: 6px; margin-bottom: 8px;
+    }
+    .table-card .name {
+      font-family: "Playfair Display", Georgia, serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--g-green);
+      flex: 1;
+    }
+    .table-card .badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .badge.rls {
+      background: rgba(155,122,30,0.12);
+      color: var(--g-brass);
+    }
+    .table-card .domain {
+      font-size: 9px; color: var(--g-muted);
+      letter-spacing: 0.1em; text-transform: uppercase;
+      margin: -4px 0 6px;
+    }
+    .table-card ul {
+      margin: 0; padding: 0; list-style: none;
+      font-family: "Lora", Georgia, serif;
+      font-size: 12px;
+      color: var(--g-text);
+    }
+    .table-card li {
+      padding: 2px 0;
+      display: flex; gap: 8px; align-items: baseline;
+    }
+    .table-card li .col {
+      color: var(--g-text);
+      font-weight: 500;
+    }
+    .table-card li .type {
+      color: var(--g-muted);
+      font-size: 10px;
+      font-style: italic;
+    }
+    .table-card li .pk,
+    .table-card li .fk {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 1px 4px;
+      border-radius: 2px;
+      margin-left: auto;
+    }
+    .table-card li .pk { color: var(--g-brass); background: rgba(155,122,30,0.10); }
+    .table-card li .fk { color: var(--g-green-lt); background: rgba(82,193,120,0.10); }
+
+    /* Legend chip */
+    .legend {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      font-size: 11px; color: var(--g-muted);
+    }
+    .legend .chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 2px;
+      font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700;
+    }
+
+    .footer {
+      max-width: 1200px; margin: 60px auto 0; padding: 24px 40px;
+      border-top: 1px solid var(--g-border);
+      color: var(--g-muted); font-size: 11px; font-style: italic; text-align: center;
+    }
+    .footer strong { color: var(--g-brass); font-style: normal; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+
+    /* ─── Password gate (full-screen splash, dismissed on unlock) ─── */
+    #gate {
+      position: fixed; inset: 0;
+      background: var(--g-green);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+      padding: 24px;
+    }
+    #gate .gate-card {
+      background: var(--g-card);
+      border: 1px solid var(--g-brass);
+      border-radius: 8px;
+      padding: 36px 32px 28px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    #gate .eyebrow {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--g-brass); margin: 0 0 8px;
+    }
+    #gate h2 {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 22px; font-weight: 700; color: var(--g-text); margin: 0 0 6px;
+    }
+    #gate p {
+      font-family: "Lora", Georgia, serif; font-style: italic;
+      font-size: 12px; color: var(--g-muted); margin: 0 0 20px; line-height: 1.5;
+    }
+    #gate input {
+      width: 100%; padding: 12px 14px;
+      border: 1px solid var(--g-border);
+      border-radius: 4px;
+      font-family: "Lora", Georgia, serif; font-size: 15px;
+      background: #fff; color: var(--g-text);
+      outline: none;
+      box-sizing: border-box;
+      text-align: center; letter-spacing: 0.02em;
+    }
+    #gate input:focus { border-color: var(--g-brass); }
+    #gate button {
+      width: 100%; margin-top: 10px;
+      padding: 12px 14px;
+      background: var(--g-green); color: var(--g-bg);
+      border: none; border-radius: 4px;
+      font-family: "Lora", Georgia, serif; font-size: 13px; font-weight: 500;
+      letter-spacing: 0.06em; cursor: pointer;
+      transition: background 0.15s;
+    }
+    #gate button:hover { background: var(--g-green-mid); }
+    #gate .err {
+      margin-top: 12px;
+      font-family: "Lora", Georgia, serif;
+      font-size: 11px; color: var(--g-cls-dot); font-style: italic;
+      min-height: 16px;
+    }
+    /* When gate is up, hide the actual content so a quick view-source
+       glance doesn't accidentally reveal table cards before unlock.
+       (View-source still works — this is obfuscation, not encryption.) */
+    body.locked > *:not(#gate) { display: none !important; }
+
+    /* ─── Zoom controls overlaid on each diagram ─── */
+    .diagram { position: relative; }
+    .zoom-controls {
+      position: absolute; top: 12px; right: 12px;
+      display: flex; gap: 4px; z-index: 5;
+      background: rgba(248,244,236,0.92);
+      border: 1px solid var(--g-border);
+      border-radius: 4px;
+      padding: 4px;
+      backdrop-filter: blur(4px);
+    }
+    .zoom-controls button {
+      width: 30px; height: 30px;
+      background: var(--g-card);
+      border: 1px solid var(--g-border);
+      border-radius: 3px;
+      cursor: pointer;
+      color: var(--g-text);
+      font-family: "Lora", Georgia, serif;
+      font-size: 16px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+      padding: 0;
+    }
+    .zoom-controls button:hover { background: var(--g-bg); border-color: var(--g-brass); }
+    .zoom-controls .label {
+      font-family: "Lora", Georgia, serif;
+      font-size: 9px; color: var(--g-muted);
+      align-self: center; padding: 0 6px;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    /* Hint to users that the diagram is interactive */
+    .diagram::after {
+      content: 'scroll to zoom · drag to pan';
+      position: absolute; bottom: 8px; left: 14px;
+      font-family: "Lora", Georgia, serif;
+      font-size: 10px; font-style: italic;
+      color: var(--g-muted);
+      pointer-events: none;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body class="locked">
+
+  <!-- ───── PASSWORD GATE ─────
+       Client-side check: hash input with SHA-256, compare to the
+       embedded hash constant. Honest framing: this is obfuscation,
+       not authentication — view-source reveals nothing useful, but
+       a determined viewer can curl the raw file. Good enough for
+       sharing-with-stakeholders use. -->
+  <div id="gate">
+    <div class="gate-card">
+      <p class="eyebrow">The Grounds &middot; Internal Doc</p>
+      <h2>Architecture &amp; Schema</h2>
+      <p>This page is restricted. Enter the access password to continue.</p>
+      <form id="gateForm" autocomplete="off">
+        <input id="gatePass" type="password" placeholder="Password" autofocus />
+        <button type="submit">Unlock</button>
+        <div id="gateErr" class="err"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ───── HEADER ───── -->
+  <div class="header">
+    <p class="eyebrow">The Grounds &middot; Member Experience Platform</p>
+    <h1>Architecture &amp; Schema</h1>
+    <p class="tagline">Your club. Your community. Always on.</p>
+    <div class="meta">
+      <span>Version <strong>v0.9.15</strong></span>
+      <span>Migrations <strong>53</strong></span>
+      <span>Tables <strong>35</strong></span>
+      <span>Foreign Keys <strong>48</strong></span>
+      <span>RLS Coverage <strong>100%</strong></span>
+    </div>
+  </div>
+
+  <!-- ───── 1. ERD ───── -->
+  <section>
+    <div class="head">
+      <h2>Entity Relationship Diagram</h2>
+      <span class="label">Live schema · pulled from production</span>
+      <p class="desc">Every public table, every foreign key, every relationship in the multi-tenant data model. Every table has Row-Level Security enabled; isolation is enforced at the database boundary, not the app boundary.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="value">35</div><div class="label">Tables</div></div>
+      <div class="stat"><div class="value">48</div><div class="label">Foreign Keys</div></div>
+      <div class="stat"><div class="value">100%</div><div class="label">RLS Enabled</div></div>
+      <div class="stat"><div class="value">~105</div><div class="label">RLS Policies</div></div>
+      <div class="stat"><div class="value">5</div><div class="label">Role Tiers</div></div>
+      <div class="stat"><div class="value">9</div><div class="label">Domain Areas</div></div>
+    </div>
+
+    <p class="legend" style="margin: 12px 0 16px;">
+      <span class="chip" style="background: rgba(155,122,30,0.12); color: var(--g-brass);">PK</span> primary key
+      <span class="chip" style="background: rgba(82,193,120,0.10); color: var(--g-green-lt);">FK</span> foreign key
+      <span class="chip" style="background: rgba(155,122,30,0.12); color: var(--g-brass);">RLS</span> row-level security on every table
+    </p>
+
+    <div class="diagram" data-zoomable="erd">
+      <div class="zoom-controls">
+        <span class="label">Zoom</span>
+        <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+        <button type="button" data-zoom="reset" aria-label="Reset zoom" style="font-size: 11px;">⟲</button>
+        <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+      </div>
+      <pre class="mermaid">
+erDiagram
+  %% ────────────────────────────────────────────────────────────────
+  %% CORE — multi-tenancy root, member identity, roles
+  %% ────────────────────────────────────────────────────────────────
+  clubs {
+    uuid id PK
+    text name
+    text slug
+    jsonb feature_flags
+    enum subscription_tier
+    bool enable_member_dms
+    text timezone
+  }
+  members {
+    uuid id PK
+    uuid club_id FK
+    uuid user_id
+    text name
+    text membership_number
+    text status
+    bool allow_dms
+  }
+  user_roles {
+    uuid id PK
+    uuid user_id
+    uuid club_id FK
+    text role
+    jsonb permissions
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% STATUS / FACILITIES — v0.9.15 catalog normalization
+  %% ────────────────────────────────────────────────────────────────
+  club_facilities {
+    uuid id PK
+    uuid club_id FK
+    text facility_key
+    text display_name
+    bool is_default
+    bool active
+    int sort_order
+  }
+  club_status {
+    uuid id PK
+    uuid club_id FK
+    uuid facility_id FK
+    text category
+    text label
+    text state
+    text staff_note
+  }
+  club_status_hours {
+    uuid id PK
+    uuid status_id FK
+    int day_of_week
+    time opens_at
+    time closes_at
+    bool members_only
+  }
+  schedule_overrides {
+    uuid id PK
+    uuid club_id FK
+    uuid status_id FK
+    date override_date
+    bool is_closed
+    text reason
+  }
+  pace_of_play {
+    uuid id PK
+    uuid club_id FK
+    text state
+    text message
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% GOLF COURSE — holes, pins, sponsors, lesson pros
+  %% ────────────────────────────────────────────────────────────────
+  holes {
+    uuid id PK
+    uuid club_id FK
+    int hole_number
+    int par
+    int yards
+  }
+  pin_placements {
+    uuid id PK
+    uuid club_id FK
+    int hole_number
+    date effective_date
+    num pin_x
+    num pin_y
+  }
+  hole_sponsors {
+    uuid id PK
+    uuid club_id FK
+    int hole_number
+    text sponsor_name
+  }
+  lesson_pros {
+    uuid id PK
+    uuid club_id FK
+    text name
+    text bio
+    bool active
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% CONTENT — news, events, RSVPs, banners, guide
+  %% ────────────────────────────────────────────────────────────────
+  news {
+    uuid id PK
+    uuid club_id FK
+    text category
+    text headline
+    text body
+    ts expires_at
+  }
+  events {
+    uuid id PK
+    uuid club_id FK
+    text title
+    date event_date
+    time event_time_start
+    time event_time_end
+    uuid recurrence_group_id
+    int spots
+  }
+  event_registrations {
+    uuid id PK
+    uuid event_id FK
+    uuid member_id FK
+    uuid club_id FK
+    text status
+    int guests_count
+  }
+  club_content {
+    uuid id PK
+    uuid club_id FK
+    text slug
+    text title
+    text body
+    int sort_order
+  }
+  sponsor_banners {
+    uuid id PK
+    uuid club_id FK
+    text sponsor_name
+    text image_url
+    text location
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% DINING — menu catalog + food orders
+  %% ────────────────────────────────────────────────────────────────
+  menu_categories {
+    uuid id PK
+    uuid club_id FK
+    text name
+    int sort_order
+    bool is_active
+  }
+  menus {
+    uuid id PK
+    uuid club_id FK
+    uuid category_id FK
+    text item_name
+    text price
+    bool available_today
+  }
+  food_orders {
+    uuid id PK
+    uuid club_id FK
+    uuid member_id FK
+    jsonb items
+    text status
+    num subtotal
+  }
+  food_order_items {
+    uuid id PK
+    uuid order_id FK
+    uuid menu_id FK
+    text name_at_order
+    int qty
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% COMMERCE / INQUIRIES — pro shop catalog + inquiries
+  %% ────────────────────────────────────────────────────────────────
+  pro_shop_items {
+    uuid id PK
+    uuid club_id FK
+    text name
+    num price
+    bool in_stock
+  }
+  pro_shop_inquiries {
+    uuid id PK
+    uuid club_id FK
+    uuid member_id FK
+    text kind
+    text pro
+    text status
+  }
+  bulletin_posts {
+    uuid id PK
+    uuid club_id FK
+    uuid member_id FK
+    text category
+    text title
+    bool hidden
+  }
+  partner_posts {
+    uuid id PK
+    uuid club_id FK
+    uuid member_id FK
+    text game_type
+    int spots_needed
+    int hcp
+    bool is_open
+  }
+  post_replies {
+    uuid id PK
+    uuid club_id FK
+    uuid member_id FK
+    text post_table
+    uuid post_id
+    text body
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% MESSAGING — threads, participants, push
+  %% ────────────────────────────────────────────────────────────────
+  threads {
+    uuid id PK
+    uuid club_id FK
+    text kind
+    text subject
+    ts last_message_at
+  }
+  thread_participants {
+    uuid id PK
+    uuid thread_id FK
+    uuid user_id
+    uuid member_id FK
+    text role
+    ts hidden_at
+  }
+  messages {
+    uuid id PK
+    uuid thread_id FK
+    uuid sender_user_id
+    text body
+    bool is_system
+  }
+  push_subscriptions {
+    uuid id PK
+    uuid user_id
+    text endpoint
+    text p256dh
+    text auth
+  }
+  notification_messages {
+    uuid id PK
+    uuid club_id FK
+    text title
+    text urgency
+    jsonb audience_filter
+  }
+  notification_reads {
+    uuid id PK
+    uuid message_id FK
+    uuid member_id FK
+    ts read_at
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% GUESTS — Phase 8 fifth-role tenant
+  %% ────────────────────────────────────────────────────────────────
+  guests {
+    uuid id PK
+    uuid club_id FK
+    uuid user_id
+    text name
+    text email
+    uuid referring_member_id FK
+    enum visit_type
+    ts expires_at
+  }
+  guest_visits {
+    uuid id PK
+    uuid guest_id FK
+    uuid club_id FK
+    date visit_date
+    uuid referring_member_id FK
+    enum check_in_method
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% PLATFORM OPS
+  %% ────────────────────────────────────────────────────────────────
+  club_provision_log {
+    uuid id PK
+    uuid club_id FK
+    text slug
+    bool ok
+    text hostname
+    text error
+  }
+
+  %% ────────────────────────────────────────────────────────────────
+  %% RELATIONSHIPS — all 48 foreign keys
+  %% ────────────────────────────────────────────────────────────────
+  clubs ||--o{ members : "has"
+  clubs ||--o{ user_roles : "scopes"
+  clubs ||--o{ club_facilities : "owns"
+  clubs ||--o{ club_status : "has"
+  clubs ||--o{ schedule_overrides : "has"
+  clubs ||--o{ pace_of_play : "has"
+  clubs ||--o{ holes : "lays out"
+  clubs ||--o{ pin_placements : "places"
+  clubs ||--o{ hole_sponsors : "sells"
+  clubs ||--o{ lesson_pros : "employs"
+  clubs ||--o{ news : "publishes"
+  clubs ||--o{ events : "schedules"
+  clubs ||--o{ event_registrations : "scopes"
+  clubs ||--o{ club_content : "writes"
+  clubs ||--o{ sponsor_banners : "rotates"
+  clubs ||--o{ menu_categories : "groups"
+  clubs ||--o{ menus : "lists"
+  clubs ||--o{ food_orders : "fills"
+  clubs ||--o{ pro_shop_items : "stocks"
+  clubs ||--o{ pro_shop_inquiries : "receives"
+  clubs ||--o{ bulletin_posts : "hosts"
+  clubs ||--o{ partner_posts : "hosts"
+  clubs ||--o{ post_replies : "hosts"
+  clubs ||--o{ threads : "scopes"
+  clubs ||--o{ notification_messages : "broadcasts"
+  clubs ||--o{ guests : "admits"
+  clubs ||--o{ guest_visits : "logs"
+  clubs ||--o{ club_provision_log : "tracks"
+
+  members ||--o{ event_registrations : "RSVPs"
+  members ||--o{ food_orders : "places"
+  members ||--o{ pro_shop_inquiries : "asks"
+  members ||--o{ bulletin_posts : "writes"
+  members ||--o{ partner_posts : "writes"
+  members ||--o{ post_replies : "writes"
+  members ||--o{ thread_participants : "joins"
+  members ||--o{ notification_reads : "tracks"
+  members ||--o{ guests : "invites (referring)"
+  members ||--o{ guest_visits : "invites (referring)"
+
+  club_facilities ||--o{ club_status : "labels"
+  club_status ||--o{ club_status_hours : "schedules"
+  club_status ||--o{ schedule_overrides : "overrides"
+  events ||--o{ event_registrations : "fills"
+  menu_categories ||--o{ menus : "groups"
+  food_orders ||--o{ food_order_items : "details"
+  menus ||--o{ food_order_items : "priced (snapshot)"
+  threads ||--o{ thread_participants : "convenes"
+  threads ||--o{ messages : "carries"
+  notification_messages ||--o{ notification_reads : "tracked by"
+  guests ||--o{ guest_visits : "logs"
+</pre>
+    </div>
+
+    <h3 style="margin: 28px 0 8px;">Table reference (all 35 tables, all columns)</h3>
+    <p style="color: var(--g-muted); font-size: 12px; margin: 0 0 8px;">
+      Type abbreviations: <em>uuid</em>, <em>text</em>, <em>int</em>, <em>bool</em>, <em>ts</em> = timestamptz, <em>date</em>, <em>time</em>, <em>jsonb</em>, <em>num</em> = numeric, <em>arr</em> = array, <em>enum</em> = user-defined enum. Trailing <strong>!</strong> = NOT NULL.
+    </p>
+
+    <div class="table-grid" id="tableGrid"></div>
+  </section>
+
+  <!-- ───── 2. SYSTEM ARCHITECTURE ───── -->
+  <section>
+    <div class="head">
+      <h2>System Architecture</h2>
+      <span class="label">Build · serve · sync</span>
+      <p class="desc">How a code push lands in a member's pocket. GitHub builds → Cloudflare Pages serves → Supabase backs everything. Realtime, Auth, Storage, Edge Functions all hang off the same project. Web Push fanout is self-hosted via VAPID.</p>
+    </div>
+
+    <div class="diagram" data-zoomable="sys">
+      <div class="zoom-controls">
+        <span class="label">Zoom</span>
+        <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+        <button type="button" data-zoom="reset" aria-label="Reset zoom" style="font-size: 11px;">⟲</button>
+        <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+      </div>
+      <pre class="mermaid">
+flowchart TB
+  classDef dev      fill:#1B3A2D,stroke:#9B7A1E,stroke-width:2px,color:#F2EDE0,font-family:Lora,font-size:13px;
+  classDef cdn      fill:#2D4D3E,stroke:#9B7A1E,stroke-width:2px,color:#F2EDE0,font-family:Lora,font-size:13px;
+  classDef app      fill:#F8F4EC,stroke:#1B3A2D,stroke-width:2px,color:#1A180F,font-family:Lora,font-size:13px;
+  classDef supabase fill:#1B3A2D,stroke:#C49E3D,stroke-width:2px,color:#F2EDE0,font-family:Lora,font-size:13px;
+  classDef external fill:#F2EDE0,stroke:#9B7A1E,stroke-width:2px,color:#1A180F,font-family:Lora,font-size:13px;
+  classDef edge     fill:#5C9A70,stroke:#1B3A2D,stroke-width:1.5px,color:#1A180F,font-family:Lora,font-size:12px;
+
+  Marc(["Marc<br/>(dev)"]):::dev
+  GH["GitHub<br/>power1user/clinton-country-club"]:::dev
+  CF["Cloudflare Pages<br/>build + CDN"]:::cdn
+  DNS["Cloudflare DNS<br/>*.groundslive.com"]:::cdn
+
+  subgraph CLIENT["Member device · PWA"]
+    direction TB
+    Browser["React 19 + Vite PWA<br/>clintoncc.groundslive.com"]:::app
+    SW["Service Worker<br/>/sw.js"]:::app
+  end
+
+  subgraph SUPA["Supabase project · exddcpqfdkyxommkslag"]
+    direction TB
+    PG["PostgreSQL 17<br/>35 tables · 100% RLS"]:::supabase
+    AUTH["Auth<br/>email/password + magic link"]:::supabase
+    RT["Realtime<br/>postgres_changes pub"]:::supabase
+    STOR["Storage<br/>club-assets · avatars"]:::supabase
+    subgraph EDGE["Edge Functions (Deno)"]
+      direction TB
+      F1["send-push"]:::edge
+      F2["provision-club-domain"]:::edge
+      F3["guest-register<br/>(public, no JWT)"]:::edge
+      F4["guest-link"]:::edge
+      F5["guest-qr-token"]:::edge
+    end
+  end
+
+  WP(("Web Push<br/>FCM · APNS · WNS")):::external
+  CFAPI["Cloudflare API"]:::external
+
+  %% Build + deploy
+  Marc -- "git push origin main" --> GH
+  GH -- "auto-build on push" --> CF
+  CF -- "wildcard *.groundslive.com" --> DNS
+
+  %% Member request path
+  Browser -- "https GET" --> CF
+  Browser -- "Supabase JS SDK" --> AUTH
+  Browser -- "PostgREST · RLS-enforced" --> PG
+  Browser -- "WebSocket · postgres_changes" --> RT
+  Browser -- "signed URL upload/read" --> STOR
+  Browser -- "registers" --> SW
+  SW -- "displays push" --> Browser
+
+  %% Edge Function invocation paths
+  Browser -- "JWT call" --> F1
+  Browser -- "JWT call" --> F2
+  Browser -- "anon · public landing" --> F3
+  Browser -- "JWT call" --> F4
+  Browser -- "JWT call · admin" --> F5
+
+  %% DB-triggered fanout (Migration 49)
+  PG -- "trg_send_push_on_message<br/>pg_net.http_post" --> F1
+  F1 -- "VAPID-signed POST" --> WP
+  WP -- "push event" --> SW
+
+  %% DNS automation
+  F2 -- "create CNAME" --> CFAPI
+  CFAPI --> DNS
+
+  %% Guest signup loop
+  F3 -- "magic-link OTP" --> AUTH
+  F3 -- "service-role write" --> PG
+</pre>
+    </div>
+
+    <div class="stats" style="margin-top: 20px;">
+      <div class="stat"><div class="value">5</div><div class="label">Edge Functions</div></div>
+      <div class="stat"><div class="value">2</div><div class="label">Storage Buckets</div></div>
+      <div class="stat"><div class="value">35</div><div class="label">Realtime Tables</div></div>
+      <div class="stat"><div class="value">VAPID</div><div class="label">Self-hosted Push</div></div>
+      <div class="stat"><div class="value">3</div><div class="label">Live Clubs</div></div>
+    </div>
+  </section>
+
+  <!-- ───── FOOTER ───── -->
+  <div class="footer">
+    <p><strong>The Grounds</strong></p>
+    <p>Country-club apps, multi-tenant, white-labeled. Diagrams generated from live Supabase schema at v0.9.15.</p>
+    <p style="margin-top: 6px;">Powered by React 19 · Vite · Supabase · Cloudflare Pages</p>
+  </div>
+
+  <!-- svg-pan-zoom for the diagram zoom/pan UX -->
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
+
+  <!-- ─── Password gate (CLASSIC script — runs even if CDN imports
+       below fail; no module dependency). The gate submit handler
+       sets a window flag that the module below polls for, then the
+       module boots Mermaid only after unlock. ─── -->
+  <script>
+    (function () {
+      // SHA-256(plaintext password). Computed at build time; the
+      // plaintext itself is never in this file.
+      var PASS_HASH = 'afc6a486240858c1fab735b595cf4e4467d878b3fb8994cf9ad655fabc972397';
+      var STORAGE_KEY = 'groundsDocsUnlocked:v1';
+
+      function sha256Hex(str) {
+        var buf = new TextEncoder().encode(str);
+        return crypto.subtle.digest('SHA-256', buf).then(function (hashBuf) {
+          return Array.from(new Uint8Array(hashBuf))
+            .map(function (b) { return b.toString(16).padStart(2, '0'); })
+            .join('');
+        });
+      }
+
+      function unlock() {
+        document.body.classList.remove('locked');
+        var g = document.getElementById('gate');
+        if (g) g.remove();
+        // Signal the module script (which polls for this flag) so
+        // Mermaid + pan/zoom can boot now that the layout is real.
+        window.__groundsUnlocked = true;
+        window.dispatchEvent(new Event('grounds:unlocked'));
+      }
+
+      // Wire up immediately when DOM is ready — does NOT depend on
+      // any CDN module loading. If the diagram libraries fail, the
+      // user still gets a working password gate (they'll see broken
+      // diagrams after unlock, but at least they aren't stuck).
+      function init() {
+        try {
+          if (sessionStorage.getItem(STORAGE_KEY) === 'yes') {
+            unlock();
+            return;
+          }
+        } catch (_) { /* sessionStorage may be blocked — fall through */ }
+
+        var form = document.getElementById('gateForm');
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var input = document.getElementById('gatePass').value;
+          var errEl = document.getElementById('gateErr');
+          errEl.textContent = '';
+          sha256Hex(input).then(function (hash) {
+            if (hash === PASS_HASH) {
+              try { sessionStorage.setItem(STORAGE_KEY, 'yes'); } catch (_) {}
+              unlock();
+            } else {
+              errEl.textContent = 'Incorrect password. Try again.';
+              document.getElementById('gatePass').select();
+            }
+          });
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+  <!-- Mermaid + pan/zoom wiring — runs after the gate fires
+       'grounds:unlocked'. If this module fails to load (CDN blocked,
+       etc.) the gate still works and the user just sees the un-
+       rendered Mermaid source. -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs';
+
+    // Wait for the password gate to fire its unlock event before
+    // booting. If we're already unlocked (cached session) the event
+    // already fired before this module loaded — handle that with a
+    // window flag check.
+    if (window.__groundsUnlocked) {
+      bootDiagrams();
+    } else {
+      window.addEventListener('grounds:unlocked', bootDiagrams, { once: true });
+    }
+
+    // ─── Mermaid + pan/zoom boot ────────────────────────────────
+    async function bootDiagrams() {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+          background: '#F8F4EC',
+          primaryColor: '#1B3A2D',
+          primaryTextColor: '#F2EDE0',
+          primaryBorderColor: '#9B7A1E',
+          secondaryColor: '#2D4D3E',
+          tertiaryColor: '#F2EDE0',
+          lineColor: '#9B7A1E',
+          textColor: '#1A180F',
+          fontSize: '13px',
+          fontFamily: '"Lora", Georgia, serif',
+          attributeBackgroundColorOdd:  '#F8F4EC',
+          attributeBackgroundColorEven: '#F2EDE0',
+        },
+        er: {
+          layoutDirection: 'TB',
+          entityPadding: 16,
+          minEntityWidth: 140,
+          minEntityHeight: 80,
+          useMaxWidth: true,
+        },
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: true,
+          curve: 'basis',
+        },
+      });
+      // Render every .mermaid block now (we deferred startOnLoad).
+      await mermaid.run({ querySelector: '.mermaid' });
+
+      // After Mermaid injects each SVG, give it a fixed size so
+      // svg-pan-zoom has a viewport to work against. Without this,
+      // useMaxWidth strips intrinsic dimensions and pan-zoom can't
+      // figure out its container.
+      document.querySelectorAll('.diagram[data-zoomable] svg').forEach((svg, idx) => {
+        // Lock SVG to a fixed viewport so svg-pan-zoom can compute
+        // its transform space. Mermaid's default useMaxWidth strips
+        // the intrinsic dimensions; we replace them with a tall
+        // container that fits most laptop viewports. ~70vh capped
+        // 420-800px so the diagram never dominates or shrivels.
+        const container = svg.closest('.diagram');
+        const h = Math.min(800, Math.max(420, window.innerHeight * 0.7));
+        svg.removeAttribute('style');
+        svg.removeAttribute('maxWidth');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', String(h));
+        svg.style.cursor = 'grab';
+
+        const panZoom = svgPanZoom(svg, {
+          controlIconsEnabled: false,
+          fit: true,
+          center: true,
+          minZoom: 0.3,
+          maxZoom: 8,
+          zoomScaleSensitivity: 0.35,
+          panEnabled: true,
+          zoomEnabled: true,
+          dblClickZoomEnabled: true,
+          mouseWheelZoomEnabled: true,
+        });
+
+        // Wire the +/-/reset buttons in this diagram's control strip
+        container.querySelectorAll('.zoom-controls button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-zoom');
+            if (action === 'in')    panZoom.zoomIn();
+            if (action === 'out')   panZoom.zoomOut();
+            if (action === 'reset') { panZoom.resetZoom(); panZoom.center(); panZoom.fit(); }
+          });
+        });
+
+        // Keep pan-zoom sized correctly on window resize
+        window.addEventListener('resize', () => {
+          panZoom.resize();
+          panZoom.fit();
+          panZoom.center();
+        });
+
+        // Pan cursor feedback
+        svg.addEventListener('mousedown', () => svg.style.cursor = 'grabbing');
+        svg.addEventListener('mouseup',   () => svg.style.cursor = 'grab');
+        svg.addEventListener('mouseleave',() => svg.style.cursor = 'grab');
+      });
+    }
+  </script>
+
+  <!-- Build the per-table reference cards programmatically from a
+       compact JSON dataset so the data lives in one place. -->
+  <script>
+    const RLS_NOTE = "100% — RLS enabled, multi-policy, club-scoped via is_member_or_staff_of()";
+    const TABLES = [
+      // Domain meta lets us group visually.
+      ["clubs", "Core / Multi-tenancy", [
+        ["id","uuid!","pk"],["name","text!"],["slug","text!"],["city","text"],["state","text"],
+        ["founded","int"],["par","int"],["yardage","int"],["lat","num"],["lng","num"],
+        ["created_at","ts!"],["holes","int!"],["logo_url","text"],["hero_image_url","text"],
+        ["primary_color","text!"],["secondary_color","text!"],["accent_color","text!"],
+        ["tagline","text"],["contact_email","text"],["contact_phone","text"],["address","text"],
+        ["enable_member_dms","bool!"],["timezone","text!"],["pending_member_access","text!"],
+        ["subscription_tier","text!"],["feature_flags","jsonb!"],["feature_flags_locked","jsonb!"],
+        ["guest_visit_duration_days","int"],["guest_auto_approve","bool!"],
+        ["guest_phone_collection","enum!"],["guest_pwa_required","bool!"],
+        ["guest_default_access_level","enum!"],["clubhouse_qr_version","int!"],
+        ["clubhouse_qr_visit_type","enum!"],["guests_can_order_food","bool!"],
+      ]],
+      ["members", "Core / Multi-tenancy", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["user_id","uuid"],
+        ["name","text!"],["membership_number","text!"],["member_since","text"],["tier","text"],
+        ["hcp","text"],["email","text"],["locker","text"],["cart","text"],["parking","text"],
+        ["created_at","ts!"],["status","text!"],["terms_accepted_at","ts"],
+        ["terms_accepted_version","int!"],["allow_dms","bool!"],["display_mode","text!"],
+        ["photo_url","text"],
+      ]],
+      ["user_roles", "Core / Roles", [
+        ["id","uuid!","pk"],["user_id","uuid!"],["club_id","uuid","fk → clubs"],
+        ["role","text!"],["permissions","jsonb!"],["display_name","text"],
+        ["created_at","ts!"],["created_by","uuid"],
+      ]],
+
+      ["club_facilities", "Status / Facilities (v0.9.15)", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["facility_key","text!"],
+        ["display_name","text!"],["default_name","text!"],["is_default","bool!"],
+        ["active","bool!"],["sort_order","int!"],["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["club_status", "Status / Facilities", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["facility_id","uuid","fk → club_facilities"],
+        ["category","text!"],["label","text!"],["sort_order","int!"],["state","text!"],
+        ["hours_note","text"],["staff_note","text"],["updated_at","ts!"],
+        ["opens_at","time"],["closes_at","time"],
+      ]],
+      ["club_status_hours", "Status / Facilities", [
+        ["id","uuid!","pk"],["status_id","uuid!","fk → club_status"],
+        ["day_of_week","int!"],["opens_at","time"],["closes_at","time"],
+        ["closes_at_dusk","bool!"],["is_closed","bool!"],["updated_at","ts!"],
+        ["members_only","bool!"],["opens_at_dawn","bool!"],
+      ]],
+      ["schedule_overrides", "Status / Facilities", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["status_id","uuid","fk → club_status"],
+        ["override_date","date!"],["is_closed","bool!"],["opens_at","time"],
+        ["closes_at","time"],["closes_at_dusk","bool!"],["members_only","bool!"],
+        ["reason","text"],["created_at","ts!"],["updated_at","ts!"],["opens_at_dawn","bool!"],
+      ]],
+      ["pace_of_play", "Status / Facilities", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["state","text!"],["time_label","text"],["message","text"],["updated_at","ts!"],
+      ]],
+
+      ["holes", "Golf Course", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["hole_number","int!"],
+        ["par","int"],["yards","int"],["handicap","int"],["name","text"],["description","text"],
+        ["green_image","text"],["course_image","text"],["created_at","ts!"],["updated_at","ts!"],
+        ["yards_blue","int"],["yards_white","int"],["yards_red","int"],
+      ]],
+      ["pin_placements", "Golf Course", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["hole_number","int!"],
+        ["par","int"],["yards","int"],["pin_position","text"],["green_condition","text"],
+        ["hazard_note","text"],["pace_label","text"],["effective_date","date!"],
+        ["created_at","ts!"],["pin_x","num"],["pin_y","num"],["notes","text"],
+      ]],
+      ["hole_sponsors", "Golf Course", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["hole_number","int!"],
+        ["sponsor_name","text!"],["logo_url","text"],["link_url","text"],
+        ["active","bool!"],["sort_order","int!"],["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["lesson_pros", "Golf Course", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["name","text!"],
+        ["title","text"],["photo_url","text"],["bio","text"],["rate","text"],
+        ["sort_order","int!"],["active","bool!"],["created_at","ts!"],
+      ]],
+
+      ["news", "Content", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["category","text!"],
+        ["headline","text!"],["body","text!"],["date_label","text"],["published_at","ts!"],
+        ["created_at","ts!"],["expires_at","ts"],
+      ]],
+      ["events", "Content (recurring v0.9.12)", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["title","text!"],
+        ["description","text"],["category","text"],["event_date","date!"],
+        ["event_time","text"],["date_label","text"],["dow","text"],["day_num","text"],
+        ["spots","int!"],["price","text"],["created_at","ts!"],
+        ["recurrence_group_id","uuid"],["event_time_start","time"],["event_time_end","time"],
+      ]],
+      ["event_registrations", "Content", [
+        ["id","uuid!","pk"],["event_id","uuid!","fk → events"],
+        ["member_id","uuid!","fk → members"],["registered_at","ts!"],
+        ["club_id","uuid!","fk → clubs"],["status","text!"],
+        ["guests_count","int!"],["notes","text"],
+      ]],
+      ["club_content", "Content (Member Guide)", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["slug","text!"],
+        ["title","text!"],["icon","text"],["body","text!"],["sort_order","int!"],
+        ["updated_at","ts!"],
+      ]],
+      ["sponsor_banners", "Content", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["sponsor_name","text!"],
+        ["image_url","text"],["link_url","text"],["location","text!"],
+        ["active_from","ts"],["active_to","ts"],["active","bool!"],
+        ["sort_order","int!"],["created_at","ts!"],["updated_at","ts!"],
+      ]],
+
+      ["menu_categories", "Dining", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["name","text!"],
+        ["sort_order","int!"],["is_active","bool!"],["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["menus", "Dining", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["category_id","uuid","fk → menu_categories"],["category","text!"],
+        ["sort_order","int!"],["item_name","text!"],["description","text"],
+        ["price","text"],["tag","text"],["is_special","bool!"],
+        ["available_today","bool!"],["created_at","ts!"],
+      ]],
+      ["food_orders", "Dining", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["member_id","uuid","fk → members"],["items","jsonb!"],["hole","int"],
+        ["location_note","text"],["status","text!"],["subtotal","num"],
+        ["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["food_order_items", "Dining", [
+        ["id","uuid!","pk"],["order_id","uuid!","fk → food_orders"],
+        ["menu_id","uuid","fk → menus"],["name_at_order","text!"],
+        ["qty","int!"],["price_at_order","num"],["notes","text"],["sort_order","int!"],
+      ]],
+
+      ["pro_shop_items", "Commerce / Inquiries", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["name","text!"],
+        ["description","text"],["category","text"],["price","num"],["image_url","text"],
+        ["in_stock","bool!"],["sort_order","int!"],["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["pro_shop_inquiries", "Commerce / Inquiries", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["member_id","uuid","fk → members"],["kind","text!"],["pro","text"],
+        ["preferred_date","date"],["focus_areas","arr"],["notes","text"],
+        ["status","text!"],["created_at","ts!"],
+        ["preferred_time","text"],["skill_level","text"],
+      ]],
+      ["bulletin_posts", "Commerce / Inquiries", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["member_id","uuid","fk → members"],["category","text!"],["title","text!"],
+        ["body","text!"],["hidden","bool!"],["created_at","ts!"],
+      ]],
+      ["partner_posts", "Commerce / Inquiries (v0.9.3)", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],
+        ["member_id","uuid","fk → members"],["category","text"],["title","text"],
+        ["body","text"],["date_wanted","date"],["hcp","int"],["is_open","bool!"],
+        ["created_at","ts!"],["game_type","text"],["spots_needed","int"],
+      ]],
+      ["post_replies", "Commerce / Inquiries", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["post_table","text!"],
+        ["post_id","uuid!"],["member_id","uuid","fk → members"],["user_id","uuid"],
+        ["body","text!"],["hidden","bool!"],["created_at","ts!"],
+      ]],
+
+      ["threads", "Messaging", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["kind","text!"],
+        ["subject","text"],["context_table","text"],["context_id","uuid"],
+        ["last_message_at","ts!"],["created_at","ts!"],["created_by","uuid"],
+      ]],
+      ["thread_participants", "Messaging", [
+        ["id","uuid!","pk"],["thread_id","uuid!","fk → threads"],
+        ["user_id","uuid!"],["member_id","uuid","fk → members"],
+        ["role","text!"],["last_read_at","ts"],["created_at","ts!"],["hidden_at","ts"],
+      ]],
+      ["messages", "Messaging", [
+        ["id","uuid!","pk"],["thread_id","uuid!","fk → threads"],
+        ["sender_user_id","uuid"],["body","text!"],["is_system","bool!"],
+        ["created_at","ts!"],
+      ]],
+      ["push_subscriptions", "Messaging / Push", [
+        ["id","uuid!","pk"],["user_id","uuid!"],["endpoint","text!"],
+        ["p256dh","text!"],["auth","text!"],["user_agent","text"],
+        ["created_at","ts!"],["last_used_at","ts"],
+      ]],
+      ["notification_messages", "Messaging / Broadcasts", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["title","text!"],
+        ["body","text!"],["urgency","text!"],["audience_filter","jsonb"],
+        ["created_by","uuid"],["created_at","ts!"],["published_at","ts"],
+      ]],
+      ["notification_reads", "Messaging / Broadcasts", [
+        ["id","uuid!","pk"],["message_id","uuid!","fk → notification_messages"],
+        ["member_id","uuid!","fk → members"],["read_at","ts"],["hidden_at","ts"],
+      ]],
+
+      ["guests", "Guests (Phase 8)", [
+        ["id","uuid!","pk"],["club_id","uuid!","fk → clubs"],["user_id","uuid"],
+        ["name","text!"],["email","text!"],["phone","text"],["zip","text!"],
+        ["referring_member_id","uuid","fk → members"],
+        ["visit_type","enum!"],["visit_date","date!"],["access_level","enum!"],
+        ["status","text!"],["expires_at","ts"],["terms_accepted_at","ts"],
+        ["created_at","ts!"],["updated_at","ts!"],
+      ]],
+      ["guest_visits", "Guests (Phase 8)", [
+        ["id","uuid!","pk"],["guest_id","uuid!","fk → guests"],
+        ["club_id","uuid!","fk → clubs"],["visit_date","date!"],["visit_type","enum!"],
+        ["access_level","enum!"],
+        ["referring_member_id","uuid","fk → members"],
+        ["check_in_method","enum!"],["created_at","ts!"],
+      ]],
+
+      ["club_provision_log", "Platform Ops", [
+        ["id","uuid!","pk"],["club_id","uuid","fk → clubs"],["slug","text!"],
+        ["attempted_by","uuid"],["attempted_at","ts!"],["ok","bool!"],["hostname","text"],
+        ["already_existed","bool!"],["status_code","int"],["error","text"],
+        ["cf_response","jsonb"],
+      ]],
+    ];
+
+    const grid = document.getElementById('tableGrid');
+    for (const [name, domain, cols] of TABLES) {
+      const card = document.createElement('div');
+      card.className = 'table-card';
+      const isPk = (c) => c[2] === 'pk';
+      const isFk = (c) => c[2] && c[2].startsWith('fk');
+      card.innerHTML = `
+        <div class="head-row">
+          <div class="name">${name}</div>
+          <div class="badge rls">RLS</div>
+        </div>
+        <div class="domain">${domain}</div>
+        <ul>
+          ${cols.map(c => `
+            <li>
+              <span class="col">${c[0]}</span>
+              <span class="type">${c[1]}</span>
+              ${isPk(c) ? '<span class="pk">PK</span>' : ''}
+              ${isFk(c) ? `<span class="fk">${c[2].replace('fk → ','→ ')}</span>` : ''}
+            </li>
+          `).join('')}
+        </ul>
+      `;
+      grid.appendChild(card);
+    }
+  </script>
+
+</body>
+</html>
