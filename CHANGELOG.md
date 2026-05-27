@@ -25,6 +25,21 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.9** — Event signup RLS denial: missing club_id in insert.
+
+  Member tap Register on an event → "new row violates row-level
+  security policy for table event_registrations." Diagnostics:
+    · `event_registrations_member_insert` policy requires
+      `m.club_id = event_registrations.club_id`.
+    · `EventDetail.handleRegister()` was passing only
+      `{ event_id, member_id }` — `club_id` omitted entirely.
+    · So `event_registrations.club_id` was NULL, the predicate
+      `m.club_id = NULL` evaluated to NULL (falsy in SQL), and
+      the insert was denied.
+
+  Fix: pull `club` from useAuth and include `club_id: club.id`
+  in the insert payload. No schema or policy changes.
+
 - **v0.9.8** — Four bug fixes from Marc's v0.9.7 smoke test.
 
   **1. Member Guide editor — slug hidden, icon picker added.**

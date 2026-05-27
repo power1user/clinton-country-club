@@ -8,7 +8,7 @@ import Replies from '../components/Replies.jsx';
 
 export default function EventDetail({ params }) {
   const ev = params?.event;
-  const { member, canMemberWrite } = useAuth();
+  const { club, member, canMemberWrite } = useAuth();
   if (!ev) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -46,7 +46,12 @@ export default function EventDetail({ params }) {
       return;
     }
     setBusy(true); setErr(null);
+    // v0.9.9: include club_id — RLS policy event_registrations_member_insert
+    // requires it (checks m.club_id = event_registrations.club_id against
+    // the requesting member's row). Without it, the predicate fails and
+    // the insert returns 403 "new row violates row-level security policy."
     const { error } = await supabase.from('event_registrations').insert({
+      club_id: club.id,
       event_id: ev.id,
       member_id: member.id,
     });
