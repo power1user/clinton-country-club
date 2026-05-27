@@ -25,6 +25,46 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.1** — Member Guide CRUD in Club Settings.
+
+  The Member Guide section existed in admin (Communications area)
+  but used the generic CrudSection scaffold, which couldn't deliver
+  the inline-icon list, up/down reorder arrows, or slug
+  auto-derivation the spec called for. No schema work needed —
+  `club_content` already has `id, club_id, slug, title, icon, body,
+  sort_order, updated_at`.
+
+  Changes:
+    · Moved Member Guide section from Communications → Club
+      Settings. Pages are configuration of how the club presents
+      itself, not a comms surface. Section id `clubguide`
+      unchanged so router keeps working; only the parent area
+      changed in the AREAS array.
+    · Rewrote `ClubGuideAdmin` as a custom `MemberGuideAdmin`
+      component (replaces the CrudSection invocation):
+        ◇ List shows emoji icon + title + slug + sort_order at a
+          glance. Tap row to edit.
+        ◇ Up/down arrows on each row swap sort_order with the
+          neighbor — atomic two-statement update. Arrows greyed
+          out at the boundaries.
+        ◇ Editor: title, slug (auto-derived via slugify(title)
+          until manually edited, then locked), icon (emoji free-
+          text, 4-char max — `IconCharacter` UX), body (textarea),
+          sort_order. Auto-suggests next sort_order on add.
+        ◇ Duplicate-slug check before save so the same /key
+          doesn't get reused across pages.
+        ◇ Delete with name-confirm: `Delete "{title}"? This
+          cannot be undone.`
+    · Realtime subscription on `club_content` filtered by club_id
+      — manager edits appear instantly across sessions.
+
+  Member-facing `OnboardingGuide.jsx` reads the same table, no
+  changes there; new pages appear immediately after save.
+
+  `clubguide` permKey reuses `can_post_news` — same role that
+  maintains the News surface and other documentation. No new
+  permission key was needed.
+
 - **v0.9.0** — Rename pass: Club Setup → Club Settings.
 
   Prerequisite for the rest of Phase 9 — gets the find-and-replace

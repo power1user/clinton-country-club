@@ -1265,29 +1265,254 @@ export function EventsAdmin() {
 }
 
 // ============================================================
-// ClubGuideAdmin — onboarding pages stored in club_content
+// MemberGuideAdmin — onboarding pages stored in club_content.
+// v0.9.1: custom component (was CrudSection) with the UX Marc
+// specced:
+//   · list shows title + slug + icon + sort order at a glance
+//   · up/down arrows reorder via sort_order swap with the neighbor
+//   · slug auto-derives from title (overridable in the editor)
+//   · delete confirms by name
+// Lives in Club Settings (moved from Communications in v0.9.1) —
+// pages are configuration of how the club presents itself, not a
+// comms surface.
 // ============================================================
-export function ClubGuideAdmin() {
-  const { hasPerm } = useAuth();
+function slugify(s) {
+  return (s || '')
+    .toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')   // strip accents
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+export function MemberGuideAdmin() {
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_post_news');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // row | 'new' | null
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('club_content')
+        .select('id, slug, title, icon, body, sort_order')
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    })();
+    const channel = supabase
+      .channel(`club_content:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_content', filter: `club_id=eq.${club.id}` }, () => setVersion(v => v + 1))
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id, version]);
+
+  const move = async (row, direction) => {
+    if (!canEdit) return;
+    const idx = rows.findIndex(r => r.id === row.id);
+    const neighborIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (neighborIdx < 0 || neighborIdx >= rows.length) return;
+    const neighbor = rows[neighborIdx];
+    // Swap sort_order values
+    await Promise.all([
+      supabase.from('club_content').update({ sort_order: neighbor.sort_order }).eq('id', row.id),
+      supabase.from('club_content').update({ sort_order: row.sort_order }).eq('id', neighbor.id),
+    ]);
+    setVersion(v => v + 1);
+  };
+
   return (
-    <CrudSection
-      canEdit={hasPerm('can_post_news') /* reuse — same role typically owns docs */}
-      table="club_content"
-      title="Guide Page"
-      emptyMsg="No member-guide pages yet."
-      columns={['id', 'slug', 'title', 'icon', 'body', 'sort_order']}
-      order={{ column: 'sort_order', ascending: true }}
-      primaryField="title"
-      secondaryFn={r => `${r.slug} · sort ${r.sort_order ?? 0}`}
-      defaultRow={{ slug: '', title: '', icon: '', body: '', sort_order: 0 }}
-      fields={[
-        { key: 'title',      label: 'Title', type: 'text', placeholder: 'Welcome, Dress Code, Tee Times…' },
-        { key: 'slug',       label: 'Slug (URL-safe key)', type: 'text', placeholder: 'welcome, dress, tee-times…' },
-        { key: 'icon',       label: 'Icon character (optional)', type: 'text', placeholder: '◈ ⛳ ◻ ◎' },
-        { key: 'body',       label: 'Body', type: 'textarea' },
-        { key: 'sort_order', label: 'Sort Order', type: 'number' },
-      ]}
-    />
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+          {rows.length} {rows.length === 1 ? 'page' : 'pages'}
+          {!canEdit && ' · view only'}
+        </p>
+        {canEdit && (
+          <div onClick={() => setEditing('new')} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add page</span>
+          </div>
+        )}
+      </div>
+
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {!loading && rows.length === 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No guide pages yet. Add a Welcome page to get started.</p>
+        </div>
+      )}
+      {!loading && rows.length > 0 && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {rows.map((row, i) => (
+            <div key={row.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 8px 10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+              <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{row.icon || '◇'}</span>
+              <div onClick={() => setEditing(row)} data-tap style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title || '(untitled)'}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>/{row.slug || '?'} · sort {row.sort_order ?? 0}</p>
+              </div>
+              {canEdit && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                  <button
+                    onClick={() => move(row, 'up')}
+                    disabled={i === 0}
+                    style={{ width: 28, height: 28, padding: 0, background: 'transparent', border: 'none', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.25 : 1 }}
+                    aria-label="Move up"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg>
+                  </button>
+                  <button
+                    onClick={() => move(row, 'down')}
+                    disabled={i === rows.length - 1}
+                    style={{ width: 28, height: 28, padding: 0, background: 'transparent', border: 'none', cursor: i === rows.length - 1 ? 'default' : 'pointer', opacity: i === rows.length - 1 ? 0.25 : 1 }}
+                    aria-label="Move down"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.text} strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <MemberGuideEditor
+          club={club}
+          canEdit={canEdit}
+          row={editing === 'new'
+            ? { slug: '', title: '', icon: '', body: '', sort_order: (rows[rows.length - 1]?.sort_order ?? -1) + 1 }
+            : editing}
+          isAdd={editing === 'new'}
+          existingSlugs={rows.filter(r => editing === 'new' || r.id !== editing.id).map(r => r.slug)}
+          onClose={() => setEditing(null)}
+          onSaved={() => setVersion(v => v + 1)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, onSaved }) {
+  const [form, setForm] = useState(() => ({ ...row }));
+  // Track whether the slug has been manually edited — if not, keep auto-deriving from title
+  const [slugLocked, setSlugLocked] = useState(() => !isAdd && !!row.slug);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const setTitle = (v) => {
+    setForm(prev => ({
+      ...prev,
+      title: v,
+      slug: slugLocked ? prev.slug : slugify(v),
+    }));
+  };
+  const setSlug = (v) => {
+    setSlugLocked(true);
+    setForm(prev => ({ ...prev, slug: slugify(v) }));
+  };
+
+  const save = async () => {
+    setErr(null);
+    if (!form.title?.trim()) { setErr('Title is required.'); return; }
+    if (!form.slug?.trim()) { setErr('Slug is required.'); return; }
+    if (existingSlugs.includes(form.slug)) { setErr(`Slug "${form.slug}" is already used by another page. Pick a different one.`); return; }
+    if (!form.body?.trim()) { setErr('Body is required (even a short blurb).'); return; }
+    setBusy(true);
+    const payload = {
+      slug: form.slug,
+      title: form.title.trim(),
+      icon: form.icon || null,
+      body: form.body,
+      sort_order: form.sort_order ?? 0,
+      club_id: club.id,
+    };
+    const { error } = isAdd
+      ? await supabase.from('club_content').insert(payload)
+      : await supabase.from('club_content').update(payload).eq('id', row.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onSaved?.();
+    onClose();
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete "${row.title}"? This cannot be undone.`)) return;
+    setBusy(true);
+    const { error } = await supabase.from('club_content').delete().eq('id', row.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onSaved?.();
+    onClose();
+  };
+
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const label = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{isAdd ? 'Add Guide Page' : 'Edit Guide Page'}</h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Title <span style={{ color: G.clsDot }}>*</span></label>
+          <input value={form.title || ''} onChange={e => setTitle(e.target.value)} placeholder="Welcome, Dress Code, Tee Times…" style={input} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Slug <span style={{ color: G.clsDot }}>*</span> · auto from title{slugLocked ? ' (overridden)' : ''}</label>
+          <input value={form.slug || ''} onChange={e => setSlug(e.target.value)} placeholder="welcome, dress-code, tee-times…" style={input} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Icon (emoji) · optional</label>
+          <input value={form.icon || ''} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} placeholder="🏌️ ⛳ 👋 🍽️ 📅" style={input} maxLength={4} />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={label}>Body <span style={{ color: G.clsDot }}>*</span></label>
+          <textarea value={form.body || ''} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} placeholder="Welcome to the club. Here's what you need to know…" style={{ ...input, height: 160, resize: 'none', lineHeight: 1.5 }} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={label}>Sort Order · lower numbers appear first</label>
+          <input type="number" value={form.sort_order ?? ''} onChange={e => setForm(p => ({ ...p, sort_order: e.target.value === '' ? 0 : Number(e.target.value) }))} style={input} />
+        </div>
+
+        {err && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 10, background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.clsDot} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.45, flex: 1 }}>{err}</p>
+          </div>
+        )}
+
+        {canEdit ? (
+          <>
+            <div onClick={save} data-tap style={{ marginTop: 8, padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : (isAdd ? 'Save Page' : 'Save Changes')}</span>
+            </div>
+            {!isAdd && (
+              <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete Page</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, textAlign: 'center', margin: '12px 0 0' }}>
+            View only. Ask your club manager to grant edit permission.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

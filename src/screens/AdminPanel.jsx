@@ -9,7 +9,7 @@ import {
   MenuCategoriesAdmin, MenuItemsAdmin, ProShopItemsAdmin, LessonProsAdmin, HoleSponsorsAdmin, SponsorBannersAdmin,
   ScheduleOverridesAdmin, NotificationsAdmin, FoodOrdersAdmin,
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
-  ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, ClubGuideAdmin, MemberPostsAdmin,
+  ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, MemberGuideAdmin, MemberPostsAdmin,
   SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin, GuestManagementAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
@@ -49,7 +49,7 @@ const AREAS = [
   {
     id: 'comms',
     l: 'Communications',
-    d: 'News, broadcasts, clubhouse, sponsors, member guide',
+    d: 'News, broadcasts, clubhouse, sponsors',
     icon: IconNews,
     sections: [
       { id: 'news',            permKey: 'can_post_news',            l: 'News',             d: 'List, edit, publish announcements',         icon: IconNews      },
@@ -57,7 +57,9 @@ const AREAS = [
       { id: 'clubhouseinbox',  permKey: 'can_view_clubhouse_inbox', l: 'Clubhouse Inbox',  d: 'Member messages routed to staff',           icon: IconBell      },
       { id: 'banners',         permKey: 'can_manage_sponsors',      l: 'Sponsor Banners',  d: 'Rotating sponsor banners',                  icon: IconBanner    },
       { id: 'holespons',       permKey: 'can_manage_sponsors',      l: 'Hole Sponsors',    d: 'Local sponsor per hole',                    icon: IconHandshake },
-      { id: 'clubguide',       permKey: 'can_post_news',            l: 'Member Guide',     d: 'Onboarding pages members read on first run',icon: IconList      },
+      // v0.9.1: 'clubguide' (Member Guide) moved → Club Settings area.
+      // Pages are configuration of how the club presents itself to new
+      // members, not a comms surface.
     ],
   },
   {
@@ -133,8 +135,13 @@ const AREAS = [
     d: 'Branding, features, subscription',
     icon: IconCog,
     sections: [
-      { id: 'clubsettings', l: 'Branding & Contact', d: 'Logo, colors, contact, gating',  icon: IconCog, managerOnly: true },
-      { id: 'features',     l: 'Feature Toggles',    d: 'Member-facing features on/off',  icon: IconCog, managerOnly: true },
+      { id: 'clubsettings',                              l: 'Branding & Contact', d: 'Logo, colors, contact, gating',                 icon: IconCog,  managerOnly: true },
+      { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,  managerOnly: true },
+      // v0.9.1: Member Guide moved here from Communications. Pages are
+      // configuration of how the club presents itself to new members,
+      // not a comms surface. Reuses permKey 'can_post_news' (same role
+      // that maintains other documentation surfaces).
+      { id: 'clubguide',    permKey: 'can_post_news',  l: 'Member Guide',       d: 'Onboarding pages members read on first run',    icon: IconList, managerOnly: true },
       // Future: { id: 'subscription', l: 'Subscription', d: 'Tier + active features summary', icon: IconList, managerOnly: true },
     ],
   },
@@ -218,7 +225,7 @@ export default function AdminPanel() {
           {sec === 'notifs'         && <NotificationsAdmin />}
           {sec === 'banners'        && <SponsorBannersAdmin />}
           {sec === 'memberposts'    && <MemberPostsAdmin />}
-          {sec === 'clubguide'      && <ClubGuideAdmin />}
+          {sec === 'clubguide'      && <MemberGuideAdmin />}
           {sec === 'proitems'       && <ProShopItemsAdmin />}
           {sec === 'lessonpros'     && <LessonProsAdmin />}
           {sec === 'lessons'        && <LessonRequestsAdmin />}
