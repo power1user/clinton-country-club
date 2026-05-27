@@ -25,6 +25,24 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.17** — Architecture doc: switch flowchart to ELK renderer.
+
+  System architecture flowchart was bombing with "Syntax error in
+  text" + mermaid bomb-icon. Diagnosis via Chrome automation: not
+  actually a syntax error — Mermaid's default dagre layout couldn't
+  solve "Could not find a suitable point for the given distance"
+  on the dense graph (nested subgraph CLIENT + SUPA + nested EDGE,
+  20+ edges crossing subgraph boundaries).
+
+  One-line fix: prepend the init directive
+  `%%{init: {'flowchart': {'defaultRenderer': 'elk'}}}%%` to switch
+  that one diagram to the ELK layout engine. ELK handles dense
+  graphs and nested subgraphs much better than dagre. Verified
+  rendering in Chrome before deploy.
+
+  ERD diagram unchanged — it was already rendering cleanly with
+  the default renderer.
+
 - **v0.9.16** — Architecture doc moves to Cloudflare Pages.
 
   v0.9.15's attempt to host `grounds-architecture.html` on Supabase
