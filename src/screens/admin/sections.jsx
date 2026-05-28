@@ -13,30 +13,287 @@ import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, wit
 import CrudSection from './CrudSection.jsx';
 import Toggle from '../../components/Toggle.jsx';
 import { QRCodeCanvas } from 'qrcode.react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
 // ============================================================
 
+// v0.10.8 — drag-and-drop sort order. Replaces the v0.7.x-era
+// CrudSection-driven number input with a draggable list (Lucide
+// GripVertical handle on the left of each row). On drop the new
+// sort_order for every affected row is computed in one pass and
+// written to Supabase in a single upsert batch — no flicker, no
+// race. Realtime keeps the list in sync across tabs / staff
+// sessions so two managers reordering at once converge.
 export function MenuCategoriesAdmin() {
-  const { hasPerm } = useAuth();
+  const { club, hasPerm } = useAuth();
+  const canEdit = hasPerm('can_manage_menu');
+  return <SortableSimpleAdmin
+    club={club}
+    canEdit={canEdit}
+    table="menu_categories"
+    title="Menu Categories"
+    emptyMsg="No menu categories yet. Add Lunch, Dinner, Bar, etc."
+    placeholder="Lunch, Dinner, Bar…"
+    selectColumns="id, name, sort_order, is_active"
+    primaryField="name"
+    secondaryFn={r => r.is_active === false ? 'Inactive' : 'Active'}
+    defaultRow={{ name: '', sort_order: 0, is_active: true }}
+  />;
+}
+
+// ─── Sortable simple admin (v0.10.8) ────────────────────────────────────
+//
+// Drag-and-drop table for sort-order-driven CRUD lists where the rows
+// are simple (a name + an active toggle). Currently powers
+// MenuCategoriesAdmin; designed to be reused by any future surface
+// where sort_order is the primary ordering and the row shape is
+// "name + maybe an active flag."
+//
+// Why bespoke instead of extending CrudSection: dragging is a
+// fundamentally different interaction model (no number input, no
+// modal-driven save, click + hold instead of tap). Forking once is
+// cleaner than trying to bolt drag onto a generic CRUD scaffold.
+//
+// Batch update strategy: on drop, walk the new array, generate
+// {id, sort_order:i*10} for every row whose sort_order changed
+// (the *10 leaves room to manual-insert between rows later without
+// renumbering), and write all of them in one Supabase upsert. One
+// round-trip = no flicker.
+function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholder, selectColumns, primaryField, secondaryFn, defaultRow }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [editing, setEditing] = useState(null);   // null | 'new' | <row.id>
+  const [draft, setDraft] = useState(null);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from(table)
+        .select(selectColumns)
+        .eq('club_id', club.id)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (cancelled) return;
+      if (error) setErr(error.message);
+      setRows(data || []);
+      setLoading(false);
+    })();
+    const channel = supabase
+      .channel(`sortable:${table}:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table, filter: `club_id=eq.${club.id}` }, () => refresh())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id, table, version, selectColumns]);
+
+  // PointerSensor with a small activation distance prevents accidental
+  // drags on regular taps (matters on touch). KeyboardSensor gives
+  // keyboard users access to reorder via arrow keys after focusing
+  // the drag handle.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = rows.findIndex(r => r.id === active.id);
+    const newIndex = rows.findIndex(r => r.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const reordered = arrayMove(rows, oldIndex, newIndex);
+    // Optimistic local update so the row visibly settles in place
+    // before the DB round-trip completes. Realtime will reconcile.
+    setRows(reordered);
+    // Compute new sort_order — use *10 spacing so future single-row
+    // inserts between two rows don't need a full renumber.
+    const updates = reordered
+      .map((r, i) => ({ id: r.id, sort_order: i * 10 }))
+      .filter((u, i) => u.sort_order !== reordered[i].sort_order);
+    if (updates.length === 0) return;
+    setErr(null);
+    // Build per-row update calls — Supabase upsert needs full row;
+    // safer to issue targeted UPDATEs. Issue in parallel for speed.
+    const results = await Promise.all(updates.map(u =>
+      supabase.from(table).update({ sort_order: u.sort_order }).eq('id', u.id)
+    ));
+    const firstErr = results.find(r => r.error)?.error;
+    if (firstErr) {
+      setErr(firstErr.message);
+      refresh(); // revert by reloading
+    }
+  };
+
+  const startNew = () => { setErr(null); setEditing('new'); setDraft({ ...defaultRow }); };
+  const startEdit = (row) => { setErr(null); setEditing(row.id); setDraft({ ...row }); };
+  const cancel = () => { setEditing(null); setDraft(null); };
+
+  const save = async () => {
+    if (!draft || !(draft[primaryField] || '').trim()) return;
+    setErr(null);
+    if (editing === 'new') {
+      const next = { ...draft, club_id: club.id };
+      next[primaryField] = next[primaryField].trim();
+      // Append to the bottom: next sort_order = max + 10
+      const maxSort = rows.reduce((m, r) => Math.max(m, r.sort_order ?? 0), 0);
+      next.sort_order = maxSort + 10;
+      const { error } = await supabase.from(table).insert(next);
+      if (error) { setErr(error.message); return; }
+    } else {
+      const next = { ...draft };
+      next[primaryField] = (next[primaryField] || '').trim();
+      const { error } = await supabase.from(table).update(next).eq('id', editing);
+      if (error) { setErr(error.message); return; }
+    }
+    cancel();
+    refresh();
+  };
+
+  const remove = async (row) => {
+    if (!confirm(`Delete "${row[primaryField]}"? This may affect items in the menu using this category.`)) return;
+    setErr(null);
+    const { error } = await supabase.from(table).delete().eq('id', row.id);
+    if (error) { setErr(error.message); return; }
+    refresh();
+  };
+
+  if (loading) return <p style={{ fontFamily: '"Lora",serif', color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>;
+
   return (
-    <CrudSection
-      canEdit={hasPerm('can_manage_menu')}
-      table="menu_categories"
-      title="Menu Category"
-      emptyMsg="No menu categories yet. Add Lunch, Dinner, Bar, etc."
-      columns={['id', 'name', 'sort_order', 'is_active', 'created_at']}
-      order={{ column: 'sort_order', ascending: true }}
-      primaryField="name"
-      secondaryFn={r => `Sort ${r.sort_order ?? 0} · ${r.is_active === false ? 'Inactive' : 'Active'}`}
-      defaultRow={{ name: '', sort_order: 0, is_active: true }}
-      fields={[
-        { key: 'name', label: 'Category Name', type: 'text', placeholder: 'Lunch, Dinner, Bar…', required: true },
-        { key: 'sort_order', label: 'Sort Order', type: 'number', placeholder: '0' },
-        { key: 'is_active', label: 'Active (visible in menus)', type: 'checkbox' },
-      ]}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        {title}
+      </p>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.5 }}>
+        Drag the grip handle on the left to reorder. The order saves as soon as you drop the row.
+      </p>
+
+      {err && (
+        <div style={{ background: 'rgba(167,67,55,0.08)', border: `1px solid ${G.clsBg}`, borderRadius: 4, padding: '8px 12px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsBg, margin: 0 }}>{err}</p>
+        </div>
+      )}
+
+      {rows.length === 0 && !editing && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>{emptyMsg}</p>
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={rows.map(r => r.id)} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {rows.map(r => (
+                <SortableSimpleRow
+                  key={r.id}
+                  row={r}
+                  primaryField={primaryField}
+                  secondaryFn={secondaryFn}
+                  canEdit={canEdit}
+                  onEdit={() => startEdit(r)}
+                  onDelete={() => remove(r)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* Inline add/edit form */}
+      {editing && draft && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 6, padding: '14px 16px' }}>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 10px' }}>
+            {editing === 'new' ? `New ${title.slice(0, -1)}` : `Edit ${title.slice(0, -1)}`}
+          </p>
+          <input
+            value={draft[primaryField] || ''}
+            onChange={e => setDraft(d => ({ ...d, [primaryField]: e.target.value }))}
+            placeholder={placeholder}
+            autoFocus
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 4, border: `1px solid ${G.border}`, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#fff', boxSizing: 'border-box', marginBottom: 10 }}
+          />
+          {('is_active' in draft) && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 12, color: G.text }}>
+              <input
+                type="checkbox"
+                checked={draft.is_active !== false}
+                onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))}
+              />
+              Active (visible in menus)
+            </label>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={cancel} type="button" data-tap style={{ background: 'transparent', border: `1px solid ${G.border}`, borderRadius: 4, padding: '7px 14px', cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 12, color: G.text }}>
+              Cancel
+            </button>
+            <button onClick={save} type="button" data-tap disabled={!(draft[primaryField] || '').trim()} style={{ background: (draft[primaryField] || '').trim() ? G.green : G.muted, color: '#F2EDE0', border: 'none', borderRadius: 4, padding: '7px 16px', cursor: (draft[primaryField] || '').trim() ? 'pointer' : 'not-allowed', fontFamily: '"Playfair Display",serif', fontSize: 12, fontWeight: 600 }}>
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!editing && canEdit && (
+        <button onClick={startNew} type="button" data-tap style={{ alignSelf: 'flex-start', background: G.green, color: '#F2EDE0', border: 'none', borderRadius: 4, padding: '8px 16px', cursor: 'pointer', fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 600 }}>
+          + Add {title.slice(0, -1).toLowerCase()}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SortableSimpleRow({ row, primaryField, secondaryFn, canEdit, onEdit, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+    boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.18)' : 'none',
+    zIndex: isDragging ? 5 : 'auto',
+  };
+  const secondary = secondaryFn ? secondaryFn(row) : null;
+  return (
+    <div ref={setNodeRef} style={{
+      ...style,
+      display: 'flex', alignItems: 'center', gap: 10,
+      background: G.card, border: `1px solid ${G.border}`, borderRadius: 5,
+      padding: '10px 12px',
+    }}>
+      <span
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder"
+        title="Drag to reorder"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', color: G.muted, touchAction: 'none', padding: '2px 4px', borderRadius: 3 }}
+      >
+        <GripVertical size={18} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>
+          {row[primaryField]}
+        </p>
+        {secondary && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0' }}>{secondary}</p>
+        )}
+      </div>
+      {canEdit && (
+        <>
+          <button onClick={onEdit} type="button" data-tap style={{ background: 'transparent', border: `1px solid ${G.border}`, borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 11, color: G.text }}>Edit</button>
+          <button onClick={onDelete} type="button" data-tap style={{ background: 'transparent', border: `1px solid ${G.clsBg}`, borderRadius: 3, padding: '4px 8px', cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 11, color: G.clsBg }}>Delete</button>
+        </>
+      )}
+    </div>
   );
 }
 

@@ -63,6 +63,36 @@ pills + user_preferences → v0.10.8 menu drag-and-drop →
 v0.10.9 push sender identity → **v0.11.0** README refresh +
 Phase 11 wrap.
 
+- **v0.10.8** — Phase 11: Menu Category drag-and-drop sort order.
+
+  Replaces the number-input sort_order field in the Menu Categories
+  admin with a draggable list. Each row has a `GripVertical` handle
+  on the left; the manager drags rows up or down to reorder. On
+  drop the new sort_order is computed for every moved row (with
+  *10 spacing so future single-row inserts don't trigger a full
+  renumber) and written in parallel UPDATEs.
+
+  **New dependency:** `@dnd-kit/core` + `@dnd-kit/sortable` +
+  `@dnd-kit/utilities`. Picked over react-beautiful-dnd because
+  it's actively maintained, works cleanly with React 19, and has
+  built-in keyboard accessibility (arrow keys after focusing the
+  grip handle reorder the row).
+
+  **New reusable helper** `SortableSimpleAdmin` lives in
+  `src/screens/admin/sections.jsx`. Designed for any future
+  "name + active toggle + sort_order" surface so we don't reinvent
+  the wheel. Includes optimistic local reorder (row settles into
+  place before the DB round-trip), realtime subscription so two
+  managers reordering at once converge, and an inline add/edit
+  form for the underlying CRUD.
+
+  PointerSensor activation distance = 6px so accidental taps on
+  the row don't initiate a drag.
+
+  *Menu Items* drag-and-drop within each category is deferred —
+  the per-category scoping is a bigger refactor; categories cover
+  the immediate ask.
+
 - **v0.10.7** — Phase 11: `user_preferences` table + event filter pills.
 
   **New architectural system: `user_preferences` table** (migration
