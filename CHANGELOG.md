@@ -63,6 +63,36 @@ pills + user_preferences → v0.10.8 menu drag-and-drop →
 v0.10.9 push sender identity → **v0.11.0** README refresh +
 Phase 11 wrap.
 
+- **v0.10.5** — Phase 11: Calendar date override indicators.
+
+  Members can now see at-a-glance which dates on the events
+  calendar have a schedule override attached (holiday closure,
+  members-only day, reduced hours, special opening).
+
+  · **Grid indicator** — cells with a schedule override render a
+    small hollow brass ring under the date number. Cells with
+    events still render the existing filled brass dot. Cells with
+    both show both side-by-side (filled dot = events, hollow
+    ring = facility note). The two visuals are clearly different
+    so you can tell from the month view whether a date has
+    events, overrides, or both.
+
+  · **Day-detail Facility Notes section** — tapping any date with
+    an override (even one without events) opens the day detail
+    with a "Facility Notes" section listing each override:
+    facility name (resolved through `schedule_overrides.status_id`
+    → `club_status.facility_id` → `club_facilities.display_name`),
+    state pill ("Closed" / "Members only" / "Special hours"),
+    formatted hours line (handles dawn/dusk, members-only,
+    closed-all-day), and the staff-entered reason.
+
+  · **Realtime** — subscription on `schedule_overrides` scoped by
+    club_id so a manager adding a holiday closure shows up on
+    every member's calendar within seconds, no refresh.
+
+  No schema changes — uses existing `schedule_overrides` +
+  `club_status` + `club_facilities` tables.
+
 - **v0.10.4** — Phase 11: contextual action links on news (+
   fixes the dead "View the Dining Menu" link).
 

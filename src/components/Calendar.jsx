@@ -1,20 +1,30 @@
 // Calendar — month grid for events. Standard 7-col layout, 5–6 rows.
 //
 // Props:
-//   events       — array of objects with at least { id, eventDate }
-//                  (eventDate is an ISO yyyy-mm-dd string from useEvents)
-//   selectedDate — ISO yyyy-mm-dd, optional. The cell highlighted as
-//                  "selected" + the bucket the parent uses to show
-//                  detail underneath the grid.
-//   onSelectDate — (iso) => void. Called when a member taps a day.
-//                  Pass null to clear selection.
+//   events         — array of objects with at least { id, eventDate }
+//                    (eventDate is an ISO yyyy-mm-dd string from useEvents)
+//   overridesByDay — (v0.10.5) optional { 'YYYY-MM-DD': [override, ...] }
+//                    map. Cells with override entries render an
+//                    additional ring next to the event dot so members
+//                    can see "something's different about this day"
+//                    at a glance (holiday closure, members-only,
+//                    reduced hours, etc.). Tapping the cell still
+//                    selects it; the parent's day-detail section is
+//                    what shows the override's actual content.
+//   selectedDate   — ISO yyyy-mm-dd, optional. The cell highlighted as
+//                    "selected" + the bucket the parent uses to show
+//                    detail underneath the grid.
+//   onSelectDate   — (iso) => void. Called when a member taps a day.
+//                    Pass null to clear selection.
 //
 // Visuals:
 //   · Days from prev/next month are dimmed so the grid stays a clean
 //     7×5/6 rectangle.
 //   · Today gets a brass ring.
-//   · Days with events get a small dot under the number (max 3 dots
-//     shown; "+N more" implied since the parent shows the list).
+//   · Days with events get a small FILLED brass dot under the number.
+//   · Days with schedule overrides get a small HOLLOW brass ring
+//     (same size as the event dot). If a day has both, both render
+//     side by side — filled = events, hollow = override.
 //   · Selected cell gets a filled green background.
 //   · Month header with ‹ Mon YYYY › navigation + a Today shortcut
 //     that snaps back to the current month and selects today.
@@ -33,7 +43,7 @@ function isoDay(d) {
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WEEKDAY_NAMES = ['S','M','T','W','T','F','S'];
 
-export default function Calendar({ events = [], selectedDate, onSelectDate }) {
+export default function Calendar({ events = [], overridesByDay = {}, selectedDate, onSelectDate }) {
   // viewMonth is just a Date inside the displayed month — never use
   // its day-of-month for anything but display. Independent of selectedDate
   // so navigating past today doesn't clear the selection.
@@ -120,7 +130,10 @@ export default function Calendar({ events = [], selectedDate, onSelectDate }) {
           const isToday = c.iso === todayIso;
           const isSelected = c.iso === selectedDate;
           const cellEvents = eventsByDay[c.iso] || [];
-          const dot = cellEvents.length > 0;
+          const cellOverrides = overridesByDay[c.iso] || [];
+          const hasEvent = cellEvents.length > 0;
+          const hasOverride = cellOverrides.length > 0;
+          const dotColor = isSelected ? G.brassLt : G.brass;
           return (
             <div
               key={c.iso}
@@ -150,13 +163,26 @@ export default function Calendar({ events = [], selectedDate, onSelectDate }) {
               }}>
                 {c.date.getDate()}
               </span>
-              {dot && (
-                <span style={{
-                  position: 'absolute',
-                  bottom: 3,
-                  width: 4, height: 4, borderRadius: '50%',
-                  background: isSelected ? G.brassLt : G.brass,
-                }} />
+              {(hasEvent || hasOverride) && (
+                <div style={{
+                  position: 'absolute', bottom: 3,
+                  display: 'flex', alignItems: 'center', gap: 3,
+                }}>
+                  {hasEvent && (
+                    <span title="Event scheduled" style={{
+                      width: 4, height: 4, borderRadius: '50%',
+                      background: dotColor,
+                    }} />
+                  )}
+                  {hasOverride && (
+                    <span title="Facility note for this date" style={{
+                      width: 4, height: 4, borderRadius: '50%',
+                      background: 'transparent',
+                      border: `1.2px solid ${dotColor}`,
+                      boxSizing: 'border-box',
+                    }} />
+                  )}
+                </div>
               )}
             </div>
           );
