@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 import Replies from '../components/Replies.jsx';
@@ -9,11 +10,32 @@ import Replies from '../components/Replies.jsx';
 export default function EventDetail({ params }) {
   const ev = params?.event;
   const { club, member, canMemberWrite } = useAuth();
+  const { push } = useNav();
+
+  // v0.10.6 — Calendar escape hatch in the header. Reachable from
+  // any event detail in one tap regardless of how the member
+  // arrived (Home Next Event, calendar, My Events, inbox deep link,
+  // notification). Same icon as the Community-tab Calendar card.
+  const calendarBtn = (
+    <div
+      onClick={() => push('community/calendar')}
+      data-tap
+      title="Open calendar"
+      aria-label="Open events calendar"
+      style={{ cursor: 'pointer', padding: 6, marginRight: -6, flexShrink: 0 }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="1.5" />
+        <path d="M3 10h18M8 3v4M16 3v4" />
+      </svg>
+    </div>
+  );
+
   if (!ev) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-        <BackHeader title="Event" />
+        <BackHeader title="Event" right={calendarBtn} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted }}>Event not found.</p>
         </div>
@@ -63,7 +85,7 @@ export default function EventDetail({ params }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-      <BackHeader title={ev.cat === 'Golf' ? 'Golf Events' : ev.cat === 'Social' ? 'Social Events' : 'Dining Events'} />
+      <BackHeader title={ev.cat === 'Golf' ? 'Golf Events' : ev.cat === 'Social' ? 'Social Events' : 'Dining Events'} right={calendarBtn} />
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <div style={{ background: G.green, padding: '20px 20px 24px' }}>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>

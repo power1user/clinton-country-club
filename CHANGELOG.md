@@ -63,6 +63,31 @@ pills + user_preferences → v0.10.8 menu drag-and-drop →
 v0.10.9 push sender identity → **v0.11.0** README refresh +
 Phase 11 wrap.
 
+- **v0.10.6** — Phase 11: Additional calendar entry points.
+
+  Calendar reachability audit + two additions so members can get
+  back to the month view from any event surface in ≤1 tap.
+
+  · **Next Event card on Home** gets a "View all →" secondary
+    tap target in the section header. Tapping the card body
+    still goes to the event detail (no regression); the new
+    link routes straight to `community/calendar`.
+
+  · **Calendar icon button** added to the right of the
+    `BackHeader` on every event detail screen (`community/event`)
+    — a small outlined Lucide-style calendar icon that pushes
+    `community/calendar`. Shows up whether you reached the
+    detail from Home, the calendar, My Events, an inbox
+    notification, or a deep link.
+
+  Audit result: Inbox event notifications + RSVP confirmations
+  + My Events rows + deep links all route through the same
+  `community/event` screen, so the new calendar icon covers
+  them automatically — no additional changes needed at those
+  surfaces.
+
+  UI-only.
+
 - **v0.10.5** — Phase 11: Calendar date override indicators.
 
   Members can now see at-a-glance which dates on the events

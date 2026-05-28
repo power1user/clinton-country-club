@@ -222,7 +222,18 @@ export default function Home() {
           <div style={{ padding: '14px 20px 6px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${G.border}` }}>
               <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Next Event</h2>
-              <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted }}>at the club</span>
+              <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, flex: 1 }}>at the club</span>
+              {/* v0.10.6 — secondary tap target to the full calendar.
+                  Keeps the Next Event card tapping into the event
+                  detail (existing behavior); this link gives a one-
+                  tap path to the calendar for everything else. */}
+              <span
+                onClick={() => push('community/calendar')}
+                data-tap
+                style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}
+              >
+                View all →
+              </span>
             </div>
             <div onClick={() => push('community/event', { event: nextEvent })} data-tap style={{ display: 'flex', gap: 12, padding: '14px 14px', background: G.card, borderRadius: 6, border: `1px solid ${G.border}`, cursor: 'pointer', alignItems: 'flex-start' }}>
               <div style={{ width: 56, height: 60, background: G.green, borderRadius: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
