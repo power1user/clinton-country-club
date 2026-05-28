@@ -46,7 +46,14 @@ My Events RSVP history.
 
 ---
 
-## v0.11.x — Phase 11: Calendar, News, Menu, Push polish
+## v0.10.4–10 — Phase 11: Calendar, News, Menu, Push polish
+
+(Reorganized: Phase 11 stays inside the v0.10.x patch line because
+the staged work was all operational-quality polish on top of the
+v0.10.0 base — no single shipping commit was big enough on its own
+to deserve a MINOR bump. README cadence still says "refresh at
+MINOR," but the README also picks up a one-line Phase 11 entry
+here so anyone reading the repo isn't lost between releases.)
 
 An operational-quality pass across the surfaces members touch
 daily. Better discoverability for the calendar (visible date

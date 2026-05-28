@@ -69,6 +69,22 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.11.x — Phase 11: Calendar, News, Menu, Push polish — an
+//             operational-quality pass across the surfaces members
+//             touch daily. Calendar gets schedule-override
+//             indicators (hollow brass ring on affected dates, day-
+//             detail Facility Notes section) plus more entry
+//             points (Home Next Event "View all" link, Calendar
+//             icon in every event-detail header) and category
+//             filter pills (persisted per-member via the new
+//             user_preferences table, migration 58). News gets a
+//             generic newsActionLinks mapping replacing the v0.10-
+//             era broken hardcoded "Related" card. Menu Categories
+//             get drag-and-drop sort via @dnd-kit. Push
+//             notifications identify the sender on the lock screen
+//             (send-push v6 — fetches members.name by
+//             sender_user_id + thread.club_id, falls back
+//             gracefully for staff-side accounts).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
@@ -77,7 +93,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.10.9';
+export const VERSION = '0.10.10';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

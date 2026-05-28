@@ -11,10 +11,10 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.10.0` (Phase 10 — Club Champion Recognition badges)
+**Current version:** `v0.10.10` (Phase 11 — Calendar, News, Menu, Push polish)
 
 > This README is refreshed on every **minor** release (0.x bump). For
-> anything that shipped after v0.10.0, see [`CHANGELOG.md`](./CHANGELOG.md).
+> anything that shipped after v0.10.10, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -194,6 +194,16 @@ logo + 3 brand colors + hero photo + tagline.
   referring member; CSV export of guests OR full visit history
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
+
+### 🗓️ Calendar, News, Menu, Push Polish (Phase 11)
+- **Calendar override indicators** — hollow brass rings on dates with schedule overrides (holiday closures, members-only days, reduced hours); day-detail Facility Notes section resolves the facility name via `schedule_overrides.status_id` → `club_status` → `club_facilities`, surfaces the state pill + hours line + manager's reason
+- **Calendar entry points** — "View all →" link in the Home Next Event header; Lucide Calendar icon in every event-detail back-header for a one-tap escape from any event surface (Home, inbox, My Events, deep links all route through `community/event`)
+- **Event filter pills** — horizontal scrollable category pills above both `EventsCalendar` upcoming list + `EventsUpcoming` paginated list. "All" pill + one per distinct future-event category, multi-select, hides itself when only one category exists. Selection persists per-member via `user_preferences` so the filter follows you between surfaces and survives sign-in
+- **`user_preferences` table** (migration 58) — generic per-member JSONB key-value store; unique on (member_id, key); RLS scopes reads + writes to the owning member; `useUserPreference(key, default)` hook with debounced writes + flush-on-unmount; reusable for any future per-member setting
+- **News contextual action links** — generic `category → {label, route}` mapping in `src/lib/newsActionLinks.js`; replaces the v0.10-era broken hardcoded "Related" card (text-only divs with `cursor: pointer` and no `onClick` handlers); shipped categories: Dining → food menu, Events → calendar, Course → pin placements, Golf → course conditions, ProShop → pro shop; outlined button below the article body + smaller inline link on Home feed cards with `stopPropagation` so the link doesn't steal the card's own tap
+- **Menu Category drag-and-drop** — Lucide `GripVertical` handle on every row; reorder via drag or arrow keys (keyboard a11y via `@dnd-kit/sortable`'s `sortableKeyboardCoordinates`); `sort_order` recomputed with *10 spacing on drop so single-row inserts don't trigger a full renumber; parallel UPDATEs on drop; optimistic local reorder + realtime so two managers reordering at once converge; reusable `SortableSimpleAdmin` helper for any future "name + active toggle + sort_order" surface
+- **Push notification sender identity** — `send-push` Edge Function v6; notification titles now identify the sender (members.name resolved by `sender_user_id` + `thread.club_id`) instead of the generic "<Club> · Message"; falls back to "New message" / "Clubhouse" for staff-side accounts without a member row
+- **New dep:** `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`
 
 ### 🏆 Club Champion Recognition (Phase 10)
 - Shield-shaped badge system — pointed-bottom heraldic SVG, manager-chosen color fill, white Lucide icon centered, optional year label
