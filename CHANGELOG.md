@@ -25,6 +25,25 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.23** — Phase 10: Badge assignment from member detail.
+
+  Every member row in Admin → People → Directory now has a Badges
+  section in the expanded detail panel. Shows the member's current
+  badges as small shields (with a remove × on each) and an
+  "+ Assign badge" button that opens an inline picker of the
+  club's library minus what they already hold.
+
+  Tap a badge in the picker → INSERT into member_badges with
+  awarded_by set to the current admin's member.id (NULL for super
+  admins who don't have a member row in the assigning club).
+  Realtime channels on both badges + member_badges keep the row
+  live so awards/removals show up across every staff session
+  instantly. Inline confirm on removal so a misclick doesn't nuke
+  someone's Club Champion title.
+
+  Member-facing surfaces (membership card mini-row, directory
+  thumbnails, profile grid) land in the v0.10.0 wrap.
+
 - **v0.9.22** — Phase 10: Badges admin CRUD lands.
 
   Migration 55 (badges + member_badges tables) applied earlier;

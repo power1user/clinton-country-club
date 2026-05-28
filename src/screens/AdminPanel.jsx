@@ -1529,6 +1529,7 @@ function PeopleAdmin({ club }) {
 // Inline detail panels — read-only summary. Deep edit ops still live
 // in the dedicated sections (Manage Members, Guest Settings & QR, Manage Staff).
 function MemberDetailPanel({ m, staffRole }) {
+  const { club } = useAuth();
   const Row = ({ label, value }) => (
     <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, padding: '3px 0', fontFamily: '"Lora",serif', fontSize: 12 }}>
       <span style={{ color: G.muted }}>{label}</span>
@@ -1546,6 +1547,205 @@ function MemberDetailPanel({ m, staffRole }) {
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '10px 0 0' }}>
         For edits, CSV import, or magic-link invites: <strong>Manage Members</strong> section.
       </p>
+      {/* v0.9.23 — badge assignment row. Reads/writes member_badges
+          inline; recipients see their awards realtime on every surface
+          (membership card, directory, profile) once those land in
+          v0.10.0. */}
+      <MemberBadgesRow memberId={m.id} clubId={club?.id} />
+    </div>
+  );
+}
+
+// Inline badge assignment row used by MemberDetailPanel. Shows the
+// member's current badges (with a remove × on each) and an "Assign
+// badge" button that opens a picker of the remaining library entries
+// the member doesn't already hold. Writes go straight to
+// member_badges with awarded_by set to the current admin's member.id
+// when available, falling back to NULL (covers super_admins who
+// don't have a member row in the assigning club).
+function MemberBadgesRow({ memberId, clubId }) {
+  const { member: currentAdmin } = useAuth();
+  const [held,      setHeld]      = useState([]);   // member_badges rows w/ embedded badge
+  const [library,   setLibrary]   = useState([]);   // all badges in the club
+  const [picking,   setPicking]   = useState(false);
+  const [err,       setErr]       = useState('');
+  const [version,   setVersion]   = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!memberId || !clubId) return;
+    let cancelled = false;
+    (async () => {
+      const [{ data: mb, error: me }, { data: lib, error: le }] = await Promise.all([
+        supabase.from('member_badges')
+          .select('id, badge_id, awarded_at, badges ( id, name, icon_key, color, year, category )')
+          .eq('member_id', memberId)
+          .eq('club_id', clubId)
+          .order('awarded_at', { ascending: false }),
+        supabase.from('badges')
+          .select('id, name, icon_key, color, year, category, sort_order')
+          .eq('club_id', clubId)
+          .order('category', { ascending: true })
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
+      ]);
+      if (cancelled) return;
+      if (me) setErr(me.message);
+      if (le) setErr(le.message);
+      setHeld(mb || []);
+      setLibrary(lib || []);
+    })();
+
+    // Two channels — the assignments for this member, and the library
+    // (so if a manager edits a badge in another tab the embedded data
+    // here refreshes too).
+    const channels = [
+      supabase.channel(`mb_row:${memberId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'member_badges', filter: `member_id=eq.${memberId}` }, () => refresh())
+        .subscribe(),
+      supabase.channel(`mb_lib:${clubId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'badges', filter: `club_id=eq.${clubId}` }, () => refresh())
+        .subscribe(),
+    ];
+    return () => { cancelled = true; channels.forEach(c => supabase.removeChannel(c)); };
+  }, [memberId, clubId, version]);
+
+  const heldIds   = new Set(held.map(h => h.badge_id));
+  const available = library.filter(b => !heldIds.has(b.id));
+
+  const assign = async (badge) => {
+    setErr('');
+    const { error } = await supabase.from('member_badges').insert({
+      club_id: clubId,
+      member_id: memberId,
+      badge_id: badge.id,
+      awarded_by: currentAdmin?.id || null,
+    });
+    if (error) { setErr(error.message); return; }
+    setPicking(false);
+    refresh();
+  };
+
+  const removeAssignment = async (row) => {
+    const name = row.badges?.name || 'this badge';
+    if (!confirm(`Remove "${name}" from this member?`)) return;
+    setErr('');
+    const { error } = await supabase.from('member_badges').delete().eq('id', row.id);
+    if (error) { setErr(error.message); return; }
+    refresh();
+  };
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${G.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Badges{held.length > 0 ? ` (${held.length})` : ''}
+        </p>
+        <button
+          onClick={() => setPicking(p => !p)}
+          data-tap
+          type="button"
+          style={{
+            background: picking ? 'transparent' : G.green,
+            color: picking ? G.text : '#F2EDE0',
+            border: picking ? `1px solid ${G.border}` : 'none',
+            borderRadius: 3,
+            padding: '5px 11px',
+            cursor: 'pointer',
+            fontFamily: '"Lora",serif', fontSize: 11,
+          }}
+        >
+          {picking ? 'Cancel' : '+ Assign badge'}
+        </button>
+      </div>
+
+      {err && (
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsBg, margin: '0 0 8px' }}>{err}</p>
+      )}
+
+      {held.length === 0 && !picking && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: 0 }}>
+          No badges yet.
+        </p>
+      )}
+
+      {held.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          {held.map(row => row.badges && (
+            <div key={row.id} style={{ position: 'relative' }}>
+              <Badge
+                iconKey={row.badges.icon_key}
+                color={row.badges.color}
+                name={row.badges.name}
+                year={row.badges.year}
+                size="small"
+              />
+              <button
+                onClick={() => removeAssignment(row)}
+                aria-label={`Remove ${row.badges.name}`}
+                title="Remove"
+                type="button"
+                style={{
+                  position: 'absolute', top: -4, right: -4,
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: G.clsBg, color: '#fff',
+                  border: '2px solid #F2EDE0', cursor: 'pointer',
+                  fontSize: 12, lineHeight: 1, padding: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                }}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {picking && (
+        <div style={{
+          marginTop: 12, padding: '12px 14px',
+          background: G.card, border: `1px solid ${G.border}`, borderRadius: 5,
+        }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Choose a badge to assign
+          </p>
+          {library.length === 0 ? (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+              No badges in the club library yet. Create one in <strong>People → Badges</strong>.
+            </p>
+          ) : available.length === 0 ? (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+              This member already holds every badge in the library.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {available.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => assign(b)}
+                  data-tap
+                  type="button"
+                  title={b.name}
+                  style={{
+                    background: 'transparent',
+                    border: `1px solid ${G.border}`,
+                    borderRadius: 5,
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Badge
+                    iconKey={b.icon_key}
+                    color={b.color}
+                    name={b.name}
+                    year={b.year}
+                    size="small"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
