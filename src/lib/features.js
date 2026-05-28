@@ -164,6 +164,23 @@ export const FEATURES = {
     category:        'Community',
   },
 
+  // ─── Add-Ons ───────────────────────────────────────────────────────
+  // Paid extras gated by clubs.addons (migration 57). Manager only
+  // sees a working toggle when super_admin has enabled the addon for
+  // this club. Otherwise the row renders as "Contact The Grounds to
+  // enable" with the toggle disabled. The flag.addon property is the
+  // marker — see featureState resolution below.
+  sponsor_banners: {
+    key:             'sponsor_banners',
+    label:           'Sponsor Banners',
+    description:     'Inject paid sponsor banners into the Home news feed and the bottom of the Golf tab. Requires banner records configured in Broadcasts → Sponsor Banners.',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Add-Ons',
+    addon:           true,
+    addon_blurb:     'Adds advertising banner placements on members\' Home + Golf screens. Drives sponsor revenue. Contact The Grounds to enable for your club.',
+  },
+
   // ─── Messaging ─────────────────────────────────────────────────────
   dms: {
     key:             'dms',
@@ -298,16 +315,23 @@ export function isFeatureOn(club, flagKey) {
 
 // Detailed state for admin UI — distinguishes "off because tier-locked"
 // from "off because manager turned it off" from "off because The Grounds
-// pinned it off." Lets us render different affordances in the Features
-// panel (lock icon vs grayscale tier-lock vs normal toggle).
+// pinned it off" from "off because the add-on hasn't been purchased."
+// Lets us render different affordances in the Features panel.
 //
 //   { value, locked, reason }
-//   reason ∈ 'tier-locked' | 'platform-locked' | 'override' | 'default' | 'unknown'
+//   reason ∈ 'tier-locked' | 'addon-not-enabled' | 'platform-locked' |
+//            'override' | 'default' | 'unknown'
 export function featureState(club, flagKey) {
   const flag = FEATURES[flagKey];
   if (!flag || !club) return { value: false, locked: true, reason: 'unknown' };
   if ((TIER_RANK[club.subscription_tier] ?? 0) < TIER_RANK[flag.min_tier]) {
     return { value: false, locked: true, reason: 'tier-locked' };
+  }
+  // v0.10.2 — add-on gate. Flag.addon = true means this is a paid
+  // extra; clubs.addons.<key> must be true for the manager to be able
+  // to enable it. No DB entry = not purchased = forced off.
+  if (flag.addon && !isAddonEnabled(club, flagKey)) {
+    return { value: false, locked: true, reason: 'addon-not-enabled' };
   }
   const lock = platformLockFor(club, flagKey);
   if (lock.locked) {
@@ -318,6 +342,27 @@ export function featureState(club, flagKey) {
     return { value: !!overrides[flagKey], locked: false, reason: 'override' };
   }
   return { value: !!flag.default_enabled, locked: false, reason: 'default' };
+}
+
+// v0.10.2 — is a specific paid add-on enabled for this club? Reads
+// clubs.addons (jsonb) per migration 57. Returns false for clubs
+// without an entry — add-ons require explicit super_admin opt-in.
+export function isAddonEnabled(club, addonKey) {
+  if (!club || !addonKey) return false;
+  return (club.addons || {})[addonKey] === true;
+}
+
+// Helper for writing addon enable/disable from the super_admin UI.
+// Merges into the existing jsonb, preserves other addons. Pass
+// `false` (not null) to explicitly disable; pass `true` to enable.
+export function withAddonChange(currentAddons, addonKey, enabled) {
+  const next = { ...(currentAddons || {}) };
+  if (enabled) {
+    next[addonKey] = true;
+  } else {
+    delete next[addonKey];
+  }
+  return next;
 }
 
 // Merge-helper for writing flag changes back to clubs.feature_flags.

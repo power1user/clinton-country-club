@@ -1,8 +1,10 @@
+import { Fragment } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import StatusPill from '../components/StatusPill.jsx';
 import BellChip from '../components/BellChip.jsx';
+import SponsorBanner from '../components/SponsorBanner.jsx';
 import { useClubStatus, useEvents, useNews, usePaceOfPlay, useWeather, useNow, formatClockTime, formatLongDate } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -256,20 +258,30 @@ export default function Home() {
             <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted }}>&amp; Announcements</span>
           </div>
           {newsList.map((item, i) => (
-            <div
-              key={item.id}
-              onClick={() => push('home/news', { news: item })}
-              data-tap
-              style={{ paddingBottom: 14, marginBottom: 14, borderBottom: i < newsList.length - 1 ? `1px solid ${G.border}` : 'none', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.brass }}>{item.cat}</span>
-                <span style={{ width: 3, height: 3, borderRadius: '50%', background: G.border, display: 'inline-block', flexShrink: 0 }} />
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted }}>{item.date}</span>
+            <Fragment key={item.id}>
+              <div
+                onClick={() => push('home/news', { news: item })}
+                data-tap
+                style={{ paddingBottom: 14, marginBottom: 14, borderBottom: i < newsList.length - 1 ? `1px solid ${G.border}` : 'none', cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.brass }}>{item.cat}</span>
+                  <span style={{ width: 3, height: 3, borderRadius: '50%', background: G.border, display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted }}>{item.date}</span>
+                </div>
+                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '0 0 5px', lineHeight: 1.3 }}>{item.head}</h3>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: 0 }}>{item.body.slice(0, 100)}…</p>
               </div>
-              <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '0 0 5px', lineHeight: 1.3 }}>{item.head}</h3>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: 0 }}>{item.body.slice(0, 100)}…</p>
-            </div>
+              {/* v0.10.2 — sponsor banner injection. Renders after the
+                  2nd post (i === 1). If there are fewer than 2 posts,
+                  injects after the last one (newsList.length - 1).
+                  SponsorBanner returns null when there's no active
+                  banner or the addon/flag is off, so the layout
+                  collapses cleanly with no empty space. */}
+              {(i === Math.min(1, newsList.length - 1)) && (
+                <SponsorBanner location="home_feed" style={{ marginBottom: 14 }} />
+              )}
+            </Fragment>
           ))}
         </div>
         )}

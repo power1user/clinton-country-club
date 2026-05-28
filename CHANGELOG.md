@@ -44,6 +44,48 @@ v0.9.21 preview → v0.9.22 admin CRUD → v0.9.23 member assignment
 Trophy Case → v0.10.2 sponsor placement + add-on gating → v0.10.3
 My Events RSVP history.
 
+- **v0.10.2** — Phase 10: Sponsor banner placement + add-on gating.
+
+  **Two new banner placements:**
+  · **Home news feed** — sponsor banner injects after the 2nd news
+    post (or the last post if fewer than 2). Layout collapses
+    cleanly when no banner is active. `location='home_feed'`.
+  · **Golf tab bottom** — sponsor banner renders below the feature
+    grid, above the page padding. `location='golf_tab'`.
+
+  **Add-on gating** (per Marc's "different cost" spec):
+  · New `clubs.addons` jsonb column (migration 57) tracks which
+    paid add-ons each club has purchased. `{sponsor_banners: true}`
+    when enabled.
+  · New `flag.addon: true` property in the features catalog marks
+    a flag as a paid extra. `featureState()` returns
+    `reason: 'addon-not-enabled'` and forces the value to false
+    when the addon isn't purchased.
+  · Manager Features panel: addon row shows a gold "ADD-ON" pill
+    next to the label, an italic "Contact The Grounds to enable"
+    blurb, and a disabled toggle when the addon isn't purchased.
+    When purchased, the row works like a normal feature flag.
+  · Platform Features panel (super_admin): adds an inline
+    "★ Enable add-on for this club" / "✕ Disable add-on" link
+    below the description. Toggles `clubs.addons.<key>`.
+  · Standard `feature_flags_locked` lock affordance still applies
+    *after* the addon is enabled — super_admin can pin the value
+    once they've purchased.
+
+  **Component:** New reusable `SponsorBanner` (`src/components/
+  SponsorBanner.jsx`) — takes a `location` prop, internally loads
+  the active banner via realtime, opens the click-through URL in
+  an external tab with `noopener,noreferrer`. "Sponsored" pill in
+  the top-right of every render. Returns null when there's no
+  active banner — no empty placeholder, no layout gap.
+
+  **Admin:** `SponsorBannersAdmin` now offers `home_feed` and
+  `golf_tab` as the first two location options (the existing
+  generic ones — `home`, `news`, `menu`, `events`, `bulletin` —
+  kept available for forward-compat). `active_from` / `active_to`
+  windowing applied client-side so scheduled banners go live
+  exactly when the window opens without a refresh.
+
 - **v0.10.1** — Phase 10: Trophy Case lands on the Community tab.
 
   New member-facing screen at `community/trophy-case`, accessible

@@ -9,7 +9,7 @@ import { useFlag } from '../../hooks/useFlag.js';
 import { supabase } from '../../lib/supabase.js';
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import { COMMON_TIMEZONES } from '../../lib/timezone.js';
-import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, withFlagLock, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
+import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, withFlagLock, withAddonChange, isAddonEnabled, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
 import CrudSection from './CrudSection.jsx';
 import Toggle from '../../components/Toggle.jsx';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -132,12 +132,17 @@ export function SponsorBannersAdmin() {
       order={{ column: 'sort_order', ascending: true }}
       primaryField="sponsor_name"
       secondaryFn={r => `${r.location} · ${r.active === false ? 'Inactive' : 'Active'}`}
-      defaultRow={{ sponsor_name: '', image_url: '', link_url: '', location: 'home', active_from: null, active_to: null, active: true, sort_order: 0 }}
+      defaultRow={{ sponsor_name: '', image_url: '', link_url: '', location: 'home_feed', active_from: null, active_to: null, active: true, sort_order: 0 }}
       fields={[
         { key: 'sponsor_name', label: 'Sponsor Name', type: 'text', required: true },
         { key: 'image_url', label: 'Banner Image URL', type: 'url' },
         { key: 'link_url', label: 'Click-through URL', type: 'url' },
-        { key: 'location', label: 'Location', type: 'select', options: ['home', 'news', 'menu', 'events', 'bulletin'], required: true },
+        // v0.10.2 — two real surfaces wired up: Home news feed (after
+        // the 2nd post) and the bottom of the Golf tab. Old generic
+        // values like 'home'/'news' are kept for forward-compat in
+        // case existing data references them, but the actual placement
+        // logic looks for 'home_feed' and 'golf_tab'.
+        { key: 'location', label: 'Location', type: 'select', options: ['home_feed', 'golf_tab', 'home', 'news', 'menu', 'events', 'bulletin'], required: true },
         { key: 'active_from', label: 'Active From', type: 'datetime-local' },
         { key: 'active_to', label: 'Active To', type: 'datetime-local' },
         { key: 'active', label: 'Active', type: 'checkbox' },
@@ -874,6 +879,10 @@ export function FeaturesPanel({ club, mode = 'manager', headerNote }) {
     const payload = {};
     if (target === 'lock') {
       payload.feature_flags_locked = withFlagLock(club.feature_flags_locked, flagKey, value);
+    } else if (target === 'addon') {
+      // v0.10.2 — super_admin enabling/disabling a paid add-on.
+      // Writes clubs.addons (jsonb) per migration 57.
+      payload.addons = withAddonChange(club.addons, flagKey, value);
     } else {
       payload.feature_flags = withFlagChange(club.feature_flags, flagKey, value);
       // Legacy column mirror — keep enable_member_dms in sync with
@@ -883,6 +892,12 @@ export function FeaturesPanel({ club, mode = 'manager', headerNote }) {
     const { error } = await supabase.from('clubs').update(payload).eq('id', club.id);
     setBusyKey(null);
     if (error) setErr(error.message);
+  };
+
+  // v0.10.2 — toggle the addon enabled state from the super_admin
+  // platform UI. Writes clubs.addons.<key> = true | (deleted).
+  const toggleAddon = async (flagKey, currentlyEnabled) => {
+    await writeFlag(flagKey, !currentlyEnabled, 'addon');
   };
 
   // Toggle the lock state on a flag — preserves the current effective
@@ -937,6 +952,7 @@ export function FeaturesPanel({ club, mode = 'manager', headerNote }) {
                   const st = featureState(club, flag.key);
                   toggleLock(flag.key, st.value, st.reason === 'platform-locked');
                 }}
+                onAddonToggle={() => toggleAddon(flag.key, isAddonEnabled(club, flag.key))}
               />
             ))}
           </div>
@@ -946,21 +962,32 @@ export function FeaturesPanel({ club, mode = 'manager', headerNote }) {
   );
 }
 
-function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle }) {
+function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle, onAddonToggle }) {
   const st = featureState(club, flag.key);
   const isPlatform = mode === 'platform';
   const tierLocked     = st.reason === 'tier-locked';
   const platformLocked = st.reason === 'platform-locked';
+  const isAddon        = !!flag.addon;
+  const addonEnabled   = isAddon ? isAddonEnabled(club, flag.key) : false;
+  const addonGated     = isAddon && !addonEnabled;
 
-  // Manager mode: platform lock disables the toggle. Platform mode:
-  // the SA can flip the locked value, so the toggle stays interactive.
-  const toggleDisabled = busy || tierLocked || (platformLocked && !isPlatform);
+  // Manager mode: platform lock OR addon-not-enabled disables the toggle.
+  // Platform mode: SA can flip the locked value AND enable/disable the
+  // addon, so the toggle stays interactive when the addon is on.
+  const toggleDisabled = busy || tierLocked
+    || (platformLocked && !isPlatform)
+    || (addonGated && !isPlatform);
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', borderTop: isFirst ? 'none' : `1px solid ${G.border}`, opacity: tierLocked ? 0.55 : 1 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>{flag.label}</p>
+          {/* v0.10.2 — gold ADD-ON pill on every addon row so it's
+              visually distinct from baseline features. */}
+          {isAddon && (
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '1px 7px', borderRadius: 10, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700 }}>Add-On</span>
+          )}
           {flag.placeholder && (
             <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, background: 'rgba(155,122,30,0.12)', padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>Coming soon</span>
           )}
@@ -978,10 +1005,36 @@ function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle })
             Requires {TIER_LABEL[flag.min_tier]} tier — contact The Grounds to upgrade.
           </p>
         )}
+        {/* Manager-mode addon copy when not purchased — explains why
+            the toggle is disabled and what to do about it. Platform
+            mode shows the same surface but with the Enable affordance
+            below (so super_admin doesn't see this duplicate). */}
+        {addonGated && !isPlatform && (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
+            {flag.addon_blurb || 'Add-On — Contact The Grounds to enable for your club.'}
+          </p>
+        )}
+        {/* Platform-mode addon enable/disable affordance. Distinct
+            from the regular lock affordance — this is the "has the
+            club paid for it" gate, while the lock pins the value
+            once enabled. */}
+        {isPlatform && isAddon && !tierLocked && (
+          <div style={{ marginTop: 6 }}>
+            <span
+              onClick={busy ? undefined : onAddonToggle}
+              data-tap
+              style={{ fontFamily: '"Lora",serif', fontSize: 10, color: addonEnabled ? G.clsDot : G.brass, cursor: busy ? 'wait' : 'pointer', textDecoration: 'underline', textUnderlineOffset: 2, fontWeight: 600 }}
+            >
+              {addonEnabled ? '✕ Disable add-on for this club' : '★ Enable add-on for this club'}
+            </span>
+          </div>
+        )}
         {/* Platform-mode lock affordance — small inline link below
             the description. Keeps the row visually quiet for managers,
-            who never see this. */}
-        {isPlatform && !tierLocked && (
+            who never see this. Addon rows show the lock only AFTER
+            the addon is enabled (no point pinning something that's
+            already gated off). */}
+        {isPlatform && !tierLocked && (!isAddon || addonEnabled) && (
           <div style={{ marginTop: 6 }}>
             <span
               onClick={busy ? undefined : onLockToggle}

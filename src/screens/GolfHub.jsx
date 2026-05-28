@@ -2,6 +2,7 @@ import { G, gCfg } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import BellChip from '../components/BellChip.jsx';
+import SponsorBanner from '../components/SponsorBanner.jsx';
 import { useClubStatus, usePaceOfPlay, useNow, formatClockTime, formatLongDate, effectiveState, useDusk, useDawn } from '../hooks/useClubData.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
@@ -116,6 +117,14 @@ export default function GolfHub() {
             to a real tee_time_booking backend (still a placeholder
             feature per v0.7.0's catalog). Better to render nothing
             than fake authority. */}
+
+        {/* v0.10.2 — sponsor banner at the bottom of the Golf tab.
+            Only renders when the club has the sponsor_banners addon
+            enabled AND has an active banner with location='golf_tab'.
+            Otherwise collapses to nothing (no empty space). */}
+        <div style={{ padding: '4px 16px 16px' }}>
+          <SponsorBanner location="golf_tab" />
+        </div>
       </div>
     </div>
   );
