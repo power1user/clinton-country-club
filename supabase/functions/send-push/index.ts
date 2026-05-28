@@ -1,24 +1,45 @@
-// send-push v5 — fan-out Web Push for a freshly inserted message.
+// send-push v6 — fan-out Web Push with sender identity (v0.10.9).
 //
 // Wired via a public.fn_send_push_on_message() trigger on messages INSERT
 // (see migration 49 — we don't use Supabase's Dashboard Webhook UI since
 // that state isn't checked in and was lost once already).
 //
-// Diagnostic improvements over v4:
-//   · VAPID setup is wrapped in try/catch and reported as structured JSON
-//     instead of a worker crash, so missing/malformed secrets surface as
-//     500 with an actionable error message.
-//   · GET ?diag=1 returns env state (key lengths, subject, presence flags)
-//     without sending a push — verify wiring in seconds.
-//   · Per-subscription send errors are returned in the response payload
-//     and logged to stderr so support can debug delivery failures.
+// v6 change (v0.10.9): notification titles now identify WHO the message
+// is from. Previously every push read "<Club> · Message" regardless of
+// sender — uninformative on the lock screen. New behavior:
+//
+//   · thread.kind = 'order'      → "Your order update" (system-driven;
+//                                    body has the body preview, which
+//                                    is typically the status note)
+//   · thread.kind = 'clubhouse'  → sender's name if they're a club
+//                                    member, otherwise "Clubhouse"
+//                                    (staff messages from a user_id
+//                                    that doesn't have a members row
+//                                    fall back to the friendly default)
+//   · thread.kind = 'dm' (or any
+//     other "member-to-member"
+//     thread)                    → sender's name from members.name
+//                                    (looked up by sender_user_id +
+//                                    thread.club_id). Falls back to
+//                                    "New message" if lookup fails.
+//
+// Body preview unchanged: first 140 chars of the message body.
+//
+// Diagnostic improvements over v5: kept as-is.
+//   · GET ?diag=1 returns env state without sending a push.
+//   · Per-subscription errors surface in the response payload.
+//   · VAPID setup wrapped in try/catch so missing secrets return
+//     structured 500s instead of crashing the worker.
 //
 // Required Supabase Edge Function secrets:
 //   VAPID_PUBLIC_KEY   — same value that ships to the client as VITE_VAPID_PUBLIC_KEY
 //   VAPID_PRIVATE_KEY  — keep secret
 //   VAPID_SUBJECT      — mailto:... or https://... (must be a URL)
 //   SUPABASE_URL       — auto-set by the platform
-//   SUPABASE_SERVICE_ROLE_KEY — auto-set; bypasses RLS so we can read push_subscriptions
+//   SUPABASE_SERVICE_ROLE_KEY — auto-set; bypasses RLS so we can read
+//                               push_subscriptions + members.name even
+//                               when the sending member's RLS would
+//                               normally hide other clubs' rows.
 
 // @ts-ignore — Deno-only import
 import webpush from "npm:web-push@3.6.7";
@@ -68,7 +89,7 @@ Deno.serve(async (req: Request) => {
   // Useful for verifying secrets are wired up without a real message.
   if (url.searchParams.get("diag") === "1") {
     return new Response(JSON.stringify({
-      version: 5,
+      version: 6,
       vapidOk,
       vapidErr,
       vapidDiag,
@@ -106,6 +127,24 @@ Deno.serve(async (req: Request) => {
 
   if (!thread) return new Response(JSON.stringify({ ok: false, error: "thread not found", thread_id: msg.thread_id }), { status: 404, headers: { "content-type": "application/json" } });
 
+  // v0.10.9 — resolve the SENDER's name from members so the title can
+  // identify who the message is from. Scoped by thread.club_id so a
+  // user_id that happens to have member rows in multiple clubs
+  // resolves to the right name here. Returns null when the sender
+  // isn't a member of this club (e.g. staff messaging from a
+  // user_roles entry without a members row, super_admin pushing a
+  // message, etc.).
+  let senderName: string | null = null;
+  if (msg.sender_user_id && (thread as any).club_id) {
+    const { data: senderRow } = await supabase
+      .from("members")
+      .select("name")
+      .eq("user_id", msg.sender_user_id)
+      .eq("club_id", (thread as any).club_id)
+      .maybeSingle();
+    senderName = senderRow?.name || null;
+  }
+
   const { data: participants } = await supabase
     .from("thread_participants")
     .select("user_id")
@@ -128,9 +167,35 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions" }), { headers: { "content-type": "application/json" } });
   }
 
-  const title = thread.kind === "order"      ? `${(thread as any).clubs?.name || "Your club"} · Order update`
-              : thread.kind === "clubhouse" ? `${(thread as any).clubs?.name || "Your club"} · Clubhouse`
-              :                                `${(thread as any).clubs?.name || "Your club"} · Message`;
+  // v0.10.9 — title now identifies the sender. See top-of-file comment
+  // for the full mapping.
+  const clubName = (thread as any).clubs?.name || "Your club";
+  let title: string;
+  switch (thread.kind) {
+    case "order":
+      title = "Your order update";
+      break;
+    case "clubhouse":
+      // Staff replies usually come from a user_id without a member row
+      // in this club — fall back to "Clubhouse" so the lock screen
+      // still tells the member who's messaging. Member-side messages
+      // to clubhouse (rare via this trigger but possible) get the
+      // member's name.
+      title = senderName || "Clubhouse";
+      break;
+    default:
+      // dm + thread_reply + any other member-to-member kind.
+      title = senderName || "New message";
+      break;
+  }
+
+  // Optional club-name prefix for clubhouse + order so members managing
+  // multiple-club memberships can tell where the update came from.
+  // (Per-member DMs stay clean — just the sender's name.)
+  if (thread.kind === "order" || thread.kind === "clubhouse") {
+    title = `${clubName} · ${title}`;
+  }
+
   const bodyPreview = (msg.body || "").slice(0, 140);
 
   const notification = {

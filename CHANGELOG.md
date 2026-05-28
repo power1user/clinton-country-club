@@ -63,6 +63,34 @@ pills + user_preferences → v0.10.8 menu drag-and-drop →
 v0.10.9 push sender identity → **v0.11.0** README refresh +
 Phase 11 wrap.
 
+- **v0.10.9** — Phase 11: Push notification sender identity.
+
+  `send-push` Edge Function bumped to **v6** (Supabase deploy
+  version 9). Notification titles now identify WHO the message
+  is from — the v5 behavior of every push reading "<Club> ·
+  Message" was uninformative on the lock screen.
+
+  New title mapping (driven by `thread.kind`):
+  · **dm / member-to-member threads** → sender's name
+    (resolved from `members.name` via `sender_user_id` +
+    `thread.club_id`). Falls back to *"New message"* if the
+    sender doesn't have a member row in the thread's club
+    (handles staff sending from a `user_roles`-only account).
+  · **clubhouse threads** → "`<Club>` · `<sender name>`" if the
+    sender is a member; otherwise "`<Club>` · Clubhouse" so
+    staff-side replies still tell the member who pinged them.
+  · **order threads** → "`<Club>` · Your order update". System-
+    driven; the body preview carries the actual status note.
+
+  Sender-name lookup uses the service role key already in the
+  function's env, so RLS doesn't block the cross-member read.
+  Body preview unchanged (first 140 chars).
+
+  No frontend changes — this is a server-side title fix only.
+  Test by sending a DM from one member to another; the
+  recipient's lock screen should now show the sender's name
+  instead of generic "Message".
+
 - **v0.10.8** — Phase 11: Menu Category drag-and-drop sort order.
 
   Replaces the number-input sort_order field in the Menu Categories
