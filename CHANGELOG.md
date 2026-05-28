@@ -63,6 +63,47 @@ pills + user_preferences → v0.10.8 menu drag-and-drop →
 v0.10.9 push sender identity → **v0.11.0** README refresh +
 Phase 11 wrap.
 
+- **v0.10.7** — Phase 11: `user_preferences` table + event filter pills.
+
+  **New architectural system: `user_preferences` table** (migration
+  58). Generic per-member key-value store backed by jsonb. Drop in
+  any future per-member setting that doesn't merit its own column
+  on `members` (default tabs, mute lists, calendar view defaults,
+  etc.) with a one-line addition — no migration per pref.
+
+  · RLS: members read + write their own row only (no cross-member
+    visibility — preferences are private).
+  · Unique on `(member_id, key)` — one value per pref per member;
+    re-saving UPSERTs.
+  · `updated_at` trigger so every save stamps automatically.
+
+  **New hook `useUserPreference(key, defaultValue)`** —
+  `src/hooks/useUserPreference.js`. Returns `[value, setValue,
+  ready]`. Reads on mount, writes with a 400ms debounce, flushes
+  on unmount. Guests short-circuit cleanly (no member row to
+  scope to). Use:
+    `const [cats, setCats, ready] = useUserPreference('events_filter_categories', []);`
+
+  **New component `EventFilterPills`** — horizontal scrollable
+  filter strip with an "All" pill + one per distinct upcoming-
+  event category. Multi-select; tapping any active pill toggles
+  it; emptying the selection equals "All". Hides itself when
+  only one category exists (filtering would be meaningless).
+
+  **Wired into two surfaces:**
+  · `EventsCalendar` — pills above the bottom "Upcoming" section,
+    filter the next-5 list. The calendar grid + day-detail still
+    show every event (filtering the grid would hide events from
+    members who'd otherwise see them — confusing).
+  · `EventsUpcoming` — pills above the full paginated list, filter
+    the whole result set. Pagination resets to page 1 on filter
+    change.
+
+  Selection persists per-member across the two surfaces — set
+  "Golf" on the calendar, see it pre-applied when you open the
+  full upcoming list. Restored on mount before first render so
+  members don't see a flash of unfiltered content.
+
 - **v0.10.6** — Phase 11: Additional calendar entry points.
 
   Calendar reachability audit + two additions so members can get

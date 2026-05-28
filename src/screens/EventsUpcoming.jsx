@@ -21,6 +21,8 @@ import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useFlag } from '../hooks/useFlag.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useEvents } from '../hooks/useClubData.jsx';
+import { useUserPreference } from '../hooks/useUserPreference.js';
+import EventFilterPills from '../components/EventFilterPills.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 const PAGE_SIZE = 10;
@@ -39,15 +41,20 @@ export default function EventsUpcoming() {
   const [page, setPage] = useState(0);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
 
-  // Filter: upcoming (event_date >= today) + matches search query.
-  // Sort chronologically. Search matches title, category, time, and
-  // the date-label string so members can type "May 30" or "Cookout"
-  // or "Golf" and find what they're looking for.
+  // v0.10.7 — Same persisted pill state as EventsCalendar, so the
+  // member's selection follows them between the two surfaces.
+  const [selectedCats, setSelectedCats] = useUserPreference('events_filter_categories', []);
+
+  // Filter: upcoming (event_date >= today) + selected categories +
+  // matches search query. Sort chronologically. Search matches title,
+  // category, time, and the date-label string.
   const matches = useMemo(() => {
     const today = isoToday();
     const q = query.trim().toLowerCase();
+    const catSet = (selectedCats || []).length > 0 ? new Set(selectedCats) : null;
     return events
       .filter(e => e.eventDate && String(e.eventDate).slice(0, 10) >= today)
+      .filter(e => !catSet || catSet.has(e.cat || e.category))
       .filter(e => {
         if (!q) return true;
         const hay = [
@@ -59,7 +66,7 @@ export default function EventsUpcoming() {
         ].join(' ').toLowerCase();
         return hay.includes(q);
       });
-  }, [events, query]);
+  }, [events, query, selectedCats]);
 
   const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -68,6 +75,10 @@ export default function EventsUpcoming() {
   // Any search change resets to page 0 so users don't get stuck on
   // an empty page 7 after typing a query with 4 results.
   const onSearch = (v) => { setQuery(v); setPage(0); };
+
+  // Same logic for the pill filter — re-filtering should drop the
+  // member back to page 1 of the new result set.
+  const onCatsChange = (next) => { setSelectedCats(next); setPage(0); };
 
   if (!calendarOn) return <FeatureOff label="Events" />;
 
@@ -95,6 +106,16 @@ export default function EventsUpcoming() {
             </div>
           )}
         </div>
+
+        {/* v0.10.7 — Category filter pills. Hides itself when only
+            one category exists so single-category clubs don't see a
+            useless strip. Selection persists per-member via
+            user_preferences and is shared with EventsCalendar. */}
+        <EventFilterPills
+          events={events}
+          selectedCategories={selectedCats}
+          onChange={onCatsChange}
+        />
 
         {/* Result count + page indicator */}
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 10px', textAlign: 'center' }}>

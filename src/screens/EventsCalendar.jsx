@@ -19,7 +19,9 @@ import { useFlag } from '../hooks/useFlag.js';
 import { BackHeader } from '../components/Headers.jsx';
 import Calendar from '../components/Calendar.jsx';
 import { useEvents } from '../hooks/useClubData.jsx';
+import { useUserPreference } from '../hooks/useUserPreference.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import EventFilterPills from '../components/EventFilterPills.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 // Format an override row into a human-readable hours line.
@@ -101,6 +103,14 @@ export default function EventsCalendar() {
 
   const dayOverrides = overridesByDay[selectedDate] || [];
 
+  // v0.10.7 — Category filter pill state persisted per-member via
+  // user_preferences. Pills sit above the Upcoming section and
+  // filter the next-5 list; the calendar grid + day-detail still
+  // show every event regardless (filtering the grid would hide
+  // events from members who'd otherwise see them, which is
+  // confusing). Default = empty array = no filter (the "All" pill).
+  const [selectedCats, setSelectedCats] = useUserPreference('events_filter_categories', []);
+
   // v0.9.11: TWO sections now (vs. one fallback-style section before).
   //   · dayEvents — what's on the user-selected date. Empty when the
   //     user hasn't tapped a date with anything on it. Past dates are
@@ -109,17 +119,20 @@ export default function EventsCalendar() {
   //   · upcomingEvents — always the next 5 future events (event_date
   //     >= today), excluding anything we're already showing in the
   //     dayEvents section above so we don't double-render today's
-  //     events when "today" is the selected date.
+  //     events when "today" is the selected date. v0.10.7: filtered
+  //     by selectedCats when any pills are active.
   const { dayEvents, upcomingEvents } = useMemo(() => {
     const today = isoToday();
     const day = events.filter(e => String(e.eventDate || '').slice(0, 10) === selectedDate);
     const dayIds = new Set(day.map(e => e.id));
+    const catSet = (selectedCats || []).length > 0 ? new Set(selectedCats) : null;
     const upcoming = events
       .filter(e => e.eventDate && String(e.eventDate).slice(0, 10) >= today)
       .filter(e => !dayIds.has(e.id))
+      .filter(e => !catSet || catSet.has(e.cat || e.category))
       .slice(0, 5);
     return { dayEvents: day, upcomingEvents: upcoming };
-  }, [events, selectedDate]);
+  }, [events, selectedDate, selectedCats]);
 
   // "Sat, May 24" — for the section header above the day's events
   const selectedLabel = (() => {
@@ -223,7 +236,8 @@ export default function EventsCalendar() {
         {/* Always-on Upcoming section — next 5 future events with a
             "See all upcoming" link to the paginated/searchable list.
             v0.9.11. Past events never leak here. Excludes anything
-            already shown in the day-detail section above. */}
+            already shown in the day-detail section above.
+            v0.10.7: Category filter pills above the section. */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: dayEvents.length > 0 ? '20px 0 10px' : '24px 0 10px' }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0, fontWeight: 700 }}>
             Upcoming
@@ -234,6 +248,12 @@ export default function EventsCalendar() {
             </span>
           )}
         </div>
+
+        <EventFilterPills
+          events={events}
+          selectedCategories={selectedCats}
+          onChange={setSelectedCats}
+        />
 
         {upcomingEvents.length === 0 && (
           <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 20, textAlign: 'center' }}>
