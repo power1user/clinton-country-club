@@ -16,6 +16,7 @@ import {
   GuestRegistrationsFeed, FacilitiesAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
+import Badge from '../components/Badge.jsx';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -169,6 +170,10 @@ const AREAS = [
       { id: 'people_all',  permKey: 'can_manage_members', l: 'Directory',         d: 'Find anyone: members, guests, staff',                  icon: IconPeople },
       { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
       { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',    d: 'Hide / delete bulletin + partner posts',               icon: IconList   },
+      // v0.10.0 (Phase 10) — badges. Preview-only at first patch so
+      // Marc can react to the shield visual; CRUD + assignment land
+      // in this same section as the patch series continues.
+      { id: 'badges',      permKey: 'can_manage_members', l: 'Badges',            d: 'Create club badges, assign to members',                icon: IconShield },
       // v0.8.4: guest management. Section renders an "off" state when
       // the guest_registration flag is off so the entry is still
       // discoverable; flipping the flag in Club Settings activates it.
@@ -306,6 +311,7 @@ export default function AdminPanel() {
           {sec === 'lessonpros'     && <LessonProsAdmin />}
           {sec === 'people_all'     && <PeopleAdmin club={club} />}
           {sec === 'members'        && <MembersAdmin club={club} />}
+          {sec === 'badges'         && <BadgesAdmin club={club} />}
           {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
           {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
           {/* Communications sub-queues:
@@ -1897,6 +1903,90 @@ function parseCsvLine(line) {
   }
   out.push(cur);
   return out;
+}
+
+// ─── Badges admin (v0.10.0) — preview-only first patch ───────────────────
+//
+// Renders sample shields across the three size variants so Marc can
+// react to the visual before we layer on CRUD + assignment. Once the
+// shape is approved the body of this component flips to the real
+// badge library (CREATE/EDIT/DELETE against the badges table) +
+// member assignment hookup.
+const PREVIEW_BADGES = [
+  { iconKey: 'Trophy',  color: '#9B7A1E', name: 'Club Champion',     year: 2025 },
+  { iconKey: 'Flag',    color: '#1B3A2D', name: 'Member-Guest',      year: 2024 },
+  { iconKey: 'Star',    color: '#7B2C3B', name: 'Hole In One',       year: 2025 },
+  { iconKey: 'Crown',   color: '#234D6B', name: 'Senior Champion',   year: 2025 },
+  { iconKey: 'Award',   color: '#2C5530', name: 'Most Improved',     year: 2024 },
+  { iconKey: 'Medal',   color: '#6B4A10', name: '25-Year Member' },
+];
+
+function BadgesAdmin() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{
+        background: G.card,
+        border: `1px solid ${G.border}`,
+        borderRadius: 6,
+        padding: '14px 16px',
+      }}>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>
+          Badge Preview
+        </p>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.5 }}>
+          This is the visual we're going with for the shield-shaped badges. The Add Badge form,
+          icon picker, color picker, and member assignment land in the next patches. React to
+          the shape, color depth, and typography first — easier to adjust before we wire the rest.
+        </p>
+      </div>
+
+      {/* Small size — the workhorse used in member directory + Trophy Case grid. */}
+      <div>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Small (64px) — directory + Trophy Case grid
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, justifyContent: 'flex-start' }}>
+          {PREVIEW_BADGES.map(b => (
+            <Badge key={b.name} iconKey={b.iconKey} color={b.color} name={b.name} year={b.year} size="small" />
+          ))}
+        </div>
+      </div>
+
+      {/* Large — used on member profiles + badge detail. */}
+      <div>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Large (96px) — member profile + badge detail
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22 }}>
+          {PREVIEW_BADGES.slice(0, 3).map(b => (
+            <Badge key={`L-${b.name}`} iconKey={b.iconKey} color={b.color} name={b.name} year={b.year} size="large" />
+          ))}
+        </div>
+      </div>
+
+      {/* Mini — strip layout for membership card + message bubble row. */}
+      <div>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Mini (28px) — membership card row
+        </p>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          background: G.green,
+          padding: '10px 14px',
+          borderRadius: 6,
+        }}>
+          {PREVIEW_BADGES.map(b => (
+            <Badge key={`M-${b.name}`} iconKey={b.iconKey} color={b.color} size="mini" />
+          ))}
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>
+          Green background mocks the actual card surface so you can judge contrast.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ─── Staff admin — user_roles editor with per-staff permission modal ──────

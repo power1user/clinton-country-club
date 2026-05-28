@@ -25,6 +25,31 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.21** — Phase 10 preview: shield-shaped badge visual in
+  Admin → People → Badges. Visual review only ahead of the actual
+  v0.10.0 schema landing.
+
+  Adds the reusable `Badge` component (`src/components/Badge.jsx`) —
+  pointed-bottom heraldic shield SVG with a manager-chosen color
+  fill, white Lucide icon centered in the upper mass, and three
+  size variants (mini 28px / small 64px / large 96px). Single
+  source of truth so every badge surface renders identically once
+  we layer on the directory, profile, Trophy Case, and membership
+  card surfaces in v0.10.0–.1.
+
+  New **Badges** section under the People area renders six sample
+  badges across all three sizes so Marc can react to the shape,
+  color depth, and typography before the CRUD lands. No DB tables
+  yet, no member-facing surfaces, no writes anywhere — pure visual
+  preview. Once the shape is approved the section body flips to
+  the real badge library (CREATE/EDIT/DELETE against the badges
+  table) + member assignment hookup. `lucide-react@1.x` added as
+  a dependency.
+
+  Carrying the preview as a v0.9.x patch (rather than calling it
+  v0.10.0 already) so the v0.10.0 footer accurately marks the
+  schema + CRUD landing, not the visual.
+
 - **v0.9.20** — People area: action-verb sub-card names for clarity.
 
   The v0.9.18 names conflated browse with manage and left "Guest
