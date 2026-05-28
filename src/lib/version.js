@@ -54,6 +54,21 @@
 //             Guide CRUD lands under Club Settings. Partner Board
 //             redesigned with handicap field + wired Contact
 //             button (DM → clubhouse fallback).
+//   v0.10.x — Phase 10: Club Champion Recognition badges. New
+//             shield-shaped badge system (reusable Badge component,
+//             three sizes — mini 28 / small 64 / large 96, Lucide
+//             icon library, manager-chosen colors). Migration 55
+//             adds badges + member_badges tables. Admin → People →
+//             Badges has the full CRUD library (Quick add row of
+//             six pre-defined templates, curated 24-icon picker,
+//             8 club-themed color swatches + native picker, live
+//             large-shield preview). Per-member assignment from
+//             the Directory's expanded detail panel. Member-facing
+//             surfaces: mini row on the membership card (max 5 +
+//             overflow chip), mini strip on each member directory
+//             row. v0.10.1 brings the Trophy Case (Community tab),
+//             v0.10.2 sponsor placement + add-on gating, v0.10.3
+//             member RSVP history (My Events).
 //
 // Bump rule: every commit, period. See CHANGELOG.md for what's in each
 // patch. Shown to members in the MyClub footer; shown to staff during
@@ -62,7 +77,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.9.23';
+export const VERSION = '0.10.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

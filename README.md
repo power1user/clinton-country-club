@@ -11,10 +11,10 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.9.7` (Phase 9 — Communications triage + admin reorg)
+**Current version:** `v0.10.0` (Phase 10 — Club Champion Recognition badges)
 
 > This README is refreshed on every **minor** release (0.x bump). For
-> anything that shipped after v0.9.7, see [`CHANGELOG.md`](./CHANGELOG.md).
+> anything that shipped after v0.10.0, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -195,6 +195,17 @@ logo + 3 brand colors + hero photo + tagline.
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
 
+### 🏆 Club Champion Recognition (Phase 10)
+- Shield-shaped badge system — pointed-bottom heraldic SVG, manager-chosen color fill, white Lucide icon centered, optional year label
+- Reusable `Badge` component (`src/components/Badge.jsx`) — three sizes: **mini 28px** (cards / message bubbles), **small 64px** (directory / Trophy Case grid), **large 96px** (profile / detail view) — single source of truth
+- Two new tables (migration 55): `badges` (catalog per club) + `member_badges` (assignments) with RLS scoped to club + `can_manage_members` permission for writes
+- Admin **People → Badges** library with Quick add row (six pre-defined templates: Club Champion / Member-Guest / Hole In One / Senior Champion / Most Improved / 25-Year Member), inline form with live large-shield preview, edit + delete with holder-count confirm
+- Curated 24-icon Lucide picker (Trophy, Award, Medal, Crown, Star, Flag, Target, Compass, Sun, TreePine, Mountain, Users, Heart, Coffee, Wine, Gem, plus 8 more) + 8 club-themed color swatches + native color picker for full custom
+- Per-member assignment from the expanded member detail panel in Directory — inline picker filters to badges the member doesn't already hold
+- Member-facing surfaces: mini row on the membership card (max 5 + "+N" overflow chip; card grows 218→258px only when badges held) and mini strip on each member directory row (max 4 + overflow)
+- Realtime everywhere — awards land on every surface within seconds without a refresh
+- v0.10.1 brings a dedicated **Trophy Case** on the Community tab (Club Honors grid + My Badges) with a custom section name configurable per club
+
 ### 📥 Communications Triage (Phase 9)
 - Single inbound-activity destination for staff. Six role-scoped
   sub-queues: Food Orders · Lesson Requests · Pro Shop Inquiries ·
@@ -227,7 +238,7 @@ logo + 3 brand colors + hero photo + tagline.
 4. **Golf Course** — Daily Status · Pace · Daily Pins · Hole Details. Hours config + Date Overrides moved to Club Settings.
 5. **Pro Shop** — Pro Shop Items · Lesson Pros. Lesson Queue moved to Comms.
 6. **Dining** — Menu Categories · Menu Items. Food Orders moved to Comms.
-7. **People** — Members (search + CSV import + magic-link invites) · Moderate Posts · Guest Management (full settings + QR) · Staff
+7. **People** — Directory (find anyone) · Manage Members · Moderate Posts · **Badges** *(new in v0.10.0)* · Guest Settings & QR · Manage Staff
 8. **Club Settings** *(renamed from "Club Setup" in v0.9.0)* — Branding & Contact · Feature Toggles · Facility Hours · Date Overrides · Member Guide
 9. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
 

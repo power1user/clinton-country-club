@@ -1,13 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { GhostBtn } from '../components/Buttons.jsx';
 import Avatar from '../components/Avatar.jsx';
+import Badge from '../components/Badge.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
 import { QRCodeSVG } from 'qrcode.react';
 import FeatureOff from '../components/FeatureOff.jsx';
+import { supabase, isConfigured } from '../lib/supabase.js';
+
+// Max badge thumbnails to show on the membership card before
+// rolling the rest into a "+N" overflow chip. Five fits cleanly
+// inside the card width even when the avatar is present.
+const CARD_BADGES_MAX = 5;
 
 const STATE_NAMES = {
   AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
@@ -28,6 +35,35 @@ export default function MemberCard() {
   const { push } = useNav();
   const profilePhotosOn = useFlag('profile_photos');
   const guestFlagOn = useFlag('guest_registration');
+
+  // v0.10.0 — load the current member's badge awards so we can
+  // render a mini row on the card. Realtime channel keeps the
+  // row live, so a freshly-awarded badge appears within seconds
+  // without the member needing to refresh.
+  const [badges, setBadges] = useState([]);
+  useEffect(() => {
+    if (!isConfigured || !member?.id || !club?.id) { setBadges([]); return; }
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('member_badges')
+        .select('id, awarded_at, badges ( id, name, icon_key, color, year, category )')
+        .eq('member_id', member.id)
+        .eq('club_id', club.id)
+        .order('awarded_at', { ascending: false });
+      if (!cancelled) setBadges(data || []);
+    };
+    load();
+    const channel = supabase
+      .channel(`mc_badges:${member.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'member_badges', filter: `member_id=eq.${member.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [member?.id, club?.id]);
+
+  const hasBadges = badges.length > 0;
+  const visibleBadges = badges.slice(0, CARD_BADGES_MAX);
+  const overflow = Math.max(0, badges.length - CARD_BADGES_MAX);
   // v0.8.2: guests don't have a membership card. Defense in depth —
   // the My Club tab also routes them to a guest-mode view rather than
   // the action grid that links here.
@@ -48,7 +84,7 @@ export default function MemberCard() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 28px 40px' }}>
         <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 20px' }}>Digital Membership Card</p>
         {!showQR ? (
-          <div style={{ width: '100%', maxWidth: 346, height: 218, background: G.green, borderRadius: 14, padding: 26, position: 'relative', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12)' }}>
+          <div style={{ width: '100%', maxWidth: 346, height: hasBadges ? 258 : 218, background: G.green, borderRadius: 14, padding: 26, position: 'relative', overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12)', transition: 'height 0.2s' }}>
             <div style={{ position: 'absolute', right: -44, top: -44, width: 200, height: 200, borderRadius: '50%', border: '46px solid rgba(255,255,255,0.04)' }} />
             <div style={{ position: 'absolute', right: 12, bottom: -52, width: 172, height: 172, borderRadius: '50%', border: '36px solid rgba(255,255,255,0.03)' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
@@ -79,6 +115,28 @@ export default function MemberCard() {
                 <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 9, color: '#A8D8B8', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Member Since {m.since}</p>
                 <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 400, fontStyle: 'italic', color: '#F2EDE0', margin: '0 0 3px', letterSpacing: '0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#A8D8B8', margin: 0, letterSpacing: '0.04em' }}>No. {m.number} · {m.type}</p>
+                {/* v0.10.0 — badge mini row. Only renders when the
+                    member holds at least one badge so the card stays
+                    visually identical for members who haven't been
+                    awarded anything yet. Max 5 visible; remaining
+                    badges roll into a "+N" overflow pill. */}
+                {hasBadges && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                    {visibleBadges.map(row => row.badges && (
+                      <Badge key={row.id} iconKey={row.badges.icon_key} color={row.badges.color} size="mini" />
+                    ))}
+                    {overflow > 0 && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        height: 28, minWidth: 28, padding: '0 8px', borderRadius: 14,
+                        background: 'rgba(168,216,184,0.18)',
+                        color: '#F2E5C0',
+                        fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 600,
+                        letterSpacing: '0.02em',
+                      }}>+{overflow}</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${G.brass}, ${G.brassLt}, ${G.brass})` }} />

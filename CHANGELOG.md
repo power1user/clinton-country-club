@@ -25,6 +25,48 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+---
+
+## v0.10.x — Phase 10: Club Champion Recognition (badges)
+
+Shield-shaped badges become a first-class feature. Managers can
+create a club-specific catalog of honors (Club Champion,
+Member-Guest, Hole In One, milestone memberships, whatever the
+club wants to recognize) and award them to specific members.
+Recipients see their badges everywhere — membership card,
+directory listing — and v0.10.1 adds a dedicated Trophy Case
+screen on the Community tab that feels like a digital clubhouse
+wall.
+
+Shipping plan (multi-commit minor):
+v0.9.21 preview → v0.9.22 admin CRUD → v0.9.23 member assignment
+→ **v0.10.0** member-facing surfaces + Phase 10 wrap → v0.10.1
+Trophy Case → v0.10.2 sponsor placement + add-on gating → v0.10.3
+My Events RSVP history.
+
+- **v0.10.0** — Phase 10: badges surface on member-facing screens.
+
+  Member-facing surfaces light up across the app:
+
+  · **Membership Card** — mini row (28px shields) below the
+    member's name on their digital card. Max 5 visible; the rest
+    roll into a "+N" overflow pill. The card grows from 218px →
+    258px only when at least one badge is held, so members with
+    no badges yet see no layout change.
+
+  · **Member Directory** — mini badge strip below name/tier on
+    each directory row. Capped at 4 visible plus a "+N" overflow
+    chip (rows are tight; Message button stays in view). One
+    `member_badges` query covers the whole directory, mapped by
+    `member_id` so per-row lookup is O(1).
+
+  Both surfaces subscribe to `member_badges` realtime, so a badge
+  awarded by an admin appears within seconds without the member
+  refreshing.
+
+  README refreshed (minor-bump cadence). Phase 10 entry added to
+  the phase history in `version.js`.
+
 - **v0.9.23** — Phase 10: Badge assignment from member detail.
 
   Every member row in Admin → People → Directory now has a Badges

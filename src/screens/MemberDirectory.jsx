@@ -5,7 +5,7 @@
 // Tap Message → calls the get_or_create_dm() Postgres function which
 // either returns an existing DM thread between the two of us or
 // creates a new one. We then navigate to that thread.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -14,7 +14,13 @@ import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 import Avatar from '../components/Avatar.jsx';
+import Badge from '../components/Badge.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
+
+// Max badge thumbnails shown per directory row before the rest
+// roll into a "+N" overflow chip. Rows are tight; 4 visible
+// keeps the strip from competing with the Message button.
+const ROW_BADGES_MAX = 4;
 
 export default function MemberDirectory() {
   const { club, member, session, canMemberWrite, isGuest } = useAuth();
@@ -27,6 +33,7 @@ export default function MemberDirectory() {
   const profilePhotosOn = useFlag('profile_photos');
   const { push } = useNav();
   const [members, setMembers] = useState([]);
+  const [memberBadgeRows, setMemberBadgeRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [busyId, setBusyId] = useState(null);
@@ -53,6 +60,20 @@ export default function MemberDirectory() {
     setLoading(true);
     load();
 
+    // v0.10.0 — pull all club badge assignments in one query so each
+    // member row can render its mini strip without N round-trips.
+    // The embedded badges join gives us icon_key + color + name +
+    // year per assignment.
+    const loadBadges = async () => {
+      const { data } = await supabase
+        .from('member_badges')
+        .select('id, member_id, awarded_at, badges ( id, name, icon_key, color, year, category )')
+        .eq('club_id', club.id)
+        .order('awarded_at', { ascending: false });
+      if (!cancelled) setMemberBadgeRows(data || []);
+    };
+    loadBadges();
+
     // v0.7.1: realtime subscription on members. Was missing despite
     // v0.5.7's audit claiming it was wired ("MemberDirectory (inline
     // in component)") — either the audit was wrong or a refactor
@@ -60,17 +81,41 @@ export default function MemberDirectory() {
     // someone joins, uploads a photo, changes name, toggles DM opt-
     // out, or gets activated/deactivated. Same pattern used by every
     // other member-facing hook in useClubData.
-    const channel = supabase
-      .channel(`members_directory:${club.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'members', filter: `club_id=eq.${club.id}` },
-        () => load(),
-      )
-      .subscribe();
+    const channels = [
+      supabase
+        .channel(`members_directory:${club.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'members', filter: `club_id=eq.${club.id}` },
+          () => load(),
+        )
+        .subscribe(),
+      // v0.10.0 — keep the per-row badge strip live as awards land.
+      supabase
+        .channel(`members_directory_badges:${club.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'member_badges', filter: `club_id=eq.${club.id}` },
+          () => loadBadges(),
+        )
+        .subscribe(),
+    ];
 
-    return () => { cancelled = true; supabase.removeChannel(channel); };
+    return () => { cancelled = true; channels.forEach(c => supabase.removeChannel(c)); };
   }, [club?.id]);
+
+  // Build a member_id → badges[] map from the flat assignment rows.
+  // Memoized so we only re-bucket when the underlying data changes
+  // (not on every keystroke in the search box).
+  const badgesByMember = useMemo(() => {
+    const map = {};
+    for (const row of memberBadgeRows) {
+      if (!row.badges) continue;
+      if (!map[row.member_id]) map[row.member_id] = [];
+      map[row.member_id].push({ id: row.id, ...row.badges });
+    }
+    return map;
+  }, [memberBadgeRows]);
 
   // v0.8.2: guest gate. Placed AFTER all hook calls (rules of hooks).
   // The data load above is a no-op for guests since RLS denies SELECT
@@ -152,7 +197,11 @@ export default function MemberDirectory() {
             </p>
           </div>
         )}
-        {filtered.map(m => (
+        {filtered.map(m => {
+          const memberBadges = badgesByMember[m.id] || [];
+          const visibleBadges = memberBadges.slice(0, ROW_BADGES_MAX);
+          const overflow = Math.max(0, memberBadges.length - ROW_BADGES_MAX);
+          return (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, gap: 10 }}>
             <Avatar photoUrl={profilePhotosOn ? m.photo_url : null} name={m.name} size={34} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -160,6 +209,25 @@ export default function MemberDirectory() {
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {m.membership_number ? `#${m.membership_number} · ` : ''}{m.tier || 'Member'}
               </p>
+              {/* v0.10.0 — mini badge strip per directory row. Only
+                  renders when this member has at least one badge so
+                  rows stay compact for everyone else. */}
+              {memberBadges.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 5 }}>
+                  {visibleBadges.map(b => (
+                    <Badge key={b.id} iconKey={b.icon_key} color={b.color} size="mini" />
+                  ))}
+                  {overflow > 0 && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      height: 22, minWidth: 22, padding: '0 6px', borderRadius: 11,
+                      background: G.bg, border: `1px solid ${G.border}`,
+                      color: G.muted,
+                      fontFamily: '"Lora",serif', fontSize: 10, fontWeight: 600,
+                    }}>+{overflow}</span>
+                  )}
+                </div>
+              )}
             </div>
             {/* Message button only when:
                 · DMs are enabled at the club level (dmsOn), AND
@@ -189,7 +257,8 @@ export default function MemberDirectory() {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
