@@ -17,6 +17,7 @@ import {
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
+import * as LucideIcons from 'lucide-react';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -1905,87 +1906,464 @@ function parseCsvLine(line) {
   return out;
 }
 
-// ─── Badges admin (v0.10.0) — preview-only first patch ───────────────────
+// ─── Badges admin (v0.9.22) — full CRUD on the v0.10.0 badges schema ─────
 //
-// Renders sample shields across the three size variants so Marc can
-// react to the visual before we layer on CRUD + assignment. Once the
-// shape is approved the body of this component flips to the real
-// badge library (CREATE/EDIT/DELETE against the badges table) +
-// member assignment hookup.
-const PREVIEW_BADGES = [
-  { iconKey: 'Trophy',  color: '#9B7A1E', name: 'Club Champion',     year: 2025 },
-  { iconKey: 'Flag',    color: '#1B3A2D', name: 'Member-Guest',      year: 2024 },
-  { iconKey: 'Star',    color: '#7B2C3B', name: 'Hole In One',       year: 2025 },
-  { iconKey: 'Crown',   color: '#234D6B', name: 'Senior Champion',   year: 2025 },
-  { iconKey: 'Award',   color: '#2C5530', name: 'Most Improved',     year: 2024 },
-  { iconKey: 'Medal',   color: '#6B4A10', name: '25-Year Member' },
+// Library + creation form for shield-shaped badges. Manager picks name,
+// category, color (8 club-themed swatches + native picker), icon
+// (curated 24-icon Lucide grid), and optional year. Live large-shield
+// preview updates as fields change. Quick-add row at the top pre-fills
+// the form with six common templates so managers can spin up the
+// "standard set" in seconds rather than typing six things from
+// scratch.
+//
+// Reads + writes go straight against public.badges (migration 55).
+// Realtime channels on badges and member_badges keep the holder
+// counts live as members get assigned in the next patch (v0.9.23).
+//
+// Delete protection: the confirm dialog surfaces how many members
+// currently hold the badge so the manager knows the blast radius
+// before nuking it. The DB-level FK cascade removes the member_badges
+// rows for them.
+
+// Pre-defined templates — common country-club achievement badges.
+// Each one click-pre-fills the form so the manager can tweak +
+// save in seconds. Picked to match the most-requested honors:
+// Club Champion, Member-Guest, Hole In One, Senior Champion, Most
+// Improved, 25-Year Member. Year is left blank intentionally; the
+// manager fills it on the form (we don't presume the current year).
+const BADGE_TEMPLATES = [
+  { name: 'Club Champion',   iconKey: 'Trophy', color: '#9B7A1E', category: 'championship' },
+  { name: 'Member-Guest',    iconKey: 'Flag',   color: '#1B3A2D', category: 'championship' },
+  { name: 'Hole In One',     iconKey: 'Star',   color: '#7B2C3B', category: 'recognition' },
+  { name: 'Senior Champion', iconKey: 'Crown',  color: '#234D6B', category: 'championship' },
+  { name: 'Most Improved',   iconKey: 'Award',  color: '#2C5530', category: 'recognition' },
+  { name: '25-Year Member',  iconKey: 'Medal',  color: '#6B4A10', category: 'membership'  },
 ];
 
-function BadgesAdmin() {
+// Curated 24-icon Lucide grid — relevant to country-club achievements
+// (trophies, flags, stars, leaves, etc.). Lucide ships ~1500 icons;
+// the manager almost never needs the full set, and an unbounded
+// picker overwhelms more than it enables. If a club asks for an icon
+// not on this list we add it in a patch.
+const BADGE_ICON_CHOICES = [
+  'Trophy', 'Award', 'Medal', 'Crown', 'Star', 'Sparkles',
+  'Flag', 'Target', 'Crosshair', 'Compass', 'Zap', 'Sun',
+  'TreePine', 'Leaf', 'Mountain', 'Users', 'User', 'UserCheck',
+  'Calendar', 'Heart', 'ThumbsUp', 'Coffee', 'Wine', 'Gem',
+];
+
+// Eight club-themed color swatches. Native HTML color picker handles
+// everything else — these are just the fast-pick defaults.
+const BADGE_COLOR_SWATCHES = [
+  '#9B7A1E', '#1B3A2D', '#7B2C3B', '#234D6B',
+  '#2C5530', '#6B4A10', '#8B5A2B', '#3F4A5C',
+];
+
+const BADGE_CATEGORY_CHOICES = [
+  { value: 'championship', label: 'Championship' },
+  { value: 'recognition',  label: 'Recognition'  },
+  { value: 'membership',   label: 'Membership'   },
+];
+
+function BadgesAdmin({ club }) {
+  const [badges,  setBadges]  = useState([]);
+  const [counts,  setCounts]  = useState({}); // badge_id → number of members holding it
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | 'new' | <badge_id>
+  const [draft,   setDraft]   = useState(null); // { name, icon_key, color, year, category }
+  const [err,     setErr]     = useState('');
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    if (!club) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const [{ data: b, error: be }, { data: mb, error: me }] = await Promise.all([
+        supabase.from('badges')
+          .select('id, name, icon_key, color, year, category, sort_order, created_at')
+          .eq('club_id', club.id)
+          .order('category', { ascending: true })
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
+        supabase.from('member_badges')
+          .select('badge_id')
+          .eq('club_id', club.id),
+      ]);
+      if (cancelled) return;
+      if (be) setErr(be.message);
+      if (me) setErr(me.message);
+      setBadges(b || []);
+      const c = {};
+      for (const row of (mb || [])) c[row.badge_id] = (c[row.badge_id] || 0) + 1;
+      setCounts(c);
+      setLoading(false);
+    })();
+
+    const channels = [
+      supabase.channel(`badges:${club.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'badges',         filter: `club_id=eq.${club.id}` }, () => refresh())
+        .subscribe(),
+      supabase.channel(`mb_count:${club.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'member_badges',  filter: `club_id=eq.${club.id}` }, () => refresh())
+        .subscribe(),
+    ];
+    return () => { cancelled = true; channels.forEach(ch => supabase.removeChannel(ch)); };
+  }, [club?.id, version]);
+
+  const startNew = (template) => {
+    setErr('');
+    setEditing('new');
+    setDraft(template ? {
+      name: template.name,
+      icon_key: template.iconKey,
+      color: template.color,
+      year: '',
+      category: template.category,
+    } : {
+      name: '',
+      icon_key: 'Award',
+      color: '#9B7A1E',
+      year: '',
+      category: 'recognition',
+    });
+  };
+
+  const startEdit = (badge) => {
+    setErr('');
+    setEditing(badge.id);
+    setDraft({
+      name: badge.name,
+      icon_key: badge.icon_key,
+      color: badge.color,
+      year: badge.year ?? '',
+      category: badge.category,
+    });
+  };
+
+  const cancel = () => { setEditing(null); setDraft(null); setErr(''); };
+
+  const save = async () => {
+    if (!draft || !draft.name.trim()) return;
+    setErr('');
+    const payload = {
+      club_id: club.id,
+      name: draft.name.trim(),
+      icon_key: draft.icon_key,
+      color: draft.color,
+      year: draft.year === '' || draft.year == null ? null : parseInt(draft.year, 10),
+      category: draft.category,
+    };
+    if (editing === 'new') {
+      const { error } = await supabase.from('badges').insert(payload);
+      if (error) { setErr(error.message); return; }
+    } else {
+      const { error } = await supabase.from('badges').update(payload).eq('id', editing);
+      if (error) { setErr(error.message); return; }
+    }
+    cancel();
+    refresh();
+  };
+
+  const remove = async (badge) => {
+    const c = counts[badge.id] || 0;
+    const msg = c > 0
+      ? `Delete "${badge.name}"? ${c} member${c === 1 ? '' : 's'} currently hold this badge. Their assignment will be removed too.`
+      : `Delete "${badge.name}"?`;
+    if (!confirm(msg)) return;
+    setErr('');
+    const { error } = await supabase.from('badges').delete().eq('id', badge.id);
+    if (error) { setErr(error.message); return; }
+    refresh();
+  };
+
+  if (loading) {
+    return <p style={{ fontFamily: '"Lora",serif', color: G.muted }}>Loading…</p>;
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{
-        background: G.card,
-        border: `1px solid ${G.border}`,
-        borderRadius: 6,
-        padding: '14px 16px',
-      }}>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>
-          Badge Preview
-        </p>
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.5 }}>
-          This is the visual we're going with for the shield-shaped badges. The Add Badge form,
-          icon picker, color picker, and member assignment land in the next patches. React to
-          the shape, color depth, and typography first — easier to adjust before we wire the rest.
-        </p>
-      </div>
-
-      {/* Small size — the workhorse used in member directory + Trophy Case grid. */}
-      <div>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Small (64px) — directory + Trophy Case grid
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, justifyContent: 'flex-start' }}>
-          {PREVIEW_BADGES.map(b => (
-            <Badge key={b.name} iconKey={b.iconKey} color={b.color} name={b.name} year={b.year} size="small" />
-          ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {err && (
+        <div style={{ background: '#FCE8E8', border: `1px solid ${G.clsBg}`, borderRadius: 4, padding: '8px 12px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsBg, margin: 0 }}>{err}</p>
         </div>
-      </div>
+      )}
 
-      {/* Large — used on member profiles + badge detail. */}
-      <div>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Large (96px) — member profile + badge detail
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22 }}>
-          {PREVIEW_BADGES.slice(0, 3).map(b => (
-            <Badge key={`L-${b.name}`} iconKey={b.iconKey} color={b.color} name={b.name} year={b.year} size="large" />
-          ))}
+      {/* Quick add row — six pre-defined templates. Click any chip to
+          pre-fill the form. Hidden while a form is open so the focus
+          stays on the in-progress edit. */}
+      {!editing && (
+        <div>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Quick add — common club badges
+          </p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 10px', lineHeight: 1.5 }}>
+            Click a template to start. You can edit name, color, icon, and year before saving.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {BADGE_TEMPLATES.map(t => (
+              <button
+                key={t.name}
+                onClick={() => startNew(t)}
+                data-tap
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: G.card, border: `1px solid ${G.border}`, borderRadius: 4,
+                  padding: '6px 12px 6px 8px', cursor: 'pointer',
+                  fontFamily: '"Lora",serif', fontSize: 12, color: G.text,
+                }}
+              >
+                <Badge iconKey={t.iconKey} color={t.color} size="mini" />
+                {t.name}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => startNew(null)}
+            data-tap
+            style={{
+              marginTop: 14,
+              background: G.green, color: '#F2EDE0',
+              border: 'none', borderRadius: 4,
+              padding: '10px 18px', cursor: 'pointer',
+              fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 600,
+            }}
+          >
+            + Add custom badge
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* Mini — strip layout for membership card + message bubble row. */}
-      <div>
-        <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Mini (28px) — membership card row
-        </p>
+      {/* Inline form — shown for both new + edit. Live preview lives
+          inside the form so the manager sees the shield update as
+          they type. */}
+      {editing && draft && (
+        <BadgeForm
+          draft={draft}
+          setDraft={setDraft}
+          onSave={save}
+          onCancel={cancel}
+          isEdit={editing !== 'new'}
+        />
+      )}
+
+      {/* Existing badge library — collapsed while a form is open. */}
+      {!editing && (
+        <div>
+          <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {badges.length === 0 ? 'Badge library' : `Badge library (${badges.length})`}
+          </p>
+          {badges.length === 0 ? (
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>
+              No badges yet. Use a Quick add template above or create one from scratch.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {badges.map(b => (
+                <div key={b.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  background: G.card, border: `1px solid ${G.border}`, borderRadius: 6,
+                  padding: '12px 14px',
+                }}>
+                  <Badge iconKey={b.icon_key} color={b.color} size="mini" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>
+                      {b.name}{b.year ? ` · ${b.year}` : ''}
+                    </p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', textTransform: 'capitalize' }}>
+                      {b.category} · {counts[b.id] || 0} holder{(counts[b.id] || 0) === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <button onClick={() => startEdit(b)} data-tap style={{
+                    background: 'transparent', border: `1px solid ${G.border}`,
+                    borderRadius: 3, padding: '6px 12px', cursor: 'pointer',
+                    fontFamily: '"Lora",serif', fontSize: 12, color: G.text,
+                  }}>Edit</button>
+                  <button onClick={() => remove(b)} data-tap style={{
+                    background: 'transparent', border: `1px solid ${G.clsBg}`,
+                    borderRadius: 3, padding: '6px 10px', cursor: 'pointer',
+                    fontFamily: '"Lora",serif', fontSize: 12, color: G.clsBg,
+                  }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline form — used for both new + edit. Live shield preview on the
+// right so the manager can judge the visual as they tweak fields.
+function BadgeForm({ draft, setDraft, onSave, onCancel, isEdit }) {
+  const setField = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const yearNum = draft.year === '' || draft.year == null ? null : parseInt(draft.year, 10);
+  const previewYear = yearNum && !Number.isNaN(yearNum) && yearNum > 0 ? yearNum : null;
+
+  return (
+    <div style={{
+      background: G.card, border: `1px solid ${G.border}`, borderRadius: 6,
+      padding: '16px 18px',
+    }}>
+      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 14px' }}>
+        {isEdit ? 'Edit badge' : 'New badge'}
+      </p>
+
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {/* Form fields */}
+        <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <BadgeField label="Name">
+            <input
+              value={draft.name}
+              onChange={e => setField('name', e.target.value)}
+              placeholder="e.g. Club Champion"
+              style={badgeInputStyle}
+              autoFocus
+            />
+          </BadgeField>
+          <BadgeField label="Category">
+            <select
+              value={draft.category}
+              onChange={e => setField('category', e.target.value)}
+              style={badgeInputStyle}
+            >
+              {BADGE_CATEGORY_CHOICES.map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </BadgeField>
+          <BadgeField label="Year (optional)">
+            <input
+              type="number"
+              value={draft.year}
+              onChange={e => setField('year', e.target.value)}
+              placeholder="e.g. 2025"
+              style={badgeInputStyle}
+            />
+          </BadgeField>
+          <BadgeField label="Color">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+              {BADGE_COLOR_SWATCHES.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setField('color', c)}
+                  aria-label={c}
+                  type="button"
+                  style={{
+                    width: 26, height: 26, borderRadius: 4,
+                    background: c, cursor: 'pointer', padding: 0,
+                    border: c.toLowerCase() === (draft.color || '').toLowerCase()
+                      ? `2px solid ${G.text}`
+                      : `1px solid ${G.border}`,
+                  }}
+                />
+              ))}
+              <input
+                type="color"
+                value={draft.color}
+                onChange={e => setField('color', e.target.value)}
+                title="Custom color"
+                style={{ width: 26, height: 26, padding: 0, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer', background: 'transparent' }}
+              />
+            </div>
+          </BadgeField>
+          <BadgeField label="Icon">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
+              {BADGE_ICON_CHOICES.map(name => {
+                const I = LucideIcons[name];
+                if (!I) return null;
+                const selected = name === draft.icon_key;
+                return (
+                  <button
+                    key={name}
+                    onClick={() => setField('icon_key', name)}
+                    aria-label={name}
+                    title={name}
+                    type="button"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      height: 34, borderRadius: 4,
+                      background: selected ? G.green : G.bg,
+                      color: selected ? '#F2EDE0' : G.text,
+                      border: selected ? `1.5px solid ${G.brass}` : `1px solid ${G.border}`,
+                      cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    <I size={16} />
+                  </button>
+                );
+              })}
+            </div>
+          </BadgeField>
+        </div>
+
+        {/* Live large-shield preview. Sticks to the right so the
+            manager can judge the visual as they edit on the left. */}
         <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          background: G.green,
-          padding: '10px 14px',
-          borderRadius: 6,
+          flex: '0 0 auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 10, padding: '14px 18px',
+          background: G.bg, border: `1px solid ${G.border}`, borderRadius: 6,
+          minWidth: 150,
         }}>
-          {PREVIEW_BADGES.map(b => (
-            <Badge key={`M-${b.name}`} iconKey={b.iconKey} color={b.color} size="mini" />
-          ))}
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Preview
+          </p>
+          <Badge
+            iconKey={draft.icon_key}
+            color={draft.color}
+            name={draft.name || 'Badge name'}
+            year={previewYear}
+            size="large"
+          />
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>
-          Green background mocks the actual card surface so you can judge contrast.
-        </p>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+        <button onClick={onCancel} data-tap type="button" style={{
+          background: 'transparent', border: `1px solid ${G.border}`,
+          borderRadius: 4, padding: '8px 16px', cursor: 'pointer',
+          fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
+        }}>Cancel</button>
+        <button
+          onClick={onSave}
+          disabled={!draft.name.trim()}
+          data-tap
+          type="button"
+          style={{
+            background: draft.name.trim() ? G.green : G.muted, color: '#F2EDE0',
+            border: 'none', borderRadius: 4,
+            padding: '8px 18px',
+            cursor: draft.name.trim() ? 'pointer' : 'not-allowed',
+            fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 600,
+          }}
+        >
+          {isEdit ? 'Save changes' : 'Create badge'}
+        </button>
       </div>
     </div>
+  );
+}
+
+const badgeInputStyle = {
+  fontFamily: '"Lora",serif',
+  fontSize: 13,
+  padding: '8px 10px',
+  borderRadius: 4,
+  border: `1px solid ${G.border}`,
+  background: '#fff',
+  width: '100%',
+  boxSizing: 'border-box',
+};
+
+function BadgeField({ label, children }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+      {children}
+    </label>
   );
 }
 

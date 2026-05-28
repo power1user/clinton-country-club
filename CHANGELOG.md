@@ -25,6 +25,36 @@ v0.9.0 rename → 0.9.1 Member Guide CRUD → 0.9.2 Club Status move
 → 0.9.3 Partner Board redesign → 0.9.4 Communications scaffold →
 0.9.5–6 sub-queues → 0.9.7 cleanup + README refresh.
 
+- **v0.9.22** — Phase 10: Badges admin CRUD lands.
+
+  Migration 55 (badges + member_badges tables) applied earlier;
+  this patch wires up the admin UI. Admin → People → Badges now
+  has the full library: Quick add row with six pre-defined
+  templates (Club Champion / Member-Guest / Hole In One / Senior
+  Champion / Most Improved / 25-Year Member), an Add Custom Badge
+  flow, and an inline form with live large-shield preview.
+
+  Form fields:
+    · Name (free text)
+    · Category (Championship / Recognition / Membership)
+    · Year (optional integer)
+    · Color (eight club-themed swatches + native picker)
+    · Icon (curated 24-icon Lucide grid: Trophy, Award, Medal,
+      Crown, Star, Flag, Target, Compass, Sun, TreePine, Mountain,
+      Users, Heart, Coffee, Wine, Gem, plus 8 more)
+
+  Existing badges render as a list with mini-shield previews, name,
+  category, holder count, and Edit + Delete buttons. Delete confirm
+  surfaces the holder count so the manager knows the blast radius;
+  the FK cascade removes member_badges rows automatically.
+
+  Realtime subscription on badges + member_badges keeps the library
+  + holder counts live for every staff session.
+
+  Member assignment (writing to member_badges from each member's
+  detail panel) and the member-facing surfaces (membership card,
+  directory, profile) land in v0.9.23 + the v0.10.0 wrap.
+
 - **v0.9.21** — Phase 10 preview: shield-shaped badge visual in
   Admin → People → Badges. Visual review only ahead of the actual
   v0.10.0 schema landing.
