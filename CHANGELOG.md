@@ -44,6 +44,50 @@ v0.9.21 preview → v0.9.22 admin CRUD → v0.9.23 member assignment
 Trophy Case → v0.10.2 sponsor placement + add-on gating → v0.10.3
 My Events RSVP history.
 
+---
+
+## v0.11.x — Phase 11: Calendar, News, Menu, Push polish
+
+An operational-quality pass across the surfaces members touch
+daily. Better discoverability for the calendar (visible date
+overrides, more entry points, category filters), real action
+links on news articles (replacing the v0.10.x bug where the
+"Related" card looked tappable but did nothing), drag-and-drop
+menu reordering, push notifications that actually identify the
+sender, and a new `user_preferences` table as a generic
+key-value store for member settings.
+
+Shipping plan: v0.10.4 news action links → v0.10.5 calendar
+overrides → v0.10.6 calendar entry points → v0.10.7 filter
+pills + user_preferences → v0.10.8 menu drag-and-drop →
+v0.10.9 push sender identity → **v0.11.0** README refresh +
+Phase 11 wrap.
+
+- **v0.10.4** — Phase 11: contextual action links on news (+
+  fixes the dead "View the Dining Menu" link).
+
+  Replaces the v0.10.3-era hardcoded "Related" card in
+  `NewsDetail` — three text-only divs with `cursor: pointer`
+  but **no onClick handlers** (a real bug; tapping looked
+  like nothing happened). Now driven by a generic mapping:
+
+  · `src/lib/newsActionLinks.js` — case-insensitive category →
+    `{label, route}` map. Initial entries: Dining → food menu,
+    Events → calendar, Course → pin placements, Golf → course
+    conditions, ProShop → pro shop.
+  · `NewsDetail` renders a single outlined action button below
+    the article body using the mapped label + actual `push()`
+    navigation. Categories without a mapping (e.g. "Club"
+    general announcements) render nothing — no "Related"
+    header, no empty space.
+  · Home news feed cards get the same action link in a smaller
+    inline-link style below the body preview. `stopPropagation`
+    keeps the link from triggering the card's own tap-to-detail
+    behavior.
+
+  Adding a new category mapping is a one-line edit in
+  `newsActionLinks.js` — no per-category code anywhere else.
+
 - **v0.10.3** — Phase 10: My Events RSVP history.
 
   Personal RSVP history surface for the signed-in member.

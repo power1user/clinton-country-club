@@ -9,6 +9,7 @@ import { useClubStatus, useEvents, useNews, usePaceOfPlay, useWeather, useNow, f
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { guestCanSee } from '../lib/guestAccess.js';
+import { getNewsActionLink } from '../lib/newsActionLinks.js';
 
 // Today in YYYY-MM-DD (local). Same shape Events.jsx uses for
 // matching against event.eventDate.
@@ -257,7 +258,15 @@ export default function Home() {
             <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0 }}>Club News</h2>
             <span style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted }}>&amp; Announcements</span>
           </div>
-          {newsList.map((item, i) => (
+          {newsList.map((item, i) => {
+            // v0.10.4 — contextual action link per category. Renders
+            // a subtle inline link below the body preview only when
+            // the category has a mapping in newsActionLinks.js.
+            // stopPropagation on the link keeps the card's own
+            // onClick (navigate to detail) from firing when the
+            // action is tapped.
+            const action = getNewsActionLink(item.cat || item.category);
+            return (
             <Fragment key={item.id}>
               <div
                 onClick={() => push('home/news', { news: item })}
@@ -271,6 +280,24 @@ export default function Home() {
                 </div>
                 <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '0 0 5px', lineHeight: 1.3 }}>{item.head}</h3>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: 0 }}>{item.body.slice(0, 100)}…</p>
+                {action && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); push(action.route); }}
+                    data-tap
+                    style={{
+                      display: 'inline-block',
+                      marginTop: 8,
+                      fontFamily: '"Lora",serif',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: G.brass,
+                      letterSpacing: '0.02em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {action.label} →
+                  </span>
+                )}
               </div>
               {/* v0.10.2 — sponsor banner injection. Renders after the
                   2nd post (i === 1). If there are fewer than 2 posts,
@@ -282,7 +309,8 @@ export default function Home() {
                 <SponsorBanner location="home_feed" style={{ marginBottom: 14 }} />
               )}
             </Fragment>
-          ))}
+            );
+          })}
         </div>
         )}
       </div>
