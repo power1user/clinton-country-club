@@ -62,6 +62,9 @@ export default function MyClub() {
   const actions = [
     { id: 'message-clubhouse', label: 'Message Clubhouse', sub: 'Questions · Requests',       icon: <><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/card',       label: 'Membership Card',   sub: 'Digital · QR code',          icon: <><rect x="3" y="5" width="14" height="10" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M6 10h6M6 8h6" strokeWidth="1.3" fill="none"/></> },
+    // v0.10.3 — My Events: personal RSVP history (Upcoming + Past).
+    // Sits next to Membership Card because both are "your stuff."
+    { id: 'myclub/events',     label: 'My Events',         sub: 'Upcoming · Past RSVPs',      icon: <><rect x="3" y="5" width="14" height="11" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M3 9h14M7 3v4M13 3v4" strokeWidth="1.3" fill="none"/></> },
     proShopOn && { id: 'myclub/proshop',    label: 'Pro Shop',          sub: 'Specials · Equipment',       icon: <><path d="M12 3L2 8l2 13h16l2-13-10-5z" strokeWidth="1.3" fill="none"/><circle cx="12" cy="13" r="3" strokeWidth="1.3" fill="none"/></> },
     lessonsOn && { id: 'myclub/lessons',    label: 'Book a Lesson',     sub: 'PGA pros on staff',          icon: <><circle cx="8" cy="12" r="3" strokeWidth="1.3" fill="none"/><path d="M8 9V3m0 0l4 2" strokeWidth="1.3" fill="none"/></> },
     { id: 'myclub/onboarding', label: 'Member Guide',      sub: 'Rules · Facilities · FAQs',  icon: <><rect x="4" y="2" width="12" height="16" rx="1.5" strokeWidth="1.3" fill="none"/><path d="M8 7h6M8 10h6M8 13h4" strokeWidth="1.3" fill="none"/></> },

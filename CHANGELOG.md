@@ -44,6 +44,49 @@ v0.9.21 preview → v0.9.22 admin CRUD → v0.9.23 member assignment
 Trophy Case → v0.10.2 sponsor placement + add-on gating → v0.10.3
 My Events RSVP history.
 
+- **v0.10.3** — Phase 10: My Events RSVP history.
+
+  Personal RSVP history surface for the signed-in member.
+  Reachable from a new **My Events** action tile on MyClub
+  (next to Membership Card — both are "your stuff" surfaces).
+
+  **Screen layout** (`myclub/events`):
+  · **Upcoming** — events on or after today where status is
+    `registered` or `waitlist`. Sorted ascending so the nearest
+    event tops the list. Each row: title + date chip + time +
+    category chip + RSVP status pill (green Registered / amber
+    Waitlisted) + a spots-remaining indicator pulled live from
+    the event's `spots` field minus current non-cancelled
+    registrations (renders as "Spots available: N" / "Filling
+    up" when ≤25% remain / "Full" when exhausted).
+  · **Past** — events whose date has passed plus any cancelled
+    registrations. Default window: last 90 days, with a "Show
+    older events" button revealing the full history. Cancelled
+    rows render muted with a strike-through title and a
+    "Cancelled" chip.
+
+  Tapping any row navigates to the existing `community/event`
+  detail screen — same destination calendar uses, hydrated with
+  the camelCase keys EventDetail expects.
+
+  **Empty states:**
+  · Upcoming: *"You have no upcoming events. Browse the
+    calendar to find something."* with an Open Calendar CTA.
+  · Past: *"No past events yet."*
+
+  **Realtime:** subscription on `event_registrations` filtered
+  by `member_id` so admin-side status changes (registered ↔
+  waitlist, cancellations) and re-RSVPs from another tab appear
+  here within seconds — no refresh.
+
+  UI-only. No schema changes — reads from existing
+  `event_registrations` + `events` tables, both already scoped
+  by `club_id` and RLS.
+
+  This wraps Phase 10's staged shipping plan: v0.9.21–23
+  preview/CRUD/assignment → v0.10.0 surfaces → v0.10.1 Trophy
+  Case → v0.10.2 sponsor add-on → **v0.10.3** RSVP history.
+
 - **v0.10.2** — Phase 10: Sponsor banner placement + add-on gating.
 
   **Two new banner placements:**

@@ -37,6 +37,7 @@ import BulletinBoard from './screens/BulletinBoard.jsx';
 import TrophyCase from './screens/TrophyCase.jsx';
 import MyClub from './screens/MyClub.jsx';
 import MemberCard from './screens/MemberCard.jsx';
+import MyEvents from './screens/MyEvents.jsx';
 import ProShop from './screens/ProShop.jsx';
 import MyInquiries from './screens/MyInquiries.jsx';
 import LessonRequest from './screens/LessonRequest.jsx';
@@ -71,6 +72,7 @@ const SCREENS = {
   'community/trophy-case': TrophyCase,
   myclub: MyClub,
   'myclub/card': MemberCard,
+  'myclub/events': MyEvents,
   'myclub/guest-qr': MemberGuestQR,
   'myclub/proshop': ProShop,
   'myclub/proshop/inquiries': MyInquiries,
