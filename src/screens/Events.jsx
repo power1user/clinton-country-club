@@ -51,12 +51,36 @@ export default function Events() {
   const bulletinOn = useFlag('bulletin_board');
   const directoryOn = useFlag('member_directory');
   const calendarOn = useFlag('events_calendar');
+  const trophyCaseOn = useFlag('trophy_case');
 
   // Live previews — these all use the same realtime hooks the
   // destination screens use, so the count on the card is exactly
   // what the member will see when they tap into the card.
   const { data: events } = useEvents();
   const { data: bulletinPosts } = useBulletinPosts();
+
+  // v0.10.1 — Trophy Case live preview: count of badges in the
+  // club library so the card shows "12 honors" or similar. Cheap
+  // count query, realtime so a manager creating badges sees the
+  // card preview update live.
+  const [trophyCount, setTrophyCount] = useState(null);
+  useEffect(() => {
+    if (!isConfigured || !club || !trophyCaseOn) return;
+    let cancelled = false;
+    const load = async () => {
+      const { count } = await supabase
+        .from('badges')
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', club.id);
+      if (!cancelled && typeof count === 'number') setTrophyCount(count);
+    };
+    load();
+    const channel = supabase
+      .channel(`community_badge_count:${club.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'badges', filter: `club_id=eq.${club.id}` }, () => load())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [club?.id, trophyCaseOn]);
 
   // Member count for the directory card. Lightweight count query —
   // refreshed when the members table changes (publication added in
@@ -130,6 +154,27 @@ export default function Events() {
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="5" width="18" height="16" rx="1.5" />
           <path d="M3 9h18M8 3v4M16 3v4" />
+        </svg>
+      ),
+    },
+    // v0.10.1 — Trophy Case card. Label uses the club's custom name
+    // (clubs.trophy_case_name) when set; otherwise "Trophy Case".
+    trophyCaseOn && {
+      id: 'trophycase',
+      route: 'community/trophy-case',
+      label: club?.trophy_case_name || 'Trophy Case',
+      desc: 'Browse club honors + see your own badges',
+      preview: trophyCount == null ? null
+        : trophyCount === 0 ? 'No honors yet'
+        : `${trophyCount} honor${trophyCount === 1 ? '' : 's'} on display`,
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          {/* Trophy silhouette — cup with handles + base. */}
+          <path d="M8 21h8" />
+          <path d="M12 17v4" />
+          <path d="M7 4h10v5a5 5 0 01-10 0V4z" />
+          <path d="M17 5h2a2 2 0 010 4h-1" />
+          <path d="M7 5H5a2 2 0 000 4h1" />
         </svg>
       ),
     },

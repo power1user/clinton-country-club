@@ -155,6 +155,14 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Community',
   },
+  trophy_case: {
+    key:             'trophy_case',
+    label:           'Trophy Case',
+    description:     'Dedicated screen on the Community tab showing all club badges by category + the current member\'s own awards. Section name is configurable per club from Club Settings.',
+    min_tier:        'basic',
+    default_enabled: true,
+    category:        'Community',
+  },
 
   // ─── Messaging ─────────────────────────────────────────────────────
   dms: {

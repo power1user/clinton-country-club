@@ -34,6 +34,7 @@ import EventsCalendar from './screens/EventsCalendar.jsx';
 import EventsUpcoming from './screens/EventsUpcoming.jsx';
 import EventDetail from './screens/EventDetail.jsx';
 import BulletinBoard from './screens/BulletinBoard.jsx';
+import TrophyCase from './screens/TrophyCase.jsx';
 import MyClub from './screens/MyClub.jsx';
 import MemberCard from './screens/MemberCard.jsx';
 import ProShop from './screens/ProShop.jsx';
@@ -67,6 +68,7 @@ const SCREENS = {
   'community/upcoming': EventsUpcoming,
   'community/event': EventDetail,
   'community/bulletin': BulletinBoard,
+  'community/trophy-case': TrophyCase,
   myclub: MyClub,
   'myclub/card': MemberCard,
   'myclub/guest-qr': MemberGuestQR,

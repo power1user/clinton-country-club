@@ -1044,6 +1044,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
     subscription_tier: 'basic',
     feature_flags: {},
     pending_member_access: 'read_only',
+    trophy_case_name: '',
   });
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -1082,13 +1083,14 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       subscription_tier: club.subscription_tier || 'basic',
       feature_flags:     club.feature_flags     || {},
       pending_member_access: club.pending_member_access || 'read_only',
+      trophy_case_name:  club.trophy_case_name  || '',
     });
   }, [club?.id, club?.tagline, club?.contact_email, club?.contact_phone, club?.address,
       club?.city, club?.state, club?.founded, club?.par, club?.yardage, club?.holes,
       club?.lat, club?.lng, club?.timezone,
       club?.primary_color, club?.secondary_color, club?.accent_color,
       club?.logo_url, club?.hero_image_url, club?.subscription_tier,
-      club?.feature_flags, club?.pending_member_access]);
+      club?.feature_flags, club?.pending_member_access, club?.trophy_case_name]);
 
   const set = (k, v) => { dirty.current = true; setForm(p => ({ ...p, [k]: v })); };
 
@@ -1134,6 +1136,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       logo_url:          form.logo_url.trim()       || null,
       hero_image_url:    form.hero_image_url.trim() || null,
       pending_member_access: form.pending_member_access || 'read_only',
+      trophy_case_name:  form.trophy_case_name.trim() || null,
     };
     // subscription_tier is only writable by super_admin (DB trigger
     // enforces the same — defense in depth).
@@ -1181,6 +1184,23 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
       <div style={{ marginBottom: 12 }}>
         <label style={labelStyle}>Tagline (shown on sign-in screen)</label>
         <input value={form.tagline} onChange={e => set('tagline', e.target.value)} placeholder="Country club golf since 1921" style={inputStyle} />
+      </div>
+      {/* v0.10.1 — Trophy Case rename. Some clubs prefer "Hall of
+          Honors" or "Wall of Champions" etc.; this lets them swap
+          the label everywhere it appears (Community tab card, screen
+          header, breadcrumbs). Empty input falls back to the default
+          "Trophy Case" string. */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>Trophy Case display name (optional)</label>
+        <input
+          value={form.trophy_case_name}
+          onChange={e => set('trophy_case_name', e.target.value)}
+          placeholder="Trophy Case"
+          style={inputStyle}
+        />
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.muted, margin: '4px 0 0' }}>
+          Used wherever the Trophy Case section appears (Community tab, screen header). Leave blank to use "Trophy Case".
+        </p>
       </div>
 
       {/* Logo */}

@@ -44,6 +44,38 @@ v0.9.21 preview → v0.9.22 admin CRUD → v0.9.23 member assignment
 Trophy Case → v0.10.2 sponsor placement + add-on gating → v0.10.3
 My Events RSVP history.
 
+- **v0.10.1** — Phase 10: Trophy Case lands on the Community tab.
+
+  New member-facing screen at `community/trophy-case`, accessible
+  via a new card on the Community hub. Two sections stacked:
+
+  · **Club Honors** — deep-green felt-board panel, cream/gold
+    typography. Every badge in the club library grouped by category
+    (Championships → Recognition → Membership). Empty categories
+    skipped. Each shield shows name, year, holder count.
+
+  · **My Badges** — the current member's own awards on a lighter
+    background. Empty state for members who don't have any yet:
+    *"No badges yet — get out on the course."*
+
+  Tapping any shield opens a bottom-sheet detail with the large
+  badge, name/category/year header, and the full holder list with
+  avatars + names + award dates. If the viewer holds this badge
+  themselves, a green callout shows their own award date front-
+  and-center.
+
+  **Custom name:** new `clubs.trophy_case_name` column (migration
+  56). Manager edits it from Club Settings → Brand Identity. Empty
+  → renders as "Trophy Case" everywhere it appears (Community card,
+  screen header, breadcrumbs).
+
+  **Feature flag:** `trophy_case` (Community category, basic tier,
+  default on). Manager can disable from Club Features; super_admin
+  can pin via the standard `feature_flags_locked` mechanism.
+
+  Realtime on both badges + member_badges so freshly-created
+  badges and awards appear in the case within seconds.
+
 - **v0.10.0** — Phase 10: badges surface on member-facing screens.
 
   Member-facing surfaces light up across the app:
