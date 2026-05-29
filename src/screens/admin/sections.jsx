@@ -635,9 +635,12 @@ export function FoodOrdersAdmin() {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
+      // v0.10.15 — also pulls order_type + requested_pickup_time so
+      // the queue row can render the Delivery/To-Go chip and the
+      // pickup time without an extra round-trip.
       const { data } = await supabase
         .from('food_orders')
-        .select('id, status, items, subtotal, hole, location_note, created_at, member_id, members(name, membership_number)')
+        .select('id, status, items, subtotal, hole, location_note, order_type, requested_pickup_time, created_at, member_id, members(name, membership_number)')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -654,15 +657,59 @@ export function FoodOrdersAdmin() {
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
-  const setStatus = async (id, status) => {
-    await supabase.from('food_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+  // v0.10.15 — Status updater. For to_go orders flipping to
+  // 'ready_for_pickup' we also post a message into the order's
+  // auto-thread so the existing send-push function fires a push
+  // notification. The thread is linked via threads.context_table +
+  // context_id so we look it up by (order id, 'food_orders').
+  const setStatus = async (row, status) => {
+    await supabase.from('food_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', row.id);
+    if (row.order_type === 'to_go' && status === 'ready_for_pickup') {
+      try {
+        const { data: thread } = await supabase
+          .from('threads')
+          .select('id, created_by')
+          .eq('context_table', 'food_orders')
+          .eq('context_id', row.id)
+          .maybeSingle();
+        if (thread?.id) {
+          await supabase.from('messages').insert({
+            thread_id: thread.id,
+            sender_user_id: thread.created_by,
+            body: 'Your order is ready. Please pick up at the clubhouse.',
+          });
+        }
+        // If no thread is found we silently no-op — the status flip
+        // still happened. Push is the secondary signal; the order
+        // queue is the source of truth.
+      } catch (_) { /* tolerate failure — status update is what matters */ }
+    }
   };
 
-  const STATUS_OPTIONS = ['pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
-  const STATUS_COLORS = { pending: G.brass, preparing: G.limBg, out_for_delivery: G.openBg, delivered: G.muted, cancelled: G.clsBg };
-  const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'out_for_delivery']);
+  // v0.10.15 — status options now branch by order_type. Delivery
+  // orders use the existing pending → preparing → out_for_delivery
+  // → delivered flow. To-Go orders use pending → preparing →
+  // ready_for_pickup → delivered. cancelled is always available.
+  const DELIVERY_STATUSES = ['pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+  const TOGO_STATUSES     = ['pending', 'preparing', 'ready_for_pickup', 'delivered', 'cancelled'];
+  const STATUS_COLORS = {
+    pending: G.brass,
+    preparing: G.limBg,
+    out_for_delivery: G.openBg,
+    ready_for_pickup: G.openBg,
+    delivered: G.muted,
+    cancelled: G.clsBg,
+  };
+  const ACTIVE_STATUSES = new Set(['pending', 'preparing', 'out_for_delivery', 'ready_for_pickup']);
   const visibleRows = showCompleted ? rows : rows.filter(r => ACTIVE_STATUSES.has(r.status));
   const hiddenCount = rows.length - visibleRows.length;
+
+  const fmtPickupTime = (iso) => {
+    if (!iso) return 'ASAP';
+    try {
+      return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    } catch { return iso; }
+  };
 
   return (
     <div>
@@ -689,7 +736,27 @@ export function FoodOrdersAdmin() {
           </p>
         </div>
       )}
-      {visibleRows.map(r => (
+      {visibleRows.map(r => {
+        const isToGo = r.order_type === 'to_go';
+        const statusOptions = isToGo ? TOGO_STATUSES : DELIVERY_STATUSES;
+        // v0.10.15 — prominent Delivery / To-Go chip with the
+        // relevant secondary line (hole vs pickup time) so kitchen
+        // staff can stage orders without tapping into the row.
+        const orderTypeChip = (
+          <span style={{
+            fontFamily: '"Lora",serif', fontSize: 9,
+            color: '#F2E5C0',
+            background: isToGo ? G.brass : G.green,
+            padding: '2px 8px', borderRadius: 2,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            fontWeight: 700,
+          }}>
+            {isToGo
+              ? `TO-GO · ${fmtPickupTime(r.requested_pickup_time)}`
+              : `DELIVERY · ${r.hole != null ? `Hole ${r.hole}` : 'no hole'}`}
+          </span>
+        );
+        return (
         <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>
@@ -697,8 +764,14 @@ export function FoodOrdersAdmin() {
             </p>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.status?.replace(/_/g, ' ')}</span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+            {orderTypeChip}
+            {r.location_note && (
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontStyle: 'italic', color: G.muted }}>"{r.location_note}"</span>
+            )}
+          </div>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px' }}>
-            {new Date(r.created_at).toLocaleString()} · {r.hole != null ? `Hole ${r.hole}` : (r.location_note || 'No location')}
+            Placed {new Date(r.created_at).toLocaleString()}
           </p>
           {Array.isArray(r.items) && r.items.length > 0 && (
             <ul style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0', paddingLeft: 18 }}>
@@ -712,14 +785,15 @@ export function FoodOrdersAdmin() {
           )}
           <select
             value={r.status}
-            onChange={e => setStatus(r.id, e.target.value)}
+            onChange={e => setStatus(r, e.target.value)}
             disabled={!canEdit}
             style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
           >
-            {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+            {statusOptions.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

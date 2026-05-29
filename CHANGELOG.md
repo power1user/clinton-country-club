@@ -71,6 +71,55 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.15** — Food orders: To-Go option + Ready-for-Pickup status.
+
+  **Migration 59** adds two columns to `food_orders`:
+  · `order_type` ∈ {`delivery`, `to_go`} (CHECK constraint, default
+    `delivery` so historical rows keep their semantics)
+  · `requested_pickup_time` timestamptz nullable (to_go only;
+    `NULL` = ASAP)
+
+  **Member flow** (`CourseOrder.jsx`):
+  · New delivery-method picker between Your Order and the
+    location/time fields. Two stacked tap targets: "Deliver to me
+    on the course" + "Pick up at the clubhouse (To-Go)".
+  · Delivery branch unchanged — hole picker required.
+  · To-Go branch — pickup-time pill row (ASAP + the next 16
+    quarter-hour slots starting from `now + 30min` rounded up).
+    Pickup time is optional; blank means ASAP.
+  · Submit button validation: delivery requires a hole, to_go has
+    no required fields.
+  · Bottom info card swaps copy: "Staff will bring it to your hole"
+    vs "You'll get a push notification when your order is ready."
+
+  **Confirmation** (`OrderConfirm.jsx`) — `order_type`-aware. Shows
+  pickup time + clubhouse for to_go, delivery + hole for delivery.
+
+  **Kitchen queue** (`FoodOrdersAdmin`):
+  · New prominent chip per row — green **DELIVERY · Hole N** or
+    brass **TO-GO · 1:45 PM** (or "ASAP"). Kitchen staff can stage
+    orders without tapping into each one.
+  · Status select now branches by order_type. To-Go orders see
+    `pending → preparing → ready_for_pickup → delivered`; delivery
+    orders keep `pending → preparing → out_for_delivery →
+    delivered`. `cancelled` available on both. `ready_for_pickup`
+    joins the ACTIVE filter so it doesn't get hidden when
+    "active only" is on.
+
+  **Push on Ready for Pickup** — when staff flip a to_go order to
+  `ready_for_pickup`, the admin handler also inserts a system
+  message *"Your order is ready. Please pick up at the
+  clubhouse."* into the order's auto-thread (linked via
+  `threads.context_table='food_orders'` + `context_id=<order.id>`).
+  The existing `messages` INSERT trigger fires `send-push v6`,
+  which renders the notification as **"`<Club>` · Your order
+  update"** with the body preview — same path every other order
+  status update uses. Missing-thread case is tolerated so the
+  status flip always succeeds even if the thread lookup fails.
+
+  No new dependencies. Backwards-compatible — existing delivery
+  orders behave identically.
+
 - **v0.10.14** — Support access for members + Club Manager Support.
 
   **New member-facing Support screen** at `myclub/support`,
