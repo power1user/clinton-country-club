@@ -71,6 +71,45 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.12** — Safety net: manual subdomain health check.
+
+  Diagnosis from the Windhaven outage: the new-club create flow
+  already calls `provision-club-domain` automatically (sections.jsx
+  line 3586), but the Cloudflare API credentials were never added
+  to the Supabase Edge Function secrets — so the call returns
+  *"Cloudflare automation not configured"* and the new club ends
+  up DB-only with no DNS. Clinton + Oakgrove were patched manually
+  via the Cloudflare dashboard; Windhaven was forgotten in that
+  manual process and sat broken.
+
+  Adds a defensive layer so the next orphan club gets caught
+  before a member ever hits a broken hostname:
+
+  · **New Edge Function `check-club-health`** (v1) — pings every
+    club's hostname server-side (browser CORS blocks reading the
+    `cf-ray` header on cross-origin requests), returns per-club
+    `{reachable, status, cloudflare, dns_error, latency_ms}`.
+  · **New "Run health check" button** at the top of
+    Platform → Provisioning Log. One click pings everything.
+  · **Result table** with three states per club: `OK` (reachable +
+    Cloudflare-proxied), `DNS ONLY` (reachable but no `cf-ray` —
+    DNS-only setup loses TLS termination + DDoS protection), and
+    `BROKEN` (unreachable, with DNS-not-found called out
+    explicitly).
+  · **"Re-provision" CTA** on broken rows — invokes
+    `provision-club-domain` for that slug and re-runs the health
+    check 1.5s later so the row turns green without a refresh.
+
+  Manual rather than scheduled at this scale. When the platform
+  hits ~20 clubs, easy to flip to a daily auto-trigger by adding
+  a Supabase scheduled function call — no UI changes needed.
+
+  **Still required on your side:** add `CLOUDFLARE_API_TOKEN`
+  and `CLOUDFLARE_ACCOUNT_ID` to Supabase Edge Function secrets,
+  otherwise the underlying auto-provisioning still fails. The
+  health check + Re-provision button surface the problem; they
+  can't fix the underlying credential gap.
+
 - **v0.10.11** — Bug fix: Course Map + Pin Placement empty states.
 
   Audit found Oakgrove + Windhaven had **zero rows** in the

@@ -4473,6 +4473,49 @@ export function ProvisionLogAdmin() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [filterFailed, setFilterFailed] = useState(false);
+  // v0.10.12 — manual subdomain health check across every club.
+  // Surfaces orphan clubs (DB row exists, DNS never wired) before a
+  // member ever hits the broken hostname.
+  const [healthRunning, setHealthRunning] = useState(false);
+  const [healthResults, setHealthResults] = useState(null);   // array | null
+  const [healthErr, setHealthErr] = useState(null);
+  const [reprovisioning, setReprovisioning] = useState(null); // slug being re-provisioned
+
+  const runHealthCheck = async () => {
+    setHealthRunning(true); setHealthErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('check-club-health', { body: {} });
+      if (error) { setHealthErr(error.message || 'Edge function error'); }
+      else if (!data?.ok) { setHealthErr(data?.error || 'Health check failed'); }
+      else { setHealthResults(data.results || []); }
+    } catch (e) {
+      setHealthErr(e.message || 'Network error');
+    } finally {
+      setHealthRunning(false);
+    }
+  };
+
+  const reprovision = async (slug, clubId) => {
+    if (!slug) return;
+    setReprovisioning(slug); setHealthErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('provision-club-domain', { body: { slug, club_id: clubId } });
+      if (error) { setHealthErr(error.message || 'Re-provision failed'); }
+      else if (!data?.ok) { setHealthErr(data?.error || 'Re-provision failed'); }
+      else {
+        // Re-run the health check after a successful provision so
+        // the row turns green without a page refresh. Cloudflare can
+        // take a few seconds to propagate; the realtime log
+        // subscription will surface the attempt in the audit list
+        // either way.
+        setTimeout(() => runHealthCheck(), 1500);
+      }
+    } catch (e) {
+      setHealthErr(e.message || 'Network error');
+    } finally {
+      setReprovisioning(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -4513,11 +4556,109 @@ export function ProvisionLogAdmin() {
         Audit log of every Cloudflare Pages Custom Domain provision attempt. Written server-side by the provision-club-domain Edge Function — immutable. Tap any row to see the raw Cloudflare API response.
       </p>
 
+      {/* v0.10.12 — Manual health check across every club. Catches
+          orphan clubs whose subdomain was never provisioned (DB row
+          exists, DNS NXDOMAIN) before members hit the broken host. */}
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: healthResults ? 12 : 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>
+              Subdomain health
+            </p>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+              Pings every club's hostname. Flags unreachable subdomains + clubs whose DNS isn't proxied through Cloudflare.
+            </p>
+          </div>
+          <button
+            onClick={runHealthCheck}
+            disabled={healthRunning}
+            data-tap
+            type="button"
+            style={{
+              flexShrink: 0,
+              background: healthRunning ? G.muted : G.green,
+              color: '#F2EDE0',
+              border: 'none', borderRadius: 4,
+              padding: '8px 14px', cursor: healthRunning ? 'wait' : 'pointer',
+              fontFamily: '"Playfair Display",serif', fontSize: 12, fontWeight: 600,
+            }}
+          >
+            {healthRunning ? 'Checking…' : 'Run health check'}
+          </button>
+        </div>
+
+        {healthErr && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsBg, margin: '8px 0 0' }}>{healthErr}</p>
+        )}
+
+        {healthResults && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {healthResults.length === 0 && (
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No clubs configured.</p>
+            )}
+            {healthResults.map(r => {
+              const healthy = r.reachable && r.cloudflare;
+              const dnsOnly = r.reachable && !r.cloudflare;
+              const broken  = !r.reachable;
+              const badgeBg  = healthy ? G.openBg : dnsOnly ? G.brass : G.clsBg;
+              const badgeText = healthy ? 'OK' : dnsOnly ? 'DNS ONLY' : 'BROKEN';
+              return (
+                <div key={r.slug} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 11px',
+                  background: G.bg, borderRadius: 3,
+                  border: `1px solid ${G.border}`,
+                }}>
+                  <span style={{
+                    fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0',
+                    background: badgeBg, padding: '2px 7px', borderRadius: 2,
+                    textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700,
+                    flexShrink: 0,
+                  }}>{badgeText}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>
+                      {r.club_name || r.slug}
+                    </p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.hostname}
+                      {r.status != null && ` · ${r.status}`}
+                      {r.latency_ms != null && ` · ${r.latency_ms}ms`}
+                      {broken && r.dns_error && ' · DNS not found'}
+                      {broken && !r.dns_error && r.error && ` · ${r.error}`}
+                    </p>
+                  </div>
+                  {broken && (
+                    <button
+                      onClick={() => reprovision(r.slug, r.club_id)}
+                      disabled={reprovisioning === r.slug}
+                      data-tap
+                      type="button"
+                      style={{
+                        flexShrink: 0,
+                        background: reprovisioning === r.slug ? G.muted : 'transparent',
+                        color: G.brass,
+                        border: `1px solid ${G.brass}`,
+                        borderRadius: 3,
+                        padding: '5px 11px',
+                        cursor: reprovisioning === r.slug ? 'wait' : 'pointer',
+                        fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 600,
+                      }}
+                    >
+                      {reprovisioning === r.slug ? '…' : 'Re-provision'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flex: 1 }}>
           {loading ? '…' : `${rows.length} attempt${rows.length === 1 ? '' : 's'} · ${okCount} ok · ${failCount} failed`}
         </span>
-        <div onClick={() => setFilterFailed(v => !v)} data-tap style={{ padding: '6px 12px', borderRadius: 3, background: filterFailed ? G.clsBg : G.card, border: `1px solid ${filterFailed ? G.clsBg : G.border}`, cursor: 'pointer' }}>
+        <div onClick={() => setFilterFailed(v => !v)} data-tap style={{ padding: '6px 12px', borderRadius: 3, background: filterFailed ? G.clsBg : G.card, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
           <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: filterFailed ? '#F2E5C0' : G.muted }}>
             {filterFailed ? '✓ Failures only' : 'Show failures only'}
           </span>
