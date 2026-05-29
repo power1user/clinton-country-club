@@ -148,7 +148,16 @@ export default function EventDetail({ params }) {
             <div style={{ padding: 16, background: G.openBg, borderRadius: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={G.openDot} strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.openTxt, margin: 0, fontWeight: 500 }}>You're registered for {ev.title}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.openTxt, margin: 0, opacity: 0.8 }}>Confirmation sent to your email on file</p>
+              {/* v0.10.13 — replaced the v0.10.x-era "Confirmation sent
+                  to your email on file" line. The app never wired an
+                  email service, so that line was a broken promise.
+                  Honest copy: members see this in MyClub → My Events
+                  and get a push reminder before the event if push is
+                  enabled. Transactional email (Brevo) is on the
+                  punchlist; see CHANGELOG v0.10.13 for the spec. */}
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.openTxt, margin: 0, opacity: 0.85 }}>
+                We'll send a push reminder before the event. Find this anytime in MyClub → My Events.
+              </p>
             </div>
           </div>
         )}

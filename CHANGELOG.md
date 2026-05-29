@@ -71,6 +71,47 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.13** — Honesty fix: RSVP confirmation copy.
+
+  EventDetail's "Confirmation sent to your email on file" line
+  promised something the app never delivered — no email service
+  has ever been wired. Replaced with honest copy:
+
+    *"We'll send a push reminder before the event. Find this
+    anytime in MyClub → My Events."*
+
+  Members see RSVPs in My Events (v0.10.3) anyway, and push
+  reminders are the real notification path until a transactional
+  email service is wired.
+
+  **Deferred for the punchlist** — transactional RSVP email via
+  Brevo. Design notes preserved so the next round can pick this
+  up cold:
+
+  · **Edge Function `send-rsvp-confirmation`** triggered by a
+    database webhook on `event_registrations` INSERT (same
+    pattern as the existing send-push function in migration 49).
+  · Function fetches: event row (title, date, time, category,
+    description), member row (name, email), club row (name,
+    contact_email).
+  · Sends a plain-text or minimal-HTML email via the Brevo
+    transactional API. Per-club Brevo API key first (future
+    `clubs.brevo_api_key` column), falls back to a platform-
+    level `BREVO_API_KEY` Edge Function secret.
+  · Email content: event name + date + time + venue (if stored)
+    + RSVP status (registered / waitlisted) + "the club will be
+    in touch with further details" + club name + contact email.
+    Plain-text or extremely minimal HTML — no design heavy lift.
+  · UI affordance: once shipped, restore an email-confirmation
+    line on the RSVP success card and consider an opt-in toggle
+    in Settings (some members may want push-only).
+  · Requires Brevo account setup, sender-domain verification,
+    and SPF/DKIM/DMARC records on `groundslive.com`.
+
+  No code changes related to the Edge Function in this patch —
+  this is a copy fix only so the UI stops lying. The Brevo wiring
+  goes on the punchlist for a later round.
+
 - **v0.10.12** — Safety net: manual subdomain health check.
 
   Diagnosis from the Windhaven outage: the new-club create flow
