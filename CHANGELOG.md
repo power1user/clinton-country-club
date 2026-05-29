@@ -67,8 +67,57 @@ key-value store for member settings.
 Shipping plan: v0.10.4 news action links → v0.10.5 calendar
 overrides → v0.10.6 calendar entry points → v0.10.7 filter
 pills + user_preferences → v0.10.8 menu drag-and-drop →
-v0.10.9 push sender identity → **v0.11.0** README refresh +
-Phase 11 wrap.
+v0.10.9 push sender identity → **v0.10.10** docs wrap (README
+refresh + version.js phase entry) → v0.10.11 course-map empty
+state bug fix.
+
+- **v0.10.11** — Bug fix: Course Map + Pin Placement empty states.
+
+  Audit found Oakgrove + Windhaven had **zero rows** in the
+  `holes` table while Clinton has all 9 populated. Members at
+  those clubs were seeing the scorecard with "—" placeholders
+  in every cell and a broken-looking Stat bar — looked like
+  the page had failed to load rather than "no data yet."
+
+  Fix: both `CourseMap` and `PinMap` now render a friendly
+  empty state when `holes.length === 0` instead of trying to
+  render the scorecard / pin map with empty rows. The empty
+  state surfaces:
+
+  · A polite "Course details haven't been added yet" message
+  · A one-tap CTA into the admin Hole Details section — but
+    only for staff (`isAdmin || isManager`); members just see
+    the message
+  · A friendly course-flag glyph instead of a lock icon (the
+    feature isn't off — it just hasn't been populated yet)
+
+  `usePinPlacements` already mapped DB column names → React
+  shape correctly (`yards_white` → `yds_white` etc.), so no
+  hook change needed. This was strictly a data-not-populated
+  UX problem.
+
+  **Separate operational note** (not a code patch):
+  Windhaven's subdomain `windhavencc.groundslive.com` doesn't
+  resolve in DNS yet — `club_provision_log` has zero entries
+  for that slug, meaning the `provision-club-domain` Edge
+  Function was never run. Fix via Platform → All Clubs →
+  Windhaven → Provision Domain.
+
+- **v0.10.10** — Phase 11 docs wrap (patch, not minor).
+
+  Closed Phase 11 with a patch-level docs commit rather than
+  the v0.11.0 minor I initially used by mistake. Per protocol:
+  MINOR is reserved for big-lift architectural builds; a docs
+  refresh doesn't qualify. Phase 11 sits inside the v0.10.x
+  patch line.
+
+  · README "Current version" line updated to v0.10.10
+  · New Phase 11 feature section added to the README inventory
+    (calendar overrides, news action links, drag-and-drop menu
+    sort, push sender identity, `user_preferences` store)
+  · `version.js` phase history comment gets a Phase 11
+    paragraph
+  · CHANGELOG header reorganized as the v0.10.4–10 close-out
 
 - **v0.10.9** — Phase 11: Push notification sender identity.
 
