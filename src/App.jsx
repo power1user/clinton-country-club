@@ -44,6 +44,7 @@ import LessonRequest from './screens/LessonRequest.jsx';
 import OnboardingGuide from './screens/OnboardingGuide.jsx';
 import AdminPanel from './screens/AdminPanel.jsx';
 import Settings from './screens/Settings.jsx';
+import Support from './screens/Support.jsx';
 import TermsGate from './screens/TermsGate.jsx';
 import GuestRegister from './screens/GuestRegister.jsx';
 import GuestThankYou from './screens/GuestThankYou.jsx';
@@ -80,6 +81,7 @@ const SCREENS = {
   'myclub/onboarding': OnboardingGuide,
   'myclub/admin': AdminPanel,
   'myclub/settings': Settings,
+  'myclub/support': Support,
 };
 
 // Full tab list — used for the "is this a tab root?" check (membership in

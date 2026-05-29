@@ -71,6 +71,45 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.14** — Support access for members + Club Manager Support.
+
+  **New member-facing Support screen** at `myclub/support`,
+  reached via a new "Help & Support" row in Settings (positioned
+  below all preference sections, above the About metadata block).
+  Three blocks stacked:
+
+  · **Common Questions** — FAQ accordion with 6 starter entries
+    (profile photo, push notifications, install to home screen,
+    cancel RSVP, why no email confirmation, contact the club).
+    Content lives in `src/lib/supportFaq.js` so updates are a
+    one-PR change without touching the screen.
+  · **Contact Support** card — mailto to
+    `support@groundslive.com` with a prefilled subject
+    `"Support Request from <Club Name>"` and a small diagnostic
+    footer (app version + club name; **zero PII** — no name,
+    email, or membership number).
+  · **Contact Your Club** card — phone + email pulled from the
+    `clubs` row. Renders tappable `tel:` and `mailto:` links
+    when set; falls back to a friendly "not configured yet"
+    state when the club hasn't published contact info.
+
+  **Club Manager Support entry** — separate priority card at
+  the top of the manager's Club Settings → Brand Identity form.
+  mailto to `managers@groundslive.com` with subject
+  `"Manager Support — <Club Name>"`. Visually distinct (green
+  background, gold border, brass laurel icon, "PRIORITY" eyebrow
+  label) so managers can spot the direct line at a glance.
+  Hidden in platform mode — super_admin doesn't need it.
+
+  **Operational pre-req** *(not a code change)*: Cloudflare Email
+  Routing for `support@groundslive.com` AND
+  `managers@groundslive.com` must be set up and verified before
+  this ships externally, or every mailto bounces. Add the
+  routing rules + a forwarding destination in the Cloudflare
+  dashboard.
+
+  No new dependencies.
+
 - **v0.10.13** — Honesty fix: RSVP confirmation copy.
 
   EventDetail's "Confirmation sent to your email on file" line

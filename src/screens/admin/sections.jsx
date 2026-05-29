@@ -1490,6 +1490,35 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
         </p>
       )}
 
+      {/* v0.10.14 — Club Manager Support entry. Manager mode only
+          (super_admin platform editing doesn't need this — they
+          ARE The Grounds). Separate inbox from general member
+          support so escalations from clubs jump the line. mailto:
+          subject is prefixed with the club name so routing is
+          instant. */}
+      {!isPlatform && (
+        <a
+          href={`mailto:managers@groundslive.com?subject=${encodeURIComponent(`Manager Support — ${club?.name || 'Club'}`)}&body=${encodeURIComponent(`\n\n— — — — —\nApp version: v${(typeof window !== 'undefined' && window.__APP_VERSION__) || ''}\nClub: ${club?.name || ''}\n(Replace this header with your question — the manager support team will see it.)`)}`}
+          style={{ display: 'block', textDecoration: 'none', marginBottom: 18 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: G.green, borderRadius: 4, border: `1px solid ${G.brass}`, cursor: 'pointer' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(155,122,30,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: `1px solid ${G.brass}` }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F2E5C0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3 7h7l-5.5 4 2 7-6.5-4.5L5.5 22l2-7L2 11h7z" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, margin: 0 }}>Priority</p>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: '#F2EDE0', margin: '1px 0 0' }}>Club Manager Support</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#A8D8B8', margin: '2px 0 0', lineHeight: 1.4 }}>
+                Direct line to The Grounds platform team — separate from the member queue
+              </p>
+            </div>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2E5C0', flexShrink: 0 }}>managers@groundslive.com</span>
+          </div>
+        </a>
+      )}
+
       <SectionHeading>Brand Identity</SectionHeading>
       <div style={{ marginBottom: 12 }}>
         <label style={labelStyle}>Tagline (shown on sign-in screen)</label>

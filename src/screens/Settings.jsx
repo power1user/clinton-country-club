@@ -144,6 +144,35 @@ export default function Settings() {
         <SectionHeading>App</SectionHeading>
         <InstallEntry />
 
+        {/* v0.10.14 — Help & Support. Single row that opens the
+            Support screen with platform-level contact (mailto to
+            support@groundslive.com) + the club's own contact info
+            + an FAQ accordion. Positioned below the preference
+            sections (Notifications / Privacy / Appearance / Profile
+            / Sharing / App) and above About which is metadata. */}
+        <div style={{ marginTop: 18 }} />
+        <SectionHeading>Help</SectionHeading>
+        <div
+          onClick={() => push('myclub/support')}
+          data-tap
+          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, cursor: 'pointer' }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: G.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Help & Support</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.4 }}>
+              FAQs, contact The Grounds, or reach your club directly
+            </p>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+        </div>
+
         {/* About — v0.7.12. Five rows, all read-only:
               · Review Terms of Use (expand inline)
               · Privacy is covered in the ToU — surfaced as a sub-
