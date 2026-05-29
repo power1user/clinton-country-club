@@ -71,6 +71,25 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.17** — GA4 activation in production.
+
+  No code changes. `VITE_GA4_MEMBER_ID` was set in Cloudflare Pages
+  → Project → Settings → Environment variables → Production. The
+  v0.10.16 instrumentation (`src/lib/analytics.js`,
+  `src/hooks/useAnalytics.js`, every wired callsite) was silently
+  no-op'ing until now; this build is the first to actually ship
+  the measurement ID into the JS bundle. Members signed in to a
+  resolved club start firing `page_view` + the custom events
+  immediately on this deployment.
+
+  Marker patch so future support calls and reports can pinpoint
+  *"events started flowing on v0.10.17"* without spelunking
+  Cloudflare's env-var history.
+
+  Verify in **GA4 → Reports → Realtime** within ~30s of this
+  deploy going green: a user from your test session should show
+  up with a `page_view` event and `club_id` parameter attached.
+
 - **v0.10.16** — GA4 member app integration (scaffolded; no ID yet).
 
   Wired the full Google Analytics 4 instrumentation for the member
