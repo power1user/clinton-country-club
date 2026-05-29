@@ -3,6 +3,8 @@ import { G } from '../theme.js';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { usePinPlacements } from '../hooks/useClubData.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 // Read-only member view: shows the green image for the selected hole with a
@@ -10,6 +12,8 @@ import FeatureOff from '../components/FeatureOff.jsx';
 export default function PinMap() {
   const on = useFlag('pin_placements');
   const { data: holes, loading } = usePinPlacements();
+  const { isAdmin, isManager } = useAuth();
+  const { push } = useNav();
   const [hole, setHole] = useState(1);
   const stripRef = useRef(null);
   const h = holes.find(x => x.n === hole) || holes[0];
@@ -23,13 +27,53 @@ export default function PinMap() {
   // Phase 7 gating — default ON.
   if (!on) return <FeatureOff label="Pin Placement" />;
 
-  if (loading || !h) {
+  if (loading) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
         <BackHeader title="Pin Placement" />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', color: G.muted }}>Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // v0.10.11 — empty state for clubs without holes data populated.
+  // The previous behavior was to render the Stat bar with "—"
+  // values and a generic green diagram, which read as a broken
+  // screen rather than a "data not added" state.
+  if (!holes || holes.length === 0 || !h) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+        <BackHeader title="Pin Placement" />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center' }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.4" style={{ marginBottom: 16 }}>
+            <path d="M4 22V3" />
+            <path d="M4 3l12 3-3 4 3 4-12 3" />
+          </svg>
+          <h2 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 20, color: G.muted, margin: '0 0 8px' }}>
+            Pin placements aren't available yet
+          </h2>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, lineHeight: 1.6, margin: '0 0 18px', maxWidth: 320 }}>
+            Your club hasn't set up hole data yet. Once the course is loaded, today's pin positions show up here.
+          </p>
+          {(isAdmin || isManager) && (
+            <button
+              onClick={() => push('myclub/admin')}
+              data-tap
+              type="button"
+              style={{
+                background: G.green, color: '#F2EDE0',
+                border: 'none', borderRadius: 4,
+                padding: '10px 18px', cursor: 'pointer',
+                fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 600,
+              }}
+            >
+              Open Admin → Golf Course → Hole Details
+            </button>
+          )}
         </div>
       </div>
     );

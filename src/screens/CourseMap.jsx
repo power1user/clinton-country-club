@@ -4,17 +4,30 @@ import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { usePinPlacements } from '../hooks/useClubData.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { useNav } from '../hooks/useNav.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 // Course overview — stylized illustration of Clinton CC's layout plus a real
 // scorecard with all three tee yardages. GPS/satellite returns in v2.
 export default function CourseMap() {
   const on = useFlag('course_map');
-  const { data: holes } = usePinPlacements();
+  const { data: holes, loading } = usePinPlacements();
   const brand = useBrand();
+  const { isAdmin, isManager } = useAuth();
+  const { push } = useNav();
   const [tee, setTee] = useState('white');
   // Phase 7 gating — default ON.
   if (!on) return <FeatureOff label="Course Map" />;
+
+  // v0.10.11 — empty state for clubs that haven't populated the
+  // holes table yet (Oakgrove + Windhaven at launch had zero rows;
+  // members saw a scorecard full of "—" and an SVG illustration
+  // that only matches Clinton). Friendlier to surface "no data
+  // yet" plus a one-tap path into the admin section for staff.
+  if (!loading && (!holes || holes.length === 0)) {
+    return <CourseEmpty isStaff={isAdmin || isManager} push={push} brand={brand} />;
+  }
 
   // Sum yardages for the chosen tee — fall back to any available row if a
   // specific tee yardage is missing on a hole.
@@ -122,3 +135,43 @@ const hdrCellStyle = {
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
 };
+
+// v0.10.11 — empty state when the club has no holes data populated.
+// Members get a polite "coming soon" message; staff get a one-tap
+// jump into the Hole Details admin section so they can fix it.
+function CourseEmpty({ isStaff, push, brand }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+      <BackHeader title="Course Overview" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center' }}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.4" style={{ marginBottom: 16 }}>
+          {/* Course-flag glyph for the empty state */}
+          <path d="M4 22V3" />
+          <path d="M4 3l12 3-3 4 3 4-12 3" />
+        </svg>
+        <h2 style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 20, color: G.muted, margin: '0 0 8px' }}>
+          Course details haven't been added yet
+        </h2>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, lineHeight: 1.6, margin: '0 0 18px', maxWidth: 320 }}>
+          {brand?.full || 'Your club'} hasn't published hole layouts, yardages, or scorecard data yet. Check back soon.
+        </p>
+        {isStaff && (
+          <button
+            onClick={() => push('myclub/admin')}
+            data-tap
+            type="button"
+            style={{
+              background: G.green, color: '#F2EDE0',
+              border: 'none', borderRadius: 4,
+              padding: '10px 18px', cursor: 'pointer',
+              fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 600,
+            }}
+          >
+            Open Admin → Golf Course → Hole Details
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
