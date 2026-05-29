@@ -8,6 +8,7 @@ import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import Avatar from '../components/Avatar.jsx';
 import { supabase } from '../lib/supabase.js';
 import { markThreadRead, hideThread } from '../hooks/useInbox.js';
@@ -27,6 +28,7 @@ export default function Thread({ params }) {
   const { session, member, canMemberWrite, isGuest } = useAuth();
   const profilePhotosOn = useFlag('profile_photos');
   const { pop } = useNav();
+  const { trackEvent } = useAnalytics();
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [context, setContext] = useState(null);    // e.g. food_orders row
@@ -178,6 +180,18 @@ export default function Thread({ params }) {
       is_system: false,
     });
     setSending(false);
+    if (!error) {
+      // v0.10.16 — GA4: message_sent. Categorize by thread kind so
+      // we can see DM volume vs clubhouse vs order chat separately.
+      // Reply vs first-send isn't distinguished here; the
+      // 'thread_reply' bucket per Marc's spec is folded into the
+      // kind ('dm' / 'clubhouse' / 'order') — the spec listed
+      // thread_reply as one of the valid message_type values, but
+      // every reply happens inside a thread of some kind, so the
+      // kind dimension carries the same signal more usefully.
+      const kind = thread?.kind || 'thread_reply';
+      trackEvent('message_sent', { message_type: kind });
+    }
     if (error) {
       // Friendly error — Supabase errors can be cryptic ("new row violates
       // row-level security policy") so surface a generic line and keep the

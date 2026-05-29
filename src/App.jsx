@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { useFlag } from './hooks/useFlag.js';
+import { useAnalytics } from './hooks/useAnalytics.js';
 import BottomNav from './components/BottomNav.jsx';
 import { G } from './theme.js';
 import { PLATFORM_NAME, PLATFORM_TAGLINE } from './lib/version.js';
@@ -104,6 +105,13 @@ const SWIPE_AXIS_LOCK_PX = 8;     // delta before we decide horizontal vs vertic
 function ScreenRenderer() {
   const { current, animKey, dir, tab, goTab } = useNav();
   const touchRef = useRef(null);
+  // v0.10.16 — fire a GA4 page_view on every screen transition.
+  // useAnalytics gates internally for guests + unauthenticated +
+  // missing GA4 measurement id, so this is safe to call unconditionally.
+  const { trackPageView } = useAnalytics();
+  useEffect(() => {
+    if (current?.id) trackPageView(current.id);
+  }, [current?.id, trackPageView]);
   // Phase 7: swipe order respects the food_ordering flag so swiping
   // from Golf goes to Community (not the FeatureOff for Food). The
   // BottomNav already hides the Food tab when off, so this just keeps

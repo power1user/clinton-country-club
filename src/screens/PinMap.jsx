@@ -5,6 +5,7 @@ import { usePinPlacements } from '../hooks/useClubData.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 // Read-only member view: shows the green image for the selected hole with a
@@ -14,6 +15,7 @@ export default function PinMap() {
   const { data: holes, loading } = usePinPlacements();
   const { isAdmin, isManager } = useAuth();
   const { push } = useNav();
+  const { trackEvent } = useAnalytics();
   const [hole, setHole] = useState(1);
   const stripRef = useRef(null);
   const h = holes.find(x => x.n === hole) || holes[0];
@@ -23,6 +25,16 @@ export default function PinMap() {
     const el = stripRef.current.querySelector(`[data-hole="${hole}"]`);
     if (el) el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   }, [hole]);
+
+  // v0.10.16 — GA4: pin_placement_viewed. Fires every time the
+  // selected hole changes (initial mount + every tap on the hole
+  // strip). Tracks engagement with the live pin data, segmented
+  // by hole so we can see which holes get the most attention.
+  useEffect(() => {
+    if (!h) return;
+    trackEvent('pin_placement_viewed', { hole_number: h.n });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [h?.n]);
 
   // Phase 7 gating — default ON.
   if (!on) return <FeatureOff label="Pin Placement" />;

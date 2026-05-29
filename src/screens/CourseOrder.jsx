@@ -5,6 +5,7 @@ import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 
 // v0.10.15 — Delivery vs. To-Go selection now drives the order flow.
@@ -40,6 +41,7 @@ export default function CourseOrder() {
   const { pop, push, cart, addToCart, removeFromCart, cartTotal } = useNav();
   const { club, member, canMemberWrite } = useAuth();
   const brand = useBrand();
+  const { trackEvent } = useAnalytics();
   const [orderType, setOrderType] = useState('delivery');
   const [hole, setHole] = useState(null);
   const [pickupTime, setPickupTime] = useState(''); // ISO string when set; '' = ASAP
@@ -97,6 +99,11 @@ export default function CourseOrder() {
     });
     setBusy(false);
     if (error) { setErr(error.message); return; }
+    // v0.10.16 — GA4 event. PII-free: item_count + order_type only.
+    trackEvent('food_order_placed', {
+      item_count: cart.reduce((n, i) => n + (i.qty || 1), 0),
+      order_type: orderType,
+    });
     push('food/confirm', { orderType, hole, notes, pickupTime });
   };
 

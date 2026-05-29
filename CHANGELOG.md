@@ -71,6 +71,80 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.16** — GA4 member app integration (scaffolded; no ID yet).
+
+  Wired the full Google Analytics 4 instrumentation for the member
+  app. Nothing tracks until `VITE_GA4_MEMBER_ID` is set in the
+  build env — `init()` and every event helper silently no-op
+  without it. Safe to ship; zero data leaves the device until Marc
+  creates the property and adds the ID.
+
+  **Architecture:**
+  · `src/lib/analytics.js` — gtag.js bootstrap + low-level
+    `sendEvent` / `sendPageView` helpers. Loaded once from
+    `main.jsx`. Configures gtag with `send_page_view: false` so
+    SPA transitions report accurately via the manual page-view
+    helper.
+  · `src/hooks/useAnalytics.js` — auth-aware wrapper. Gates
+    internally on `member && !isGuest && club?.id` so events
+    only fire for authenticated members of a resolved club.
+    Auto-injects `club_id` on every event. Returns
+    `{ trackEvent, trackPageView, isEligible }`.
+
+  **Auto page_view** — `App.jsx` ScreenRenderer fires
+  `page_view` on every `current` nav change. Every tab switch
+  and screen transition reports.
+
+  **Custom events wired:**
+  · `food_order_placed` (`CourseOrder.jsx`) — `item_count` +
+    `order_type` ('delivery' / 'to_go')
+  · `pin_placement_viewed` (`PinMap.jsx`) — `hole_number` per
+    hole change (initial + every strip tap)
+  · `notification_opted_in` (`NotificationsToggle.jsx`) — fires
+    on successful permission grant + endpoint registration
+  · `event_rsvp_submitted` (`EventDetail.jsx`) —
+    `event_category` + `rsvp_status` ('registered' / 'waitlist')
+  · `message_sent` (`Thread.jsx`) — `message_type` from
+    `thread.kind` ('dm' / 'clubhouse' / 'order' / fallback
+    'thread_reply')
+  · `guest_qr_scanned` (`MemberGuestQR.jsx`) — fires once on
+    screen mount (members aren't scanning their own QR; they're
+    showing it)
+
+  `ai_query_submitted` is reserved in the spec but no AI
+  assistant exists in the app yet — the event will be added
+  to whichever screen ships the AI feature in a future patch.
+
+  **PII policy** — zero personally identifying parameters. No
+  names, emails, or membership numbers anywhere. `club_id` is
+  the only non-anonymous parameter; it's a club-scoping value,
+  not a person-scoping value. Auth gate enforces guest exclusion.
+
+  **Marketing landing page GA4** — out of scope for this patch.
+  `groundslive.com` lives in a separate repo so a separate GA4
+  property + bootstrap belong there. Spec preserved in the
+  v0.10.16 entry for that future repo:
+
+  · Standard `page_view` on load (auto via gtag config).
+  · `demo_request_submitted` on form success —
+    `{club_name, state}` params.
+  · `scroll_depth` at 25/50/75/100 % via a scroll listener.
+  · `cta_clicked` —`{button_label, page_section}`.
+  · `feature_section_viewed` via Intersection Observer firing
+    when the features block enters the viewport.
+  · GA4 → Search Console linkage once the domain is live.
+  · Mark `demo_request_submitted` as a conversion goal.
+
+  **To activate** (Marc's side):
+  1. Create the GA4 property at analytics.google.com (data
+     stream type: Web; URL: `groundslive.com`)
+  2. Add `VITE_GA4_MEMBER_ID=G-XXXXXXXXXX` to the production
+     build env (Cloudflare Pages → Project → Environment vars)
+  3. Add `club_id` as a custom dimension in GA4 (Admin →
+     Custom Definitions → Create custom dimension → User-scope
+     or Event-scope → name `club_id`)
+  4. Next deploy fires page_views + custom events automatically
+
 - **v0.10.15** — Food orders: To-Go option + Ready-for-Pickup status.
 
   **Migration 59** adds two columns to `food_orders`:

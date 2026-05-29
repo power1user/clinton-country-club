@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../theme.js';
 import Toggle from './Toggle.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import { supabase } from '../lib/supabase.js';
 import {
   pushDiagnostics, pushReasonText,
@@ -19,6 +20,7 @@ import {
 
 export default function NotificationsToggle() {
   const { session } = useAuth();
+  const { trackEvent } = useAnalytics();
   const [subscribed, setSubscribed] = useState(false);
   const [diag, setDiag] = useState(() => pushDiagnostics());
   const [busy, setBusy] = useState(false);
@@ -58,6 +60,9 @@ export default function NotificationsToggle() {
         await subscribeToPush(session.user.id);
         setSubscribed(true);
         setDiag(pushDiagnostics()); // permission may have flipped
+        // v0.10.16 — GA4: notification_opted_in. Fires once per
+        // successful permission grant + endpoint registration.
+        trackEvent('notification_opted_in', {});
       } else {
         await unsubscribeFromPush(session.user.id);
         setSubscribed(false);

@@ -3,6 +3,7 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useNav } from '../hooks/useNav.jsx';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 import Replies from '../components/Replies.jsx';
@@ -11,6 +12,7 @@ export default function EventDetail({ params }) {
   const ev = params?.event;
   const { club, member, canMemberWrite } = useAuth();
   const { push } = useNav();
+  const { trackEvent } = useAnalytics();
 
   // v0.10.6 — Calendar escape hatch in the header. Reachable from
   // any event detail in one tap regardless of how the member
@@ -80,6 +82,13 @@ export default function EventDetail({ params }) {
     setBusy(false);
     if (error) { setErr(error.message); return; }
     setRegistered(true);
+    // v0.10.16 — GA4: event_rsvp_submitted. PII-free.
+    // rsvp_status reflects whether this was a Register or a
+    // join-waitlist (spots === 0 path).
+    trackEvent('event_rsvp_submitted', {
+      event_category: ev.cat || ev.category || null,
+      rsvp_status: ev.spots === 0 ? 'waitlist' : 'registered',
+    });
   };
 
   return (

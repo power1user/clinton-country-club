@@ -23,6 +23,7 @@ import { G } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
+import { useAnalytics } from '../hooks/useAnalytics.js';
 import { supabase } from '../lib/supabase.js';
 import { QRCodeSVG } from 'qrcode.react';
 import FeatureOff from '../components/FeatureOff.jsx';
@@ -30,6 +31,15 @@ import FeatureOff from '../components/FeatureOff.jsx';
 export default function MemberGuestQR() {
   const { member, club, isGuest } = useAuth();
   const guestFlagOn = useFlag('guest_registration');
+  const { trackEvent } = useAnalytics();
+  // v0.10.16 — GA4: guest_qr_scanned. Spec says "fires when a
+  // member's guest QR is opened" — interpreted as the moment the
+  // screen mounts (members aren't actively scanning their own QR;
+  // they're showing it to a guest). Fires once per visit.
+  useEffect(() => {
+    trackEvent('guest_qr_scanned', {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [url, setUrl]     = useState(null);
   const [token, setToken] = useState(null);
   const [busy, setBusy]   = useState(true);
