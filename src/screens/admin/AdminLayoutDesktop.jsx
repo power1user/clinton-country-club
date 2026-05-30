@@ -66,6 +66,20 @@ export default function AdminLayoutDesktop({
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
   const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // v0.11.13 — Escape the iPhone-shaped `.phone-frame` shell on
+  // desktop/tablet. The phone-frame is a mobile-PWA preview affordance
+  // for the MEMBER app on a desktop browser; for ADMIN work the
+  // sidebar + topbar + main grid needs the full viewport. We tag the
+  // body with `admin-fullscreen` while this shell is mounted; index.css
+  // turns off the phone-frame width/height/radius/shadow under that
+  // class. Reverted automatically on unmount so leaving the admin
+  // section (Back to MyClub) drops the member UI back inside the phone.
+  useEffect(() => {
+    document.body.classList.add('admin-fullscreen');
+    return () => document.body.classList.remove('admin-fullscreen');
+  }, []);
+
   // v0.11.8 — Dark mode toggle. Cross-club preference (clubScoped:
   // false) — managing multiple clubs shouldn't flip the theme on
   // you when you switch between them. applyThemeMode sets CSS

@@ -94,6 +94,23 @@ html, body, #root {
   }
 }
 
+/* v0.11.13 — Phase 12 admin shell takes the full viewport on
+   desktop/tablet. `AdminLayoutDesktop` tags <body> with
+   `admin-fullscreen` while mounted; we drop the phone-shaped frame
+   so the sidebar + topbar + main grid actually have room to render.
+   The member app stays inside the phone-frame as a preview on
+   desktop browsers — only the admin section escapes. */
+body.admin-fullscreen #root {
+  display: block;
+}
+body.admin-fullscreen .phone-frame {
+  width: 100vw;
+  height: 100dvh;
+  border-radius: 0;
+  box-shadow: none;
+  background: #F2EDE0;
+}
+
 /* ── Screen transitions ──
  * Two flavors of slide:
  *   · Drill-down (push / pop) uses ~28px to feel like a card landing

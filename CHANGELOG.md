@@ -103,6 +103,29 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.13** — Phase 12 fix: Admin escapes the phone-frame on desktop.
+
+  Phase 12 bug surfaced as soon as a manager opened the desktop
+  admin: **the sidebar+topbar shell still rendered inside the 390-
+  pixel iPhone-shaped `.phone-frame` preview shell**, making the
+  desktop layout look identical to mobile. Root cause: `App.jsx`
+  wraps every screen in `.phone-frame` (intentional — the member
+  app is a mobile-PWA preview on desktop browsers), but the admin
+  desktop shell needs the full viewport.
+
+  Fix:
+  · `AdminLayoutDesktop` adds `admin-fullscreen` to `document.body`
+    on mount, removes it on unmount.
+  · `index.css` under `body.admin-fullscreen .phone-frame` drops
+    the fixed 390×844 dimensions + border-radius + box-shadow, so
+    the phone shell fills the viewport while admin is active.
+  · `body.admin-fullscreen #root` also drops the centering flex so
+    the admin grid actually anchors top-left.
+
+  Leaving admin (Back to MyClub) reverts the class on unmount —
+  member surfaces drop back inside the phone-frame preview on
+  desktop, as before. Pure-mobile users never see either path.
+
 - **v0.11.12** — Phase 12: Closeout (README refresh).
 
   Final v0.11.x bump. No runtime changes — pure docs:
