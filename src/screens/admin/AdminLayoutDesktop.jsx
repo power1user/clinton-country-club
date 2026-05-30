@@ -39,6 +39,7 @@ import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchP
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
+import { VERSION, PLATFORM_NAME } from '../../lib/version.js';
 import { SectionContent } from '../AdminPanel.jsx';
 
 // Sidebar width + topbar height. v0.11.16 — bumped to accommodate
@@ -115,36 +116,45 @@ export default function AdminLayoutDesktop({
     'g b': () => { setArea('comms'); setSec(null); },
     'g e': () => { setArea('events'); setSec(null); },
   });
-  // v0.11.15 — Sidebar collapse state persisted via admin_preferences.
+  // v0.11.18 — Sidebar collapse state persisted via admin_preferences.
   // Default ALL COLLAPSED for a fresh manager — they see the area
   // headers (Communications, Broadcasts, Events, …) like a table of
-  // contents and click to expand into the sections they need. The
-  // alternative — all expanded by default — exploded the sidebar to
-  // ~30 rows on first load and buried the area structure.
+  // contents and click to expand into the sections they need.
   //
-  // Stored as a plain array of area ids in jsonb. The `null` sentinel
-  // means "no preference written yet" → fall back to the all-collapsed
-  // default. Once the manager toggles a single area, the hook writes
-  // an explicit array (possibly empty, possibly subset) and we use
-  // that going forward — so a manager who explicitly opens all areas
-  // sticks at "all open" across reloads.
+  // Both the `null` sentinel ("no preference written") AND an empty
+  // array (`[]`) now fall back to the all-collapsed default. The empty
+  // array case turns up legitimately for users who landed early in
+  // Phase 12 when `[]` was written under the hood by various code
+  // paths; treating it as "use default" cleans those up automatically.
+  // toggleCollapse below also writes `null` instead of `[]` when the
+  // manager fully expands every area, so we never re-create the
+  // ambiguous empty-array state going forward.
+  //
+  // Trade-off: a manager who *explicitly* expands every area can't
+  // persist that across reloads (next load gives them all-collapsed
+  // again). That's vanishingly rare — getting to "all expanded" means
+  // 9 deliberate clicks against the new default. Worth it for the
+  // robust default behavior.
   const [collapsedArray, setCollapsedArray] = useAdminPreference(
     'sidebar_collapsed',
     null,
   );
   const allAreaIds = areas.map(a => a.id);
-  const effectiveCollapsedArray = collapsedArray === null ? allAreaIds : collapsedArray;
+  const hasExplicitCollapse = Array.isArray(collapsedArray) && collapsedArray.length > 0;
+  const effectiveCollapsedArray = hasExplicitCollapse ? collapsedArray : allAreaIds;
   const collapsed = new Set(effectiveCollapsedArray);
   const toggleCollapse = (areaId) => {
     setCollapsedArray(prev => {
-      // Treat null-prev (no preference yet) as the all-collapsed
-      // baseline, so the first click EXPANDS the area the manager
-      // touched — opposite of "all expanded" days when first click
-      // would have collapsed it.
-      const base = prev === null ? allAreaIds : prev;
+      // Treat null-prev OR empty-array-prev (no/empty preference) as
+      // the all-collapsed baseline, so the first click EXPANDS the
+      // area the manager touched.
+      const base = (Array.isArray(prev) && prev.length > 0) ? prev : allAreaIds;
       const next = new Set(base);
       if (next.has(areaId)) next.delete(areaId);
       else next.add(areaId);
+      // Collapsing back to empty? Write `null` instead of `[]` to
+      // keep the "no preference, use default" semantics clean.
+      if (next.size === 0) return null;
       return [...next];
     });
   };
@@ -394,6 +404,24 @@ export default function AdminLayoutDesktop({
             )}
             <span>{theme?.mode === 'dark' ? 'Switch to light' : 'Switch to dark'}</span>
           </div>
+
+          {/* v0.11.18 — Version + platform attribution. Sits at the
+              very bottom of the sidebar so managers can read it off
+              the screen to support during a phone call ("we're on
+              0.11.18"). Mirrors the MyClub footer pattern; muted
+              styling so it doesn't compete with primary nav. */}
+          <div style={{
+            marginTop: 14,
+            paddingTop: 10,
+            borderTop: `1px solid rgba(168,216,184,0.10)`,
+            fontFamily: '"Lora",serif',
+            fontSize: 10,
+            color: 'rgba(168,216,184,0.55)',
+            letterSpacing: '0.04em',
+            userSelect: 'text',
+          }}>
+            {PLATFORM_NAME} · v{VERSION}
+          </div>
         </div>
       </aside>
 
@@ -428,12 +456,18 @@ export default function AdminLayoutDesktop({
         <BellChip />
       </header>
 
-      {/* v0.11.5 — global search palette. Mounts hidden; opens via
-          Cmd+K or the SearchTrigger button. */}
+      {/* v0.11.5 — global search palette. v0.11.18 — open state now
+          controlled by AdminLayoutDesktop so the SearchTrigger button
+          actually opens the palette (previously it relied on the
+          palette's internal Cmd+K listener, which the button click
+          couldn't reach). Cmd+K still works — it routes through the
+          shared onOpenChange callback. */}
       <AdminSearchPalette
         areas={areas}
         sectionVisible={sectionVisible}
-        onPick={(r) => { setArea(r.areaId); setSec(r.sectionId); }}
+        onPick={(r) => { setArea(r.areaId); setSec(r.sectionId); setPaletteOpen(false); }}
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
       />
 
       {/* ─── Main content ─── */}

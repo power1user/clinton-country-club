@@ -49,8 +49,23 @@ export default function AdminSearchPalette({
   areas,
   sectionVisible,
   onPick,
+  // v0.11.18 — Open state is now controlled by the parent so the
+  // SearchTrigger button click can open the palette too (previously
+  // the palette managed its own open state internally and the
+  // button's onClick did nothing). The Cmd+K / Ctrl+K listener
+  // below also routes through onOpenChange so both surfaces share
+  // the same state. Optional — falls back to uncontrolled if the
+  // parent doesn't wire them, which keeps backward compat for any
+  // future caller.
+  open: openProp,
+  onOpenChange,
 }) {
-  const [open, setOpen] = useState(false);
+  const [openInternal, setOpenInternal] = useState(false);
+  const isControlled = typeof openProp === 'boolean' && typeof onOpenChange === 'function';
+  const open = isControlled ? openProp : openInternal;
+  const setOpen = isControlled
+    ? (next) => onOpenChange(typeof next === 'function' ? next(open) : next)
+    : setOpenInternal;
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef(null);

@@ -103,6 +103,44 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.18** — Phase 12 fix trio: search-bar click, collapse default, version chip.
+
+  Three reported bugs in one patch:
+
+  **1. Search bar click did nothing (only Cmd+K worked).** The
+  `SearchTrigger` button in the top bar wired `onClick → setPaletteOpen(true)`,
+  but `AdminSearchPalette` managed its `open` state internally with
+  no prop API — so the parent's state was effectively dead. The
+  Cmd+K listener inside the palette was the only thing that could
+  actually flip it open. Converted `AdminSearchPalette` to accept
+  controlled `open` + `onOpenChange` props (falls back to
+  uncontrolled if not provided, for backward compat); the desktop
+  shell now passes its `paletteOpen` state through. Both surfaces
+  share the same open state — the trigger button, Cmd+K, and the
+  result `onPick` callback all flow through one place.
+
+  **2. Sidebar areas were rendering all expanded despite v0.11.15's
+  collapse-by-default fix.** Root cause: when a stored
+  `sidebar_collapsed` row contained an empty array `[]` (which could
+  happen for users who landed during Phase 12 dev before the null
+  sentinel was introduced), the v0.11.15 code treated `[]` as
+  "explicit nothing collapsed" and rendered everything expanded.
+  Fix: BOTH `null` and `[]` now fall back to the all-collapsed
+  default. `toggleCollapse` also writes `null` instead of `[]` when
+  the manager fully expands every area, so we never re-create the
+  ambiguous empty state going forward. Trade-off: a manager who
+  explicitly expands every area can't persist that state across
+  reloads — but reaching that state requires 9 deliberate clicks
+  against the new default, so it's not a real-world regression.
+
+  **3. Version number not visible anywhere on desktop/tablet admin.**
+  Mobile already shows `Powered by The Grounds · v{VERSION}` in the
+  MyClub footer; the desktop admin shell had no such surface.
+  Added a small attribution chip at the very bottom of the sidebar
+  footer reading `The Grounds · v0.11.18`. Muted styling so it
+  doesn't compete with primary nav. User-selectable for copy-paste
+  during support calls ("we're on 0.11.18").
+
 - **v0.11.17** — Phase 12 polish: Default workspaces seeded for every club.
 
   Every club now ships with **five default workspaces** every manager
