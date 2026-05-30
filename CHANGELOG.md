@@ -103,6 +103,39 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.1** — Phase 12: `AdminLayoutDesktop` shell.
+
+  First visible Phase 12 change. At ≥ 1024 px the admin section now
+  mounts the desktop layout: 260px persistent left sidebar (deep
+  green, area tree with collapsible groups + active highlighting +
+  Communications unread badges), 56px top bar (area eyebrow +
+  section title + bell), main content area (max-width 1280, 24×32
+  padding). Mobile and tablet still get the existing 3-level
+  drill-down — the desktop layout mounts conditionally via
+  `useViewport().isDesktop`.
+
+  · State source-of-truth stays in `AdminPanel` (`area`, `sec`,
+    `query`). The desktop shell receives both setters and calls
+    them on sidebar clicks, so navigation is exactly equivalent
+    to the mobile area-card → section-card drill-down.
+  · Long Level-3 section if-chain extracted into a new
+    `<SectionContent>` component at the top of `AdminPanel.jsx`
+    so mobile + desktop render identical bodies without
+    duplication.
+  · `AREAS` constant exported so the sidebar can render the tree
+    without reaching into AdminPanel's closure.
+  · Sidebar groups expand-by-default. Collapse state is local to
+    the mount for now; v0.11.7 persists it via
+    `admin_preferences`.
+  · Empty state ("Pick a section from the sidebar") renders when
+    nothing's selected so the desktop never shows a blank
+    content area.
+  · "Back to MyClub" affordance at the bottom of the sidebar.
+
+  v0.11.2 brings breadcrumbs, refined active highlighting, and
+  collapsible-group polish. v0.11.5 adds the global search input
+  to the top bar's center slot.
+
 - **v0.11.0** — Phase 12 opens: `useViewport` scaffold.
 
   Foundation patch. No visible UI change yet; the hook gets

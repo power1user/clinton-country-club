@@ -19,6 +19,7 @@ import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
 import { useViewport } from '../hooks/useViewport.js';
+import AdminLayoutDesktop from './admin/AdminLayoutDesktop.jsx';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -238,6 +239,60 @@ const AREAS = [
 // Flat lookup for the section content router
 const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id })));
 
+// v0.11.1 — SectionContent extracted as a standalone component so
+// both AdminLayoutMobile (the existing Level-3 in AdminPanel) and
+// AdminLayoutDesktop (the new sidebar-driven shell) can render the
+// same section bodies without duplicating the long if-chain. The
+// per-section permission gates stay inline here as defense in depth
+// even though the sidebar / area cards already filter by them.
+export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
+  return (
+    <>
+      {sec === 'status'         && <DailyStatusAdmin club={club} />}
+      {sec === 'facilityhours'  && isManager && <FacilityHoursAdmin />}
+      {sec === 'overrides'      && <ScheduleOverridesAdmin />}
+      {sec === 'pace'           && <PaceAdmin club={club} />}
+      {sec === 'pins'           && <PinsAdmin club={club} />}
+      {sec === 'holes'          && <HolesAdmin />}
+      {sec === 'holespons'      && <HoleSponsorsAdmin />}
+      {sec === 'menucats'       && <MenuCategoriesAdmin />}
+      {sec === 'menuitems'      && <MenuItemsAdmin />}
+      {sec === 'eventsadmin'    && <EventsAdmin />}
+      {sec === 'news'           && <NewsAdminFull />}
+      {sec === 'notifs'         && <NotificationsAdmin />}
+      {sec === 'banners'        && <SponsorBannersAdmin />}
+      {sec === 'memberposts'    && <MemberPostsAdmin />}
+      {sec === 'clubguide'      && <MemberGuideAdmin />}
+      {sec === 'proitems'       && <ProShopItemsAdmin />}
+      {sec === 'lessonpros'     && <LessonProsAdmin />}
+      {sec === 'people_all'     && <PeopleAdmin club={club} />}
+      {sec === 'members'        && <MembersAdmin club={club} />}
+      {sec === 'badges'         && <BadgesAdmin club={club} />}
+      {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
+      {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
+      {sec === 'inbox_food'      && <FoodOrdersAdmin />}
+      {sec === 'inbox_lessons'   && <LessonRequestsAdmin mode="lessons" />}
+      {sec === 'inbox_proshop'   && <LessonRequestsAdmin mode="inquiries" />}
+      {sec === 'inbox_guests'    && <GuestRegistrationsFeed />}
+      {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
+      {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin mode="flat" />}
+      {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
+      {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
+      {sec === 'features'       && isManager && <FeaturesAdmin />}
+      {sec === 'guests'         && isManager && <GuestManagementAdmin />}
+      {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
+      {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
+      {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
+    </>
+  );
+}
+
+// v0.11.1 — AREAS shape exported so the desktop sidebar (and any
+// future shell variant) can render the tree without reaching into
+// AdminPanel's render closure. The mobile drill-down inside
+// AdminPanel still uses the same constant directly.
+export { AREAS };
+
 export default function AdminPanel() {
   const { club, member, isAdmin, isSuperAdmin, isManager, hasPerm } = useAuth();
   // v0.11.0 (Phase 12) — viewport detection wired but not yet
@@ -248,8 +303,7 @@ export default function AdminPanel() {
   // Reading the hook here keeps the dependency live (so future
   // dev tools / debug overlays can already inspect viewport
   // state) and documents the v0.11.x intent at the call site.
-  // eslint-disable-next-line no-unused-vars
-  const { viewport, isDesktop } = useViewport();
+  const { isDesktop } = useViewport();
   const [area, setArea] = useState(null);   // top-level area, null = main hub
   const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
   const [query, setQuery] = useState('');   // admin hub search
@@ -289,6 +343,30 @@ export default function AdminPanel() {
     );
   }
 
+  // v0.11.1 — Desktop shell. AdminLayoutDesktop renders the
+  // persistent left sidebar (areas + sections tree) + top bar +
+  // main content. Sidebar clicks call setArea/setSec just like
+  // mobile drill-down does, so the shared component state stays
+  // the source of truth. Mobile + tablet still get the 3-level
+  // drill-down below.
+  if (isDesktop) {
+    return (
+      <AdminLayoutDesktop
+        area={area}
+        sec={sec}
+        setArea={setArea}
+        setSec={setSec}
+        areas={AREAS.filter(areaVisible)}
+        sectionVisible={sectionVisible}
+        member={member}
+        club={club}
+        isManager={isManager}
+        isSuperAdmin={isSuperAdmin}
+        commsUnread={commsUnread}
+      />
+    );
+  }
+
   // Level 3 — section content view, back returns to its area sub-hub
   if (activeSection) {
     return (
@@ -300,50 +378,11 @@ export default function AdminPanel() {
           right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
         />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-          {sec === 'status'         && <DailyStatusAdmin club={club} />}
-          {sec === 'facilityhours'  && isManager && <FacilityHoursAdmin />}
-          {sec === 'overrides'      && <ScheduleOverridesAdmin />}
-          {sec === 'pace'           && <PaceAdmin club={club} />}
-          {sec === 'pins'           && <PinsAdmin club={club} />}
-          {sec === 'holes'          && <HolesAdmin />}
-          {sec === 'holespons'      && <HoleSponsorsAdmin />}
-          {sec === 'menucats'       && <MenuCategoriesAdmin />}
-          {sec === 'menuitems'      && <MenuItemsAdmin />}
-          {/* v0.9.7: 'foodord', 'events' (registrations), 'lessons'
-              router branches removed — those section ids no longer
-              appear in AREAS. Their canonical homes are Comms
-              inbox_food / inbox_rsvps / inbox_lessons. */}
-          {sec === 'eventsadmin'    && <EventsAdmin />}
-          {sec === 'news'           && <NewsAdminFull />}
-          {sec === 'notifs'         && <NotificationsAdmin />}
-          {sec === 'banners'        && <SponsorBannersAdmin />}
-          {sec === 'memberposts'    && <MemberPostsAdmin />}
-          {sec === 'clubguide'      && <MemberGuideAdmin />}
-          {sec === 'proitems'       && <ProShopItemsAdmin />}
-          {sec === 'lessonpros'     && <LessonProsAdmin />}
-          {sec === 'people_all'     && <PeopleAdmin club={club} />}
-          {sec === 'members'        && <MembersAdmin club={club} />}
-          {sec === 'badges'         && <BadgesAdmin club={club} />}
-          {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
-          {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
-          {/* Communications sub-queues:
-              v0.9.5 — Food / Lessons / Pro Shop polish
-              v0.9.6 — Guest Registrations feed + flat RSVPs timeline.
-              Clubhouse Messages reuses existing grouped-by-topic
-              component as-is (already matches spec). */}
-          {sec === 'inbox_food'      && <FoodOrdersAdmin />}
-          {sec === 'inbox_lessons'   && <LessonRequestsAdmin mode="lessons" />}
-          {sec === 'inbox_proshop'   && <LessonRequestsAdmin mode="inquiries" />}
-          {sec === 'inbox_guests'    && <GuestRegistrationsFeed />}
-          {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
-          {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin mode="flat" />}
-          {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
-          {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
-          {sec === 'features'       && isManager && <FeaturesAdmin />}
-          {sec === 'guests'         && isManager && <GuestManagementAdmin />}
-          {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
-          {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
-          {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
+          {/* v0.11.1 — section if-chain moved into the shared
+              SectionContent component at the top of this file so
+              the mobile + desktop layouts render identical
+              section bodies without duplication. */}
+          <SectionContent sec={sec} club={club} isManager={isManager} isSuperAdmin={isSuperAdmin} />
         </div>
       </div>
     );
