@@ -2192,9 +2192,17 @@ export function MenuItemsAdmin() {
       primaryField="item_name"
       secondaryFn={r => {
         const cat = cats.find(c => c.id === r.category_id);
-        return [cat?.name || r.category, r.price, r.is_special && 'Special', r.available_today === false && 'Hidden'].filter(Boolean).join(' · ');
+        // v0.11.35 — format price for display: numbers always show as
+        // "$X.YY"; legacy non-numeric values (e.g. "Market") render
+        // raw so old rows aren't broken until the manager edits them.
+        const priceText = (() => {
+          if (r.price == null || r.price === '') return null;
+          const n = parseFloat(String(r.price).replace(/[^0-9.\-]/g, ''));
+          return Number.isFinite(n) ? `$${n.toFixed(2)}` : String(r.price);
+        })();
+        return [cat?.name || r.category, priceText, r.is_special && 'Special', r.available_today === false && 'Hidden'].filter(Boolean).join(' · ');
       }}
-      defaultRow={{ category_id: catOptions[0]?.value || null, item_name: '', description: '', price: '', tag: '', is_special: false, available_today: true, sort_order: 0 }}
+      defaultRow={{ category_id: catOptions[0]?.value || null, item_name: '', description: '', price: null, tag: '', is_special: false, available_today: true, sort_order: 0 }}
       // menus.category (text, NOT NULL) is a legacy column from before
       // we added menu_categories. The DB still requires it, so mirror
       // the category NAME from the selected category_id at save time.
@@ -2207,7 +2215,14 @@ export function MenuItemsAdmin() {
         { key: 'category_id',     label: 'Category', type: 'select', options: catOptions, required: true },
         { key: 'item_name',       label: 'Item Name', type: 'text', required: true },
         { key: 'description',     label: 'Description', type: 'textarea' },
-        { key: 'price',           label: 'Price (display string)', type: 'text', placeholder: '$12 or "Market"' },
+        // v0.11.35 — switched from free-form text to the strict
+        // money type. Input only accepts digits + one decimal point
+        // (HTML type="number" blocks $/letters at the browser level);
+        // blurs to 2 decimals ("12" → "12.00"); stores as a 2-decimal
+        // string ("12.50") so display formatting downstream is
+        // predictable. Legacy values like "Market" render raw until
+        // edited; once edited they become numeric like everything else.
+        { key: 'price',           label: 'Price', type: 'money', placeholder: '0.00' },
         { key: 'tag',             label: 'Tag (optional)', type: 'text', placeholder: 'Chef Special, Gluten Free…' },
         { key: 'is_special',      label: "Show in Today's Specials", type: 'checkbox' },
         { key: 'available_today', label: 'Available today', type: 'checkbox' },

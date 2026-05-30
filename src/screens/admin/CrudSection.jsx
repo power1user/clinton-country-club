@@ -277,13 +277,28 @@ function FieldInput({ field, value, onChange }) {
     );
   }
   // Money — strictly numeric prices. Renders an inline $ glyph in the
-  // input gutter, blurs to a 2-decimal display, stores as a Number so
-  // sorts and totals work. For free-form prices that need to support
-  // "Market" or "Half $15 / Full $25", use type='text' instead.
+  // input gutter, blurs to a 2-decimal display, stores as a 2-decimal
+  // STRING (e.g. "12.50") so it round-trips correctly through both
+  // numeric and text columns. Pre-v0.11.35 stored as a JS Number,
+  // which lost trailing zeros on text columns (12.50 → "12.5" on
+  // save → "12.5" on display — Marc's "$12.5" instead of "$12.50"
+  // bug on menu items).
+  //
+  // For free-form prices that need to support "Market" or "Half $15 /
+  // Full $25", use type='text' instead.
   if (type === 'money') {
-    const display = value == null || value === ''
-      ? ''
-      : (typeof value === 'number' ? value.toFixed(2) : String(value));
+    // Display: parse incoming (could be number, "12.50", "$12.50",
+    // or "Market" from legacy data) and show as 2-decimal. Falls
+    // back to empty when unparseable so the input stays usable.
+    const parseInput = (v) => {
+      if (v == null || v === '') return null;
+      if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+      const stripped = String(v).replace(/[^0-9.\-]/g, '');
+      const n = Number(stripped);
+      return Number.isFinite(n) ? n : null;
+    };
+    const numeric = parseInput(value);
+    const display = numeric == null ? '' : numeric.toFixed(2);
     return (
       <div style={wrap}>
         {labelEl}
@@ -299,13 +314,16 @@ function FieldInput({ field, value, onChange }) {
               const raw = e.target.value;
               if (raw === '') return onChange(null);
               const n = Number(raw);
-              if (Number.isFinite(n)) onChange(n);
+              // Defer normalization until blur — onChange just tracks
+              // the raw numeric input. type=number already blocks $
+              // and other non-digits at the browser level.
+              if (Number.isFinite(n)) onChange(String(n));
             }}
             onBlur={(e) => {
               const raw = e.target.value;
               if (raw === '') return;
               const n = Number(raw);
-              if (Number.isFinite(n)) onChange(Number(n.toFixed(2)));
+              if (Number.isFinite(n)) onChange(n.toFixed(2)); // "12.50" always
             }}
             placeholder={placeholder || '0.00'}
             style={{ ...input, paddingLeft: 24 }}

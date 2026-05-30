@@ -13,6 +13,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
+
+// v0.11.35 — Price formatter. Menus.price is stored as text for
+// historical reasons (some pre-v0.11.35 rows have free-form strings
+// like "Market"). After v0.11.35 every new save lands as a 2-decimal
+// numeric string ("12.50"). This helper:
+//   · Returns "" for null/empty
+//   · Parses numeric values + renders as "$X.YY" (the new norm)
+//   · Renders legacy non-numeric strings ("Market") as-is so old rows
+//     don't show "$NaN" until the manager edits them
+function formatPrice(p) {
+  if (p == null || p === '') return '';
+  const n = parseFloat(String(p).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : String(p);
+}
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { useFlag } from '../hooks/useFlag.js';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -236,7 +250,7 @@ function MenuSection({ setRef, label, items, accent = false, getQty, addToCart, 
                   {item.tag && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(155,122,30,0.1)', padding: '2px 6px', borderRadius: 2, flexShrink: 0 }}>{item.tag}</span>}
                 </div>
                 <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, lineHeight: 1.5, margin: '0 0 6px' }}>{item.desc}</p>
-                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 600, color: G.text }}>{item.price}</span>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 600, color: G.text }}>{formatPrice(item.price)}</span>
               </div>
               {/* v0.8.2: when addToCart is null (guest mode), hide the
                   +/- cart controls entirely — the menu reads as a

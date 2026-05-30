@@ -103,6 +103,67 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.35** — Bug pair: RSVP spots countdown + menu item price input.
+
+  **Bug 1: Spots remaining doesn't count down after RSVP.**
+  `events.spots` is a static "capacity" column that never gets
+  decremented. The Event Detail screen was reading it directly,
+  so the line "X spots remaining" stayed at the original capacity
+  even after RSVPs landed.
+
+  Fix: `useEvents` hook now joins to `event_registrations`,
+  counts the registered rows per event in JS, and returns
+  `spots = capacity - registered_count`. Original capacity moves
+  to `spotsTotal`; waitlist count exposed as `waitlistCount` for
+  any future tile. Realtime subscription on `event_registrations`
+  added so the count updates live across other open sessions.
+
+  Event Detail screen mirrors `ev.spots` into a local `displaySpots`
+  state so this user's RSVP immediately decrements the displayed
+  number (the prop snapshot from navigation is otherwise stale).
+
+  Also fixed: the RSVP insert never set `status`, so the
+  `status='registered'` column default applied even when the
+  "Join Waitlist" path was taken — silently overbooking events.
+  Now explicit: `spots > 0` → `registered`; `spots == 0` →
+  `waitlist`. The button label already showed the right action;
+  the underlying write was the bug.
+
+  **Bug 2: Double dollar sign + bad decimals on menu item prices.**
+  `menus.price` was a TEXT column with a free-form text input.
+  Admins typed inconsistently: some `$10.99`, some `10.99`, some
+  `2.5` (missing the trailing zero), some `Market` (legacy free-form).
+  Member-facing display rendered the raw stored value, producing
+  things like `$$10.99` when the displayer prepended a `$` too.
+
+  Fix in three parts:
+  · **CrudSection** `money` type now stores as a 2-decimal STRING
+    (`"12.50"`) instead of a JS Number, so values round-trip
+    correctly through TEXT columns. HTML `type="number"` already
+    blocks `$` and letters at the browser level; `onBlur` always
+    formats to `n.toFixed(2)`.
+  · **MenuItemsAdmin** field switched from `type: 'text'` (free-form,
+    label "Price (display string)") to `type: 'money'` (strictly
+    numeric, label "Price"). The secondary line in the admin list
+    formats numbers as `$X.YY` and renders legacy `Market`-style
+    strings raw until the manager edits the row.
+  · **Migration 66**: data normalization. Existing values cleaned
+    in-place: `'$10.99' → '10.99'`, `'$12' → '12.00'`, `'2.5' →
+    '2.50'`, `'2.50' → '2.50'`, `'Market' → NULL`. Clinton's 17
+    distinct menu prices all normalized successfully.
+  · **FoodMenu** member screen now uses a `formatPrice` helper that
+    parses the stored value and renders `$X.YY`. Legacy non-numeric
+    strings still render raw as a graceful fallback.
+
+  Pro Shop items (numeric column) inherit the CrudSection fix for
+  free — they now also persist trailing zeros correctly (`$5.00`
+  instead of `$5`).
+
+  **Bug 3 not shipped here**: "Not Secure" warning. Source code is
+  clean — no `http://` URLs anywhere in HTML/JSX/data. The cause
+  is infrastructure (Cloudflare SSL config or a stale cert), not
+  application code. Diagnostic checklist in chat.
+
 - **v0.11.34** — URGENT fix: admin broadcasts now actually push to phones.
 
   Marc reported "urgent notification didn't push to phone." Diagnosis:

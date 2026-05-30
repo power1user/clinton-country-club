@@ -327,26 +327,66 @@ export function useEvents() {
 
     let cancelled = false;
     const load = async () => {
-      const { data: rows } = await supabase
-        .from('events')
-        .select('id, title, description, category, event_date, event_time, event_time_start, event_time_end, date_label, dow, day_num, spots, price, recurrence_group_id')
-        .eq('club_id', club.id)
-        .order('event_date', { ascending: true });
+      // v0.11.35 — compute spotsRemaining live from event_registrations.
+      // Two-query approach (events, then registrations) since
+      // PostgREST's embedded aggregate doesn't expose "count where
+      // status='registered'" cleanly. Member-side query so RLS
+      // automatically scopes the registrations to this club too.
+      const [{ data: rows }, { data: regs }] = await Promise.all([
+        supabase
+          .from('events')
+          .select('id, title, description, category, event_date, event_time, event_time_start, event_time_end, date_label, dow, day_num, spots, price, recurrence_group_id')
+          .eq('club_id', club.id)
+          .order('event_date', { ascending: true }),
+        supabase
+          .from('event_registrations')
+          .select('event_id, status')
+          .eq('club_id', club.id)
+          .in('status', ['registered', 'waitlist']),
+      ]);
       if (cancelled) return;
+      // Count REGISTERED (took a spot) rows per event_id. Waitlist
+      // entries don't take a spot but are tracked separately so a
+      // future tile/header can show "+ N on waitlist".
+      const takenByEvent = new Map();
+      const waitlistByEvent = new Map();
+      for (const r of regs || []) {
+        if (r.status === 'registered') {
+          takenByEvent.set(r.event_id, (takenByEvent.get(r.event_id) || 0) + 1);
+        } else if (r.status === 'waitlist') {
+          waitlistByEvent.set(r.event_id, (waitlistByEvent.get(r.event_id) || 0) + 1);
+        }
+      }
       if (rows) {
-        setData(rows.map(r => ({
-          id: r.id,
-          date: r.date_label,         // display string ("Sat May 24")
-          eventDate: r.event_date,    // raw ISO date for calendar bucketing (v0.6.0)
-          dow: r.dow, day: r.day_num, title: r.title,
-          // v0.9.12: prefer the structured start/end columns. Fall back
-          // to legacy text event_time for rows that predate the picker.
-          time: formatEventTime(r.event_time_start, r.event_time_end, r.event_time),
-          timeStart: r.event_time_start,
-          timeEnd:   r.event_time_end,
-          recurrenceGroupId: r.recurrence_group_id,
-          cat: r.category, spots: r.spots, price: r.price, desc: r.description,
-        })));
+        setData(rows.map(r => {
+          const totalCapacity = Number(r.spots ?? 0);
+          const rsvpCount = takenByEvent.get(r.id) || 0;
+          const waitlistCount = waitlistByEvent.get(r.id) || 0;
+          const remaining = Math.max(0, totalCapacity - rsvpCount);
+          return {
+            id: r.id,
+            date: r.date_label,         // display string ("Sat May 24")
+            eventDate: r.event_date,    // raw ISO date for calendar bucketing (v0.6.0)
+            dow: r.dow, day: r.day_num, title: r.title,
+            // v0.9.12: prefer the structured start/end columns. Fall back
+            // to legacy text event_time for rows that predate the picker.
+            time: formatEventTime(r.event_time_start, r.event_time_end, r.event_time),
+            timeStart: r.event_time_start,
+            timeEnd:   r.event_time_end,
+            recurrenceGroupId: r.recurrence_group_id,
+            cat: r.category,
+            // v0.11.35 — `spots` now reports REMAINING capacity, not
+            // the original total. Every consumer (EventDetail, Home
+            // Next Event card, My Events, calendar) treats it that
+            // way already. `spotsTotal` carries the original total
+            // for any future "X / Y spots remaining" display.
+            spots: remaining,
+            spotsTotal: totalCapacity,
+            spotsTaken: rsvpCount,
+            waitlistCount,
+            price: r.price, desc: r.description,
+          };
+        }));
       }
       setLoading(false);
     };
@@ -355,6 +395,11 @@ export function useEvents() {
     const channel = supabase
       .channel(`events:${club.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `club_id=eq.${club.id}` }, () => load())
+      // v0.11.35 — also refetch when ANY RSVP lands. The aggregate
+      // count in the events query changes; without this listener,
+      // spots remaining stayed frozen at the original capacity (the
+      // bug Marc reported).
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_registrations', filter: `club_id=eq.${club.id}` }, () => load())
       .subscribe();
 
     return () => { cancelled = true; supabase.removeChannel(channel); };

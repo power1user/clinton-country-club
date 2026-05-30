@@ -47,6 +47,15 @@ export default function EventDetail({ params }) {
   const [registered, setRegistered] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  // v0.11.35 — Local mirror of ev.spots so the "X spots remaining"
+  // line ticks down immediately when this member RSVPs. The parent
+  // useEvents hook ALSO refetches on the realtime event_registrations
+  // change so other open sessions / refreshes see the same number,
+  // but `ev` itself is a navigation-snapshot prop and won't update
+  // for THIS instance after the RSVP write. State copy bridges that.
+  const [displaySpots, setDisplaySpots] = useState(ev?.spots ?? 0);
+  // Re-sync whenever the inbound ev prop changes (e.g. parent refetch).
+  useEffect(() => { setDisplaySpots(ev?.spots ?? 0); }, [ev?.spots]);
   const catColors = { Golf: G.openBg, Social: G.brass, Dining: '#4A5A7A' };
 
   // Check if member is already registered (only when working against real DB)
@@ -64,12 +73,19 @@ export default function EventDetail({ params }) {
   }, [ev?.id, member?.id]);
 
   const handleRegister = async () => {
-    if (ev.spots <= 0) return;
+    // v0.11.35 — read from displaySpots so a successful first RSVP
+    // doesn't immediately block a Join Waitlist tap on the same screen.
+    const remaining = displaySpots;
     if (!isConfigured || !member?.id || typeof ev.id !== 'string') {
       setRegistered(true); // prototype mode fallback
       return;
     }
     setBusy(true); setErr(null);
+    // v0.11.35 — set status explicitly. The column default is
+    // 'registered', so the "Join Waitlist" path (spots = 0) used to
+    // also insert as 'registered' — silently overbooking the event.
+    // Now: spots > 0 → registered; spots = 0 → waitlist.
+    const status = remaining > 0 ? 'registered' : 'waitlist';
     // v0.9.9: include club_id — RLS policy event_registrations_member_insert
     // requires it (checks m.club_id = event_registrations.club_id against
     // the requesting member's row). Without it, the predicate fails and
@@ -78,16 +94,21 @@ export default function EventDetail({ params }) {
       club_id: club.id,
       event_id: ev.id,
       member_id: member.id,
+      status,
     });
     setBusy(false);
     if (error) { setErr(error.message); return; }
     setRegistered(true);
+    // v0.11.35 — Decrement the displayed remaining count immediately
+    // if this RSVP took a spot. Waitlist RSVPs don't take a spot, so
+    // we leave it at 0.
+    if (status === 'registered') {
+      setDisplaySpots(d => Math.max(0, d - 1));
+    }
     // v0.10.16 — GA4: event_rsvp_submitted. PII-free.
-    // rsvp_status reflects whether this was a Register or a
-    // join-waitlist (spots === 0 path).
     trackEvent('event_rsvp_submitted', {
       event_category: ev.cat || ev.category || null,
-      rsvp_status: ev.spots === 0 ? 'waitlist' : 'registered',
+      rsvp_status: status,
     });
   };
 
@@ -123,15 +144,15 @@ export default function EventDetail({ params }) {
 
         <div style={{ padding: '0 20px 20px' }}>
           <div style={{ padding: 14, background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, marginTop: 16 }}>
-            {ev.spots === 0 ? (
+            {displaySpots === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: G.clsDot, flexShrink: 0 }} />
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}>This event is <strong>sold out</strong>. Contact the club office to join the waitlist.</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}>This event is <strong>sold out</strong>. Tap below to join the waitlist.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: G.openDot, flexShrink: 0 }} />
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}><strong>{ev.spots} spot{ev.spots > 1 ? 's' : ''}</strong> remaining</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}><strong>{displaySpots} spot{displaySpots > 1 ? 's' : ''}</strong> remaining</p>
               </div>
             )}
           </div>
@@ -141,12 +162,12 @@ export default function EventDetail({ params }) {
           <div style={{ padding: '0 20px 32px' }}>
             <PendingGuard action="RSVP to events" inline>
               <div
-                onClick={handleRegister}
+                onClick={busy ? undefined : handleRegister}
                 data-tap
-                style={{ padding: 14, background: ev.spots > 0 && !busy ? G.green : G.border, borderRadius: 4, textAlign: 'center', cursor: ev.spots > 0 && !busy ? 'pointer' : 'not-allowed' }}
+                style={{ padding: 14, background: busy ? G.border : G.green, borderRadius: 4, textAlign: 'center', cursor: busy ? 'not-allowed' : 'pointer' }}
               >
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: ev.spots > 0 && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-                  {busy ? 'Registering…' : ev.spots === 0 ? 'Join Waitlist' : `Register — ${ev.price}`}
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: busy ? G.muted : '#F2EDE0', fontWeight: 500 }}>
+                  {busy ? 'Registering…' : displaySpots === 0 ? 'Join Waitlist' : `Register — ${ev.price}`}
                 </span>
               </div>
             </PendingGuard>
