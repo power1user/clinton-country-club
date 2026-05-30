@@ -103,6 +103,68 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.32** — Eleven more dashboard tiles (Ops + Membership + Comms).
+
+  Triples the dashboard's tile catalog from 8 → 19. Three new
+  stakeholder groups now have dedicated tiles they can show, hide,
+  and reorder per workspace.
+
+  **Operations / GM (4):**
+  · **Course Status Now** — Live open / limited / closed pills for
+    every facility (course / bar / restaurant / kitchen / lounge),
+    pulled from `club_status` joined to `club_facilities` for the
+    display name. The "what's the club doing right now?" tile.
+  · **Today's Events** — Events on the calendar with today's date,
+    ordered by start time, with RSVP counts.
+  · **Order Velocity** — Food orders placed today vs the club's
+    30-day average orders/day. Spot when the kitchen is falling
+    behind (or having a quiet shift).
+  · **Active Guests** — Count of currently-valid guest passes
+    (`status='active'` AND (`expires_at` IS NULL OR > now)). Sub-card
+    flags how many expire in the next 3 days.
+
+  **Membership / Board (4) — minRole: `manager`:**
+  · **Membership Snapshot** — Total members, active vs pending
+    breakdown, and 30-day growth count + percentage.
+  · **Pending Approvals** — Member status='pending' list, ordered by
+    sign-up date, with the count up top. The "who do I need to
+    approve?" tile.
+  · **Engagement Score** — % of active members who fired at least
+    one event in `analytics_events` over the last 7 days. Color-coded
+    threshold (≥60% green, 30-59% brass, <30% red). The board's
+    health-of-the-app single-number tile.
+  · **Directory Completeness** — Data-hygiene tile. Two bars
+    showing % of active members with profile photo on file + % with
+    email on file. The membership coordinator's "what's missing"
+    tile.
+
+  **Communications / Marketing (3):**
+  · **Push Notifications Today** — Count from `notification_messages`
+    sent today (00:00 local-to-server forward), plus the 3 most
+    recent titles + times. Send-cadence visibility.
+  · **Recent News** — Last 3 published news articles (`news` table,
+    `published_at IS NOT NULL`) with headline, category, and date.
+  · **Top Trending Posts** — Top 3 posts by reply count in the last
+    7 days, across the polymorphic `post_replies` table. Joins back
+    to `bulletin_posts` / `partner_posts` / `events` for titles via
+    a small in-tile fan-out. The "what's the community talking
+    about?" tile.
+
+  **Role gating** — the four Membership / Board tiles declare
+  `minRole: 'manager'` so they're hidden from base-tier
+  `club_admin` users (whose role doesn't grant manager-level
+  insights). The other seven are `staff` (anyone with admin
+  access).
+
+  Default workspaces NOT updated to seed the new tiles — they'll
+  land in the "all visible at end" position per v0.11.28's "new
+  tiles append" semantics, so each manager's existing arrangement
+  is preserved.
+
+  Also: fixed lingering `G.cls` → `G.clsDot` references (`G.cls`
+  doesn't exist; was rendering as no-color in the negative-delta
+  paths of two existing tiles, and in two of the new ones).
+
 - **v0.11.31** — Phase 12 v2 closeout (docs).
 
   Closes the v0.11.13–31 sub-phase. No runtime changes — docs only:

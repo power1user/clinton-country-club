@@ -106,6 +106,97 @@ const TILE_CATALOG = [
     component: RecentBulletinTile,
     size: { col: 2, row: 1 },
   },
+  // ─── v0.11.32 — Operations / GM tiles ──────────────────────────
+  {
+    id: 'course_status_now',
+    name: 'Course Status Now',
+    description: 'Live open/limited/closed pills for every facility.',
+    minRole: 'staff',
+    component: CourseStatusTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'todays_events',
+    name: "Today's Events",
+    description: "Events on the calendar for today's date.",
+    minRole: 'staff',
+    component: TodaysEventsTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'order_velocity',
+    name: 'Order Velocity',
+    description: 'Food orders placed today, vs the club average.',
+    minRole: 'staff',
+    component: OrderVelocityTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'active_guests',
+    name: 'Active Guests',
+    description: 'Currently-valid guest passes + how many expire soon.',
+    minRole: 'staff',
+    component: ActiveGuestsTile,
+    size: { col: 2, row: 1 },
+  },
+  // ─── v0.11.32 — Membership / Board tiles ────────────────────────
+  {
+    id: 'membership_snapshot',
+    name: 'Membership Snapshot',
+    description: 'Total members, status breakdown, 30-day growth.',
+    minRole: 'manager',
+    component: MembershipSnapshotTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'pending_approvals',
+    name: 'Pending Approvals',
+    description: 'Members awaiting approval, with sign-up date.',
+    minRole: 'manager',
+    component: PendingApprovalsTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'engagement_score',
+    name: 'Engagement Score',
+    description: '% of members active in the last 7 days.',
+    minRole: 'manager',
+    component: EngagementScoreTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'directory_completeness',
+    name: 'Directory Completeness',
+    description: 'Data-hygiene tile: % of members with photo + email.',
+    minRole: 'manager',
+    component: DirectoryCompletenessTile,
+    size: { col: 2, row: 1 },
+  },
+  // ─── v0.11.32 — Communications / Marketing tiles ────────────────
+  {
+    id: 'push_today',
+    name: 'Push Notifications Today',
+    description: 'Broadcast pushes sent in the last 24 hours.',
+    minRole: 'staff',
+    component: PushTodayTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'recent_news',
+    name: 'Recent News',
+    description: 'Last 3 published news articles.',
+    minRole: 'staff',
+    component: RecentNewsTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'trending_posts',
+    name: 'Top Trending Posts',
+    description: 'Member posts with the most replies this week.',
+    minRole: 'staff',
+    component: TrendingPostsTile,
+    size: { col: 2, row: 1 },
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────
@@ -478,7 +569,7 @@ function TodayActivityTile({ clubId }) {
             fontFamily: '"Lora",serif',
             fontSize: 13,
             fontWeight: 700,
-            color: delta > 0 ? G.openDot : G.cls,
+            color: delta > 0 ? G.openDot : G.clsDot,
           }}>
             {delta > 0 ? '↑' : '↓'} {Math.abs(delta)} vs yesterday
           </span>
@@ -988,6 +1079,715 @@ function CommunityPulseTile({ clubId }) {
       {row('Bulletin posts',  counts.bulletin)}
       {row('Partner posts',   counts.partner)}
       {row('Event RSVPs',     counts.rsvps)}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// v0.11.32 — Operations / GM tiles
+// ──────────────────────────────────────────────────────────────────
+
+function CourseStatusTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      // Join club_status to club_facilities so we can show the
+      // facility's display name. Order by sort_order for stable
+      // top-to-bottom layout.
+      const { data } = await supabase
+        .from('club_status')
+        .select('id, state, label, sort_order, club_facilities(display_name)')
+        .eq('club_id', clubId)
+        .order('sort_order', { ascending: true });
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No facility status configured.</p>;
+  }
+  // Quick state → color/label mapping. Falls back to muted gray
+  // for any unknown state value.
+  const stateStyle = (state) => {
+    if (state === 'open')    return { bg: G.openBg, dot: G.openDot, txt: G.openTxt, label: 'Open' };
+    if (state === 'limited') return { bg: G.limBg,  dot: G.limDot,  txt: G.limTxt,  label: 'Limited' };
+    if (state === 'closed')  return { bg: G.clsBg,  dot: G.clsDot,  txt: G.clsTxt,  label: 'Closed' };
+    return { bg: G.muted, dot: G.muted, txt: '#F2EDE0', label: state || '—' };
+  };
+  return (
+    <div>
+      {rows.map((r, i) => {
+        const s = stateStyle(r.state);
+        return (
+          <div key={r.id} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+          }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text }}>
+              {r.club_facilities?.display_name || r.label || 'Facility'}
+            </span>
+            <span style={{
+              fontFamily: '"Lora",serif',
+              fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.10em', textTransform: 'uppercase',
+              color: s.txt, background: s.bg,
+              padding: '3px 9px', borderRadius: 3,
+            }}>
+              {s.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TodaysEventsTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from('events')
+        .select('id, title, event_time_start, event_registrations(count)')
+        .eq('club_id', clubId)
+        .eq('event_date', todayIso)
+        .order('event_time_start', { ascending: true, nullsFirst: true });
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No events on the calendar for today.</p>;
+  }
+  return (
+    <div>
+      {rows.map((r, i) => {
+        const rsvp = r.event_registrations?.[0]?.count ?? 0;
+        return (
+          <div key={r.id} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '8px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+          }}>
+            <span style={{
+              flexShrink: 0,
+              fontFamily: 'monospace', fontSize: 11,
+              color: G.brass, fontWeight: 600,
+              minWidth: 48,
+            }}>
+              {r.event_time_start || '—'}
+            </span>
+            <span style={{
+              flex: 1, minWidth: 0,
+              fontFamily: '"Playfair Display",serif',
+              fontSize: 14, fontWeight: 700, color: G.text,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {r.title}
+            </span>
+            <span style={{
+              flexShrink: 0,
+              fontFamily: '"Lora",serif', fontSize: 11, color: G.muted,
+            }}>
+              {rsvp} RSVP{rsvp === 1 ? '' : 's'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OrderVelocityTile({ clubId }) {
+  const [todayCount, setTodayCount] = useState(null);
+  const [avg30, setAvg30] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const [today, last30] = await Promise.all([
+        supabase.from('food_orders').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).gte('created_at', todayMidnight.toISOString()),
+        supabase.from('food_orders').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).gte('created_at', thirtyDaysAgo.toISOString()),
+      ]);
+      if (cancelled) return;
+      setTodayCount(today.count || 0);
+      setAvg30(Math.round((last30.count || 0) / 30));
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  const delta = todayCount != null && avg30 != null ? todayCount - avg30 : null;
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700, color: G.text, lineHeight: 1,
+        }}>
+          {todayCount == null ? '—' : todayCount}
+        </span>
+        {delta != null && delta !== 0 && (
+          <span style={{
+            fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 700,
+            color: delta > 0 ? G.openDot : G.clsDot,
+          }}>
+            {delta > 0 ? '↑' : '↓'} {Math.abs(delta)} vs 30-day avg
+          </span>
+        )}
+      </div>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 14px' }}>
+        orders today
+      </p>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+        Club average: <span style={{ color: G.text, fontWeight: 600 }}>{avg30 == null ? '—' : avg30}</span> orders/day over the last 30 days.
+      </p>
+    </div>
+  );
+}
+
+function ActiveGuestsTile({ clubId }) {
+  const [counts, setCounts] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const nowIso = new Date().toISOString();
+      const threeDaysIso = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+      const [active, expiringSoon] = await Promise.all([
+        // Active = status='active' AND (expires_at is null OR > now)
+        supabase.from('guests').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active')
+          .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
+        // Expiring in next 3 days
+        supabase.from('guests').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active')
+          .not('expires_at', 'is', null)
+          .gt('expires_at', nowIso)
+          .lte('expires_at', threeDaysIso),
+      ]);
+      if (cancelled) return;
+      setCounts({ active: active.count || 0, expiring: expiringSoon.count || 0 });
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (counts == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700, color: G.text, lineHeight: 1,
+        }}>
+          {counts.active}
+        </span>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>
+          active passes
+        </span>
+      </div>
+      <div style={{ marginTop: 14, padding: '10px 12px', background: counts.expiring > 0 ? 'rgba(155,122,30,0.10)' : G.bg, border: `1px solid ${G.border}`, borderRadius: 4 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 2px', letterSpacing: '0.04em' }}>
+          Expiring in 3 days
+        </p>
+        <p style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 18, fontWeight: 700,
+          color: counts.expiring > 0 ? G.brass : G.text,
+          margin: 0,
+        }}>
+          {counts.expiring}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// v0.11.32 — Membership / Board tiles
+// ──────────────────────────────────────────────────────────────────
+
+function MembershipSnapshotTile({ clubId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const [active, pending, recentlyAdded] = await Promise.all([
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active'),
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'pending'),
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).gt('created_at', thirtyDaysAgo),
+      ]);
+      if (cancelled) return;
+      const total = (active.count || 0) + (pending.count || 0);
+      const growth30 = recentlyAdded.count || 0;
+      const growthPct = total > 0 ? Math.round((growth30 / Math.max(1, total - growth30)) * 100) : 0;
+      setData({
+        active: active.count || 0,
+        pending: pending.count || 0,
+        total,
+        growth30,
+        growthPct,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (data == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  const row = (label, count) => (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      padding: '6px 0', borderBottom: `1px solid ${G.border}`,
+    }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>{label}</span>
+      <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text }}>{count}</span>
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700, color: G.text, lineHeight: 1,
+        }}>
+          {data.total}
+        </span>
+        {data.growth30 > 0 && (
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 700, color: G.openDot }}>
+            ↑ {data.growth30} (+{data.growthPct}%) past 30 days
+          </span>
+        )}
+      </div>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+        total members
+      </p>
+      {row('Active',  data.active)}
+      {row('Pending', data.pending)}
+    </div>
+  );
+}
+
+function PendingApprovalsTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('members')
+        .select('id, name, email, created_at')
+        .eq('club_id', clubId).eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700,
+          color: rows.length > 0 ? G.brass : G.text,
+          lineHeight: 1,
+        }}>
+          {rows.length}
+        </span>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>
+          awaiting approval
+        </span>
+      </div>
+      {rows.length === 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+          No pending member approvals.
+        </p>
+      )}
+      {rows.slice(0, 5).map((m, i) => (
+        <div key={m.id} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+          padding: '6px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <span style={{
+            fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            flex: 1, minWidth: 0,
+          }}>
+            {m.name || m.email || 'Member'}
+          </span>
+          <span style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted, marginLeft: 8 }}>
+            {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      ))}
+      {rows.length > 5 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '6px 0 0' }}>
+          + {rows.length - 5} more
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EngagementScoreTile({ clubId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const [totalActiveMembers, recentEvents] = await Promise.all([
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active'),
+        // Distinct member_ids in analytics_events the last 7 days.
+        // We can't COUNT DISTINCT directly via PostgREST — pull
+        // member_ids and dedupe in JS. Capped at 5000 rows; for a
+        // club this is plenty (one row per event per active user).
+        supabase.from('analytics_events').select('member_id')
+          .eq('club_id', clubId).gt('ts', sevenDaysAgo)
+          .not('member_id', 'is', null)
+          .limit(5000),
+      ]);
+      if (cancelled) return;
+      const totalMembers = totalActiveMembers.count || 0;
+      const activeMemberIds = new Set();
+      for (const row of recentEvents.data || []) {
+        if (row.member_id) activeMemberIds.add(row.member_id);
+      }
+      const activeCount = activeMemberIds.size;
+      const pct = totalMembers > 0 ? Math.round((activeCount / totalMembers) * 100) : 0;
+      setData({ totalMembers, activeCount, pct });
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (data == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  // Color thresholds: ≥60% green, 30-59% brass, <30% red.
+  const color = data.pct >= 60 ? G.openDot : data.pct >= 30 ? G.brass : G.clsDot;
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700, color, lineHeight: 1,
+        }}>
+          {data.pct}%
+        </span>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>
+          active in last 7 days
+        </span>
+      </div>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '14px 0 0' }}>
+        {data.activeCount} of {data.totalMembers} active members opened the app this week.
+      </p>
+    </div>
+  );
+}
+
+function DirectoryCompletenessTile({ clubId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const [total, withPhoto, withEmail] = await Promise.all([
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active'),
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active')
+          .not('photo_url', 'is', null),
+        supabase.from('members').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).eq('status', 'active')
+          .not('email', 'is', null),
+      ]);
+      if (cancelled) return;
+      const t = total.count || 0;
+      setData({
+        total: t,
+        photoPct: t > 0 ? Math.round(((withPhoto.count || 0) / t) * 100) : 0,
+        emailPct: t > 0 ? Math.round(((withEmail.count || 0) / t) * 100) : 0,
+        missingPhoto: t - (withPhoto.count || 0),
+        missingEmail: t - (withEmail.count || 0),
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (data == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  const bar = (label, pct, missing) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text }}>{label}</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 11, color: G.muted }}>
+          {pct}%{missing > 0 ? ` · ${missing} missing` : ''}
+        </span>
+      </div>
+      <div style={{ height: 6, background: G.bg, borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? G.openDot : pct >= 50 ? G.brass : G.clsDot }} />
+      </div>
+    </div>
+  );
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 12px' }}>
+        Out of {data.total} active members:
+      </p>
+      {bar('Profile photo on file', data.photoPct, data.missingPhoto)}
+      {bar('Email on file',         data.emailPct, data.missingEmail)}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// v0.11.32 — Communications / Marketing tiles
+// ──────────────────────────────────────────────────────────────────
+
+function PushTodayTile({ clubId }) {
+  const [count, setCount] = useState(null);
+  const [recent, setRecent] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const [cnt, rec] = await Promise.all([
+        supabase.from('notification_messages').select('id', { count: 'exact', head: true })
+          .eq('club_id', clubId).gte('created_at', todayMidnight.toISOString()),
+        supabase.from('notification_messages')
+          .select('id, title, created_at')
+          .eq('club_id', clubId).gte('created_at', todayMidnight.toISOString())
+          .order('created_at', { ascending: false }).limit(3),
+      ]);
+      if (cancelled) return;
+      setCount(cnt.count || 0);
+      setRecent(Array.isArray(rec.data) ? rec.data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (count == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36, fontWeight: 700, color: G.text, lineHeight: 1,
+        }}>
+          {count}
+        </span>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>
+          sent today
+        </span>
+      </div>
+      {recent && recent.length === 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+          No pushes sent today.
+        </p>
+      )}
+      {(recent || []).map((n, i) => (
+        <div key={n.id} style={{
+          padding: '6px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <p style={{
+            fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {n.title || '(no title)'}
+          </p>
+          <p style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>
+            {new Date(n.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentNewsTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('news')
+        .select('id, headline, category, published_at, created_at')
+        .eq('club_id', clubId)
+        .not('published_at', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(3);
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No news articles published.</p>;
+  }
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={r.id} style={{
+          padding: '8px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <p style={{
+            fontFamily: '"Playfair Display",serif',
+            fontSize: 13, fontWeight: 700, color: G.text, margin: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {r.headline || '(no headline)'}
+          </p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+            {r.category || 'News'} · {new Date(r.published_at || r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendingPostsTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      // Pull replies in the window, group by post in JS, then fetch
+      // the corresponding post titles. Keeps this tile self-contained
+      // without a server-side RPC.
+      const { data: replies } = await supabase
+        .from('post_replies')
+        .select('post_table, post_id')
+        .eq('club_id', clubId)
+        .gt('created_at', sevenDaysAgo)
+        .eq('hidden', false)
+        .limit(2000);
+      const counts = new Map();
+      for (const r of replies || []) {
+        const k = `${r.post_table}:${r.post_id}`;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const top = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([k, n]) => {
+          const [table, id] = k.split(':');
+          return { table, id, replyCount: n };
+        });
+      // Fetch titles in parallel — one query per distinct table
+      const byTable = {};
+      for (const t of top) (byTable[t.table] ||= []).push(t.id);
+      const fetched = await Promise.all(
+        Object.entries(byTable).map(async ([table, ids]) => {
+          if (table === 'bulletin_posts') {
+            const { data } = await supabase.from('bulletin_posts').select('id, title, body').in('id', ids);
+            return [table, data || []];
+          }
+          if (table === 'partner_posts') {
+            const { data } = await supabase.from('partner_posts').select('id, game_type').in('id', ids);
+            return [table, (data || []).map(r => ({ id: r.id, title: r.game_type ? `Partner: ${r.game_type}` : 'Partner post' }))];
+          }
+          if (table === 'events') {
+            const { data } = await supabase.from('events').select('id, title').in('id', ids);
+            return [table, data || []];
+          }
+          return [table, []];
+        })
+      );
+      const titleMap = {};
+      for (const [table, items] of fetched) {
+        for (const it of items) {
+          titleMap[`${table}:${it.id}`] = it.title || (it.body ? it.body.slice(0, 50) : 'Post');
+        }
+      }
+      const out = top.map(t => ({
+        ...t,
+        title: titleMap[`${t.table}:${t.id}`] || `${t.table} #${String(t.id).slice(0, 6)}`,
+      }));
+      if (cancelled) return;
+      setRows(out);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No replies in the last 7 days.</p>;
+  }
+  const surfaceLabel = (table) => {
+    if (table === 'bulletin_posts') return 'Bulletin';
+    if (table === 'partner_posts')  return 'Partners';
+    if (table === 'events')         return 'Event';
+    return table;
+  };
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={`${r.table}:${r.id}`} style={{
+          display: 'flex', alignItems: 'baseline', gap: 12,
+          padding: '8px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <span style={{
+            flexShrink: 0,
+            fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700,
+            color: G.brass, minWidth: 24,
+          }}>
+            {r.replyCount}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {r.title}
+            </p>
+            <p style={{
+              fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '1px 0 0',
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+              {surfaceLabel(r.table)} · {r.replyCount} repl{r.replyCount === 1 ? 'y' : 'ies'}
+            </p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
