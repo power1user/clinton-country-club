@@ -103,6 +103,43 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.12** — Phase 12: Closeout (README refresh).
+
+  Final v0.11.x bump. No runtime changes — pure docs:
+
+  · **README.md** — "Current version" line bumped to `v0.11.12 (Phase
+    12 complete)`. Added a **Responsive Admin (Phase 12)** feature-
+    inventory section covering layout shells, `useViewport`,
+    `AdminTable`, `SidePanel`, `AdminSearchPalette`,
+    `useKeyboardShortcuts`, `admin_preferences` + hook, dark mode,
+    and workspaces. Repo-layout tree updated with the new hooks
+    (`useViewport`, `useAdminPreference`, `useKeyboardShortcuts`)
+    and components (`AdminTable`, `SidePanel`, `AdminSearchPalette`,
+    `AdminWorkspaceSwitcher`).
+  · **version.js** — phase index already carries the Phase 12 entry
+    from v0.11.0; this bump just lands the cadence note that v0.11.x
+    is the responsive-admin lift.
+
+  Phase 12 in one paragraph: the member app stays mobile-first
+  PWA forever, but managers doing real CRUD work in the office no
+  longer have to type into 320-pixel inputs. From v0.11.0 forward,
+  the admin section renders in two layout shells — `AdminLayoutMobile`
+  (3-level drill-down, &lt;768px) and `AdminLayoutDesktop` (persistent
+  sidebar + topbar + main content area, ≥768px) — sharing the same
+  section components. The desktop shell ships with a global Cmd+K
+  search palette, keyboard shortcuts (single keys + Gmail/GitHub
+  `g + letter` chords), a slide-in `SidePanel` detail pattern, a
+  reusable `AdminTable` primitive for data-heavy sections, persisted
+  UI state (sidebar collapse, last section, theme), cross-club dark
+  mode, and named workspaces / personas the manager can flip
+  between in one click.
+
+  Phase 13 will start rolling individual admin sections (Members,
+  Orders, RSVPs, Badges) onto `AdminTable` + `SidePanel` so the
+  desktop shell stops *only* being a navigation reskin and starts
+  giving managers the dense, scannable tables that motivated the
+  phase in the first place.
+
 - **v0.11.11** — Phase 12: Workspaces / personas.
 
   Managers can save **named bundles of admin UI state** and flip

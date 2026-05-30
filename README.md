@@ -11,12 +11,15 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.11.0` (Phase 12 — Responsive Admin, in progress)
+**Current version:** `v0.11.12` (Phase 12 — Responsive Admin, complete)
 
 > This README is refreshed on every **minor** release (0.x bump). Phase 12
-> is the responsive-admin lift that opens at v0.11.0 and ships across the
-> v0.11.x patches; the README's full Phase 12 feature inventory lands with
-> the closing patch. For anything between, see [`CHANGELOG.md`](./CHANGELOG.md).
+> is the responsive-admin lift that opens at v0.11.0 and closes at v0.11.12.
+> The member app stays mobile-first PWA forever; the **admin section** now
+> renders in two layout shells — `AdminLayoutMobile` (current 3-level
+> drill-down, &lt;768px) and `AdminLayoutDesktop` (persistent sidebar +
+> topbar + main, ≥768px) — sharing the same section components. For
+> anything between releases, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -197,6 +200,69 @@ logo + 3 brand colors + hero photo + tagline.
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
 
+### 🖥️ Responsive Admin (Phase 12)
+- **Two layout shells, one component tree.** Same admin sections, two
+  layouts: `AdminLayoutMobile` (current 3-level drill-down, &lt;768px)
+  and `AdminLayoutDesktop` (persistent left sidebar + top bar + main
+  content area, ≥768px). Mobile UX is unchanged — Phase 12 is purely
+  additive for tablet + desktop managers.
+- **`useViewport` hook** (`src/hooks/useViewport.js`) — single source
+  of truth for breakpoints: `BREAKPOINT_TABLET = 768`,
+  `BREAKPOINT_DESKTOP = 1024`. Returns `{ viewport, isMobile, isTablet,
+  isDesktop, isTabletUp, isDesktopUp }`. Debounced via
+  `requestAnimationFrame`. SSR-safe (mobile fallback).
+- **Desktop sidebar** — collapsible area groups with persisted
+  collapse state, active-section highlighting (brass left bar +
+  cream background), area-level unread badges, breadcrumbs in the top
+  bar (Admin › Area › Section), "Back to MyClub" + dark-mode toggle in
+  the footer.
+- **Tablet compact mode** — same shell, dimensions tuned smaller:
+  200px sidebar (vs 260px desktop), tighter sidebar + main padding.
+  Triggered by `compact={isTablet}` in `AdminLayoutDesktop`.
+- **`AdminTable`** (`src/components/AdminTable.jsx`) — desktop table
+  primitive. Sortable columns (3-state cycle), bulk-select checkboxes,
+  custom cell renderers, sticky header, striped rows, row hover, row
+  click, loading + empty states. Drop-in for any section that wants a
+  table on desktop while keeping the mobile card layout.
+- **`SidePanel`** (`src/components/SidePanel.jsx`) — slide-in detail
+  panel. Mounts inside the main content area (not document body) so
+  it overlays just the section, not the sidebar/topbar. Backdrop +
+  Esc + focus restoration. 220ms translateX. Default 420px wide.
+- **`AdminSearchPalette`** (`src/components/AdminSearchPalette.jsx`)
+  — Cmd+K / Ctrl+K command palette. Fuzzy-matches across every admin
+  section by label, area name, description. Arrow keys + Enter +
+  Esc. `SearchTrigger` button mounted in the top bar between
+  breadcrumbs and BellChip as the discoverability affordance.
+- **`useKeyboardShortcuts`** (`src/hooks/useKeyboardShortcuts.js`) —
+  single-key bindings + Gmail/GitHub "g + letter" chord pairs (1.2s
+  window). Auto-skips when focus is in an input. Wired in the desktop
+  shell: `/` opens search, `g h` home, `g i` Communications, `g p`
+  People, `g s` Club Settings, `g b` Broadcasts, `g e` Events.
+- **`admin_preferences` table** (migration 61) — parallels member-side
+  `user_preferences` but keyed by `(user_id, club_id?, key)`. Super_
+  admins don't have a member row in every club, so admin UI state
+  lives on the auth identity. `club_id` NULL = cross-club preference;
+  non-NULL = per-club. RLS scoped to `user_id = auth.uid()`.
+- **`useAdminPreference(key, default, { clubScoped })`** hook
+  (`src/hooks/useAdminPreference.js`) — mirrors `useUserPreference`
+  API: `[value, setValue, ready]` with debounced writes + flush on
+  unmount. Powers every persisted admin preference.
+- **Persisted admin UI state** — `sidebar_collapsed` (which areas the
+  manager collapsed), `last_section` (lands back where you left off
+  on reload), `theme` (cross-club light/dark toggle).
+- **Dark mode** — cross-club preference. Sets CSS custom properties
+  (`--g-bg`, `--g-card`, `--g-text`, `--g-muted`, `--g-border`) on
+  `documentElement` via `applyThemeMode()` in `theme.js`. Existing
+  `G.*` references resolve via `var(--g-…, fallback)` so the swap
+  propagates everywhere without per-component wiring.
+- **Workspaces / personas** (`AdminWorkspaceSwitcher.jsx`) — named
+  snapshots of `{ collapsed, lastSection }`. Manager defines
+  workspaces like "Daily ops" / "Setup" / "Member services" and flips
+  between them in one click via a chip in the sidebar header.
+  Catalog is cross-club (workspaces follow the admin); active
+  workspace is per-club (a manager may wear different hats at
+  different clubs).
+
 ### 🗓️ Calendar, News, Menu, Push Polish (Phase 11)
 - **Calendar override indicators** — hollow brass rings on dates with schedule overrides (holiday closures, members-only days, reduced hours); day-detail Facility Notes section resolves the facility name via `schedule_overrides.status_id` → `club_status` → `club_facilities`, surfaces the state pill + hours line + manager's reason
 - **Calendar entry points** — "View all →" link in the Home Next Event header; Lucide Calendar icon in every event-detail back-header for a one-tap escape from any event surface (Home, inbox, My Events, deep links all route through `community/event`)
@@ -297,16 +363,24 @@ windhaven-app/
 │   │   ├── useInbox.js            # useInbox / useInboxUnread / hideThread / markRead
 │   │   ├── useFlag.js             # Feature-flag reader with tier + lock awareness
 │   │   ├── usePWAInstall.js       # beforeinstallprompt + isStandalone detection
-│   │   └── useScrollRestore.js
+│   │   ├── useScrollRestore.js
+│   │   ├── useUserPreference.js   # Per-member JSONB key-value (Phase 11)
+│   │   ├── useViewport.js         # Responsive breakpoints (Phase 12)
+│   │   ├── useAdminPreference.js  # Per-admin (user_id, club_id?, key) prefs (Phase 12)
+│   │   └── useKeyboardShortcuts.js # Single-key + g+letter chords (Phase 12)
 │   ├── components/
 │   │   ├── BellChip.jsx · BottomNav.jsx · NavIcon.jsx
 │   │   ├── StatusPill.jsx · Toggle.jsx · Headers.jsx · Buttons.jsx
 │   │   ├── PendingGuard.jsx · FeatureOff.jsx
 │   │   ├── Calendar.jsx           # Calendar UI (Events Calendar surface)
 │   │   ├── Replies.jsx            # Reusable post_replies UX
-│   │   ├── Avatar.jsx · ProfilePhotoCard.jsx
+│   │   ├── Avatar.jsx · ProfilePhotoCard.jsx · Badge.jsx
 │   │   ├── DisplayModePicker.jsx · DmOptOutToggle.jsx · NotificationsToggle.jsx
-│   │   └── InstallCard.jsx · InstallEntry.jsx
+│   │   ├── InstallCard.jsx · InstallEntry.jsx
+│   │   ├── AdminTable.jsx               # Phase 12 desktop table primitive
+│   │   ├── SidePanel.jsx                # Phase 12 slide-in detail panel
+│   │   ├── AdminSearchPalette.jsx       # Phase 12 Cmd+K command palette
+│   │   └── AdminWorkspaceSwitcher.jsx   # Phase 12 named workspace switcher
 │   └── screens/
 │       ├── Home.jsx · Login.jsx
 │       ├── GolfHub.jsx · CourseMap.jsx · PinMap.jsx · TeeTime.jsx · PartnerBoard.jsx
