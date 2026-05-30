@@ -483,7 +483,14 @@ export default function AdminLayoutDesktop({
             <DashboardErrorBoundary
               fallback={<DesktopEmptyState areaLabel="" />}
             >
-              <AdminDashboard />
+              {/* v0.11.27 — pass commsUnread DOWN so the dashboard's
+                  Open Work tile reads from the single subscription
+                  AdminPanel already owns. Calling useCommsUnread()
+                  again inside the dashboard tried to register a
+                  second postgres_changes listener on the same
+                  channel name, which throws from useEffect (the one
+                  React error category the boundary can't catch). */}
+              <AdminDashboard commsUnread={commsUnread} />
             </DashboardErrorBoundary>
           )}
         </div>

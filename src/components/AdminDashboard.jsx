@@ -29,7 +29,6 @@ import { G } from '../theme.js';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useAdminPreference } from '../hooks/useAdminPreference.js';
-import { useCommsUnread } from '../lib/commsUnread.js';
 
 // ──────────────────────────────────────────────────────────────────
 // Tile registry
@@ -71,8 +70,16 @@ const TILE_CATALOG = [
 
 // ──────────────────────────────────────────────────────────────────
 // AdminDashboard — orchestrator
+//
+// v0.11.27 — Accepts `commsUnread` as a prop instead of calling
+// useCommsUnread() internally. The parent (AdminPanel via
+// AdminLayoutDesktop) already creates one subscription for the
+// sidebar badges; a second subscription with the same channel name
+// would throw `cannot add postgres_changes callbacks after
+// subscribe()` from inside a useEffect — uncatchable by the error
+// boundary, which is exactly what blanked the admin at v0.11.26.
 // ──────────────────────────────────────────────────────────────────
-export default function AdminDashboard() {
+export default function AdminDashboard({ commsUnread }) {
   const { club, isManager, isSuperAdmin } = useAuth();
   const [hidden, setHidden] = useAdminPreference('dashboard_hidden_tiles', []);
   const [manageOpen, setManageOpen] = useState(false);
@@ -267,7 +274,7 @@ export default function AdminDashboard() {
                 {t.name}
               </p>
               <div style={{ flex: 1, minHeight: 0 }}>
-                <TileComp clubId={club?.id} />
+                <TileComp clubId={club?.id} commsUnread={commsUnread} />
               </div>
             </div>
           );
@@ -367,8 +374,13 @@ function TodayActivityTile({ clubId }) {
   );
 }
 
-function OpenWorkTile({ clubId }) {
-  const commsUnread = useCommsUnread(clubId);
+function OpenWorkTile({ commsUnread }) {
+  // v0.11.27 — read from prop instead of calling useCommsUnread()
+  // again. The parent (AdminPanel) already owns the one subscription
+  // for the (club_id, comms-unread) channel; a second hook call here
+  // tries to register postgres_changes callbacks on the same channel
+  // after it's been subscribed, which throws from inside useEffect
+  // (uncatchable by the surrounding error boundary).
   const food = commsUnread?.counts?.inbox_food || 0;
   const lessons = commsUnread?.counts?.inbox_lessons || 0;
   const proshop = commsUnread?.counts?.inbox_proshop || 0;

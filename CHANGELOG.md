@@ -103,6 +103,52 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.27** — Fix: dashboard duplicated `useCommsUnread`
+  subscription (THE black-screen root cause).
+
+  Identified by reading Marc's console at v0.11.26:
+  ```
+  Uncaught Error: cannot add `postgres_changes` callbacks for
+  realtime:comms-unread:<club-id> after `subscribe()`.
+  ```
+
+  Two places were calling `useCommsUnread(club?.id)` with the same
+  club id:
+  · `AdminPanel` — for the sidebar area badges (passed down to
+    `AdminLayoutDesktop` as a prop)
+  · `OpenWorkTile` inside `AdminDashboard` — second instance, same
+    channel name (`comms-unread:<club-id>`)
+
+  Supabase reuses the underlying channel by name. When the second
+  instance's `useEffect` tried to attach its own `postgres_changes`
+  callbacks AFTER the first instance had already called
+  `.subscribe()`, Supabase threw — and the throw fires from inside
+  a `useEffect`, which is **the one React error category that
+  ErrorBoundary cannot catch**. The unhandled exception killed the
+  React tree and rendered the page background through, producing
+  the v0.11.22 (and v0.11.26) black screen.
+
+  Why v0.11.26's error boundary didn't save us: per React docs,
+  error boundaries catch errors in: rendering, lifecycle methods,
+  constructors. They **do not** catch errors in: event handlers,
+  asynchronous code (setTimeout etc.), server-side rendering, or
+  **errors thrown in the error boundary itself**. `useEffect`
+  callbacks fall into the "asynchronous" bucket.
+
+  Fix:
+  · `AdminDashboard` now takes `commsUnread` as a prop instead of
+    calling the hook internally.
+  · `AdminLayoutDesktop` passes the existing `commsUnread` (already
+    owned by `AdminPanel`) down through the error boundary.
+  · `OpenWorkTile` reads `commsUnread.counts` from props directly.
+
+  One subscription, two consumers. No more channel collision.
+
+  The error boundary from v0.11.26 STAYS in place — still useful
+  as a safety net for any future render-phase crash (e.g. a tile
+  hitting an undefined theme token), even though it didn't catch
+  this specific class of bug.
+
 - **v0.11.26** — Re-wire AdminDashboard as landing, with ErrorBoundary.
 
   Now that v0.11.25 fixed the silent upsert failure on
