@@ -139,6 +139,16 @@ export default function AdminLayoutDesktop({
     setOpenArea(prev => prev === areaId ? null : areaId);
   };
 
+  // v0.11.29 — Dashboard tile order + hidden set lifted up here so
+  // the workspace switcher can snapshot / restore them alongside
+  // sidebar state. AdminDashboard reads + writes via props.
+  const [dashboardTileOrder, setDashboardTileOrder] = useAdminPreference(
+    'dashboard_tile_order', null,
+  );
+  const [dashboardHidden, setDashboardHidden] = useAdminPreference(
+    'dashboard_hidden_tiles', [],
+  );
+
   // The currently-displayed section's label, used by the top bar.
   // Falls back to the area name when nothing is selected so the
   // top bar always shows where the manager is.
@@ -211,10 +221,22 @@ export default function AdminLayoutDesktop({
           <AdminWorkspaceSwitcher
             expanded={openArea}
             lastSection={{ areaId: area, sectionId: sec }}
-            onRestore={({ expanded: nextExpanded, lastSection }) => {
+            dashboardLayout={{
+              order: dashboardTileOrder,
+              hidden: dashboardHidden,
+            }}
+            onRestore={({ expanded: nextExpanded, lastSection, dashboardLayout }) => {
               setOpenArea(nextExpanded ?? null);
               setArea(lastSection?.areaId || null);
               setSec(lastSection?.sectionId || null);
+              // v0.11.29 — Apply workspace's dashboard snapshot if
+              // present. Workspaces saved before v0.11.29 won't have
+              // this field; leave the user's current dashboard prefs
+              // alone in that case.
+              if (dashboardLayout) {
+                setDashboardTileOrder(dashboardLayout.order ?? null);
+                setDashboardHidden(dashboardLayout.hidden ?? []);
+              }
             }}
           />
         </div>
@@ -519,12 +541,16 @@ export default function AdminLayoutDesktop({
             >
               {/* v0.11.27 — pass commsUnread DOWN so the dashboard's
                   Open Work tile reads from the single subscription
-                  AdminPanel already owns. Calling useCommsUnread()
-                  again inside the dashboard tried to register a
-                  second postgres_changes listener on the same
-                  channel name, which throws from useEffect (the one
-                  React error category the boundary can't catch). */}
-              <AdminDashboard commsUnread={commsUnread} />
+                  AdminPanel already owns. v0.11.29 — also pass the
+                  lifted tile order + hidden state and their setters
+                  so the workspace switcher can snapshot / restore. */}
+              <AdminDashboard
+                commsUnread={commsUnread}
+                tileOrder={dashboardTileOrder}
+                setTileOrder={setDashboardTileOrder}
+                hidden={dashboardHidden}
+                setHidden={setDashboardHidden}
+              />
             </DashboardErrorBoundary>
           )}
         </div>

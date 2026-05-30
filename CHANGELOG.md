@@ -103,6 +103,50 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.29** — Per-workspace dashboard layouts.
+
+  Workspaces now carry an optional `dashboardLayout: { order, hidden }`
+  snapshot that's applied/captured alongside the existing `expanded`
+  area + `lastSection` fields. Apply a workspace → the dashboard
+  flips to that workspace's tile order + hidden set in one click.
+
+  **Architecture:**
+  · `dashboard_tile_order` + `dashboard_hidden_tiles` admin_preference
+    state lifted from `AdminDashboard` up to `AdminLayoutDesktop`.
+    The dashboard reads + writes via props now; the persistence hooks
+    live in the parent so the workspace switcher can share the same
+    state.
+  · `AdminWorkspaceSwitcher` gains a `dashboardLayout` prop. Its
+    `saveCurrentAs` / `updateActive` snapshot it into the workspace.
+    Its `applyWorkspace` pushes it back via `onRestore`. Legacy
+    workspaces saved before v0.11.29 don't carry the field; applying
+    them leaves the user's current dashboard prefs alone (no overwrite).
+  · `AdminLayoutDesktop`'s `onRestore` callback handles the
+    `dashboardLayout` field by calling `setDashboardTileOrder` and
+    `setDashboardHidden` — same write path as the user's manual edits.
+
+  **Default workspaces seeded with sensible per-role layouts:**
+  · **Daily Ops** — Open Work first (kitchen / pro shop scan), then
+    Today's Activity, Community Pulse, Top Screens.
+  · **Member Services** — Community Pulse first (member touchpoints),
+    then Today's Activity, Top Screens, Open Work.
+  · **Events** — Top Screens first (which event surfaces are pulling
+    eyeballs), then Community Pulse, Today's Activity, Open Work.
+  · **Broadcasts** — Today's Activity first (audience size before
+    send), then Top Screens, Community Pulse, Open Work.
+  · **Setup** — Today's Activity + Top Screens only; Open Work and
+    Community Pulse hidden (this is the configuration hat, not the
+    operations one).
+
+  The order semantics give the manager a different "first scan
+  field" for each hat. Custom workspaces the manager creates can
+  capture any arrangement.
+
+  Trade-off: applying a workspace overwrites the user's per-club
+  dashboard prefs (same model as `sidebar_open_area`). This means
+  the dashboard "follows the last workspace" — predictable
+  consistency over "workspace as overlay" complexity.
+
 - **v0.11.28** — Dashboard drag-and-drop + "Dashboard" sidebar item.
 
   Two features land together:

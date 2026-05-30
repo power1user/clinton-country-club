@@ -55,12 +55,27 @@ function uuid() {
 //
 // Area ids come from AdminPanel.jsx AREAS: inbox, comms, events,
 // course, proshop, dining, people, clubsetup, platform.
+// v0.11.29 — seeded workspaces gain a `dashboardLayout` snapshot so
+// switching workspaces also tunes the dashboard tile order + hidden
+// set to match the role / focus of that hat. The orders below mirror
+// the manager's likely scan pattern in that workspace:
+//   · Daily Ops → Open Work first (kitchen / pro shop morning sweep)
+//   · Member Services → Community Pulse first (member touchpoints)
+//   · Events → Top Screens first (which event surfaces are popular)
+//   · Broadcasts → Today's Activity first (audience size before send)
+//   · Setup → today_activity + top_screens; ops + community hidden
+const _DASHBOARD_ALL = ['today_activity', 'open_work', 'top_screens', 'community_pulse'];
+
 const DEFAULT_WORKSPACES = [
   {
     id: 'default_daily',
     name: 'Daily Ops',
     expanded: 'inbox',
     lastSection: { areaId: 'inbox', sectionId: 'inbox_food' },
+    dashboardLayout: {
+      order: ['open_work', 'today_activity', 'community_pulse', 'top_screens'],
+      hidden: [],
+    },
     readonly: true,
   },
   {
@@ -68,6 +83,10 @@ const DEFAULT_WORKSPACES = [
     name: 'Member Services',
     expanded: 'people',
     lastSection: { areaId: 'people', sectionId: 'people_all' },
+    dashboardLayout: {
+      order: ['community_pulse', 'today_activity', 'top_screens', 'open_work'],
+      hidden: [],
+    },
     readonly: true,
   },
   {
@@ -75,6 +94,10 @@ const DEFAULT_WORKSPACES = [
     name: 'Events',
     expanded: 'events',
     lastSection: { areaId: 'events', sectionId: 'eventsadmin' },
+    dashboardLayout: {
+      order: ['top_screens', 'community_pulse', 'today_activity', 'open_work'],
+      hidden: [],
+    },
     readonly: true,
   },
   {
@@ -82,6 +105,10 @@ const DEFAULT_WORKSPACES = [
     name: 'Broadcasts',
     expanded: 'comms',
     lastSection: { areaId: 'comms', sectionId: 'news' },
+    dashboardLayout: {
+      order: ['today_activity', 'top_screens', 'community_pulse', 'open_work'],
+      hidden: [],
+    },
     readonly: true,
   },
   {
@@ -89,6 +116,10 @@ const DEFAULT_WORKSPACES = [
     name: 'Setup',
     expanded: 'clubsetup',
     lastSection: { areaId: 'clubsetup', sectionId: 'clubsettings' },
+    dashboardLayout: {
+      order: ['today_activity', 'top_screens'],
+      hidden: ['open_work', 'community_pulse'],
+    },
     readonly: true,
   },
 ];
@@ -100,6 +131,13 @@ export default function AdminWorkspaceSwitcher({
   // store a single `expanded` field instead of an array.
   expanded,
   lastSection,
+  // v0.11.29 — Dashboard tile order + hidden set, lifted up from
+  // AdminDashboard. The switcher snapshots both fields when the
+  // manager saves a workspace ("Save current view as" / "Update
+  // <name> with current view") and pushes them back via onRestore
+  // when a workspace is applied. Optional — if undefined, the
+  // switcher silently skips the dashboard parts.
+  dashboardLayout,
   onRestore,
 }) {
   // Cross-club workspaces — the list itself follows the admin.
@@ -143,12 +181,13 @@ export default function AdminWorkspaceSwitcher({
   const displayList = [...DEFAULT_WORKSPACES, ...customList];
   const active = displayList.find(w => w.id === activeId) || null;
 
-  // Apply a workspace — restore expanded area + lastSection and mark active.
-  // v0.11.19 — Falls back to deriving an `expanded` area from a legacy
-  // `collapsed` array if the workspace was saved under the pre-v0.11.19
-  // schema. lastSection.areaId is the most sensible fallback: it's
-  // the area we're about to land in, so opening it in the sidebar
-  // matches user intent.
+  // Apply a workspace — restore expanded area + lastSection +
+  // dashboard layout and mark active.
+  // v0.11.19 — Falls back to deriving `expanded` from a legacy
+  // `collapsed` array if the workspace pre-dates v0.11.19.
+  // v0.11.29 — Pushes `dashboardLayout` back via onRestore if the
+  // workspace has one; legacy workspaces without it leave the
+  // user's current dashboard prefs alone.
   const applyWorkspace = (ws) => {
     if (!ws) return;
     const nextExpanded = ws.expanded !== undefined
@@ -157,22 +196,36 @@ export default function AdminWorkspaceSwitcher({
     onRestore?.({
       expanded: nextExpanded,
       lastSection: ws.lastSection || { areaId: null, sectionId: null },
+      dashboardLayout: ws.dashboardLayout, // may be undefined → no-op in parent
     });
     setActiveId(ws.id);
     setOpen(false);
     setManageMode(false);
   };
 
-  // Save current expanded area + lastSection as a new workspace.
+  // Helper — snapshot current dashboard state into a workspace shape.
+  // Returns `undefined` (NOT included) if no dashboardLayout prop is
+  // wired, so old test paths that don't provide one keep working.
+  const snapshotDashboard = () => {
+    if (!dashboardLayout) return undefined;
+    return {
+      order: dashboardLayout.order ?? null,
+      hidden: Array.isArray(dashboardLayout.hidden) ? dashboardLayout.hidden : [],
+    };
+  };
+
+  // Save current state as a new workspace.
   const saveCurrentAs = () => {
     const name = creatingName.trim();
     if (!name) return;
     const id = uuid();
+    const snap = snapshotDashboard();
     const ws = {
       id,
       name,
       expanded: typeof expanded === 'string' ? expanded : null,
       lastSection: lastSection || { areaId: null, sectionId: null },
+      ...(snap ? { dashboardLayout: snap } : {}),
     };
     setWorkspaces(prev => [...(prev || []), ws]);
     setActiveId(id);
@@ -183,10 +236,12 @@ export default function AdminWorkspaceSwitcher({
   // Update active workspace with current state.
   const updateActive = () => {
     if (!active) return;
+    const snap = snapshotDashboard();
     setWorkspaces(prev => (prev || []).map(w => w.id === active.id ? {
       ...w,
       expanded: typeof expanded === 'string' ? expanded : null,
       lastSection: lastSection || { areaId: null, sectionId: null },
+      ...(snap ? { dashboardLayout: snap } : {}),
     } : w));
     setOpen(false);
   };

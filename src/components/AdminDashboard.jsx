@@ -28,7 +28,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { G } from '../theme.js';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { useAdminPreference } from '../hooks/useAdminPreference.js';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
@@ -86,15 +85,18 @@ const TILE_CATALOG = [
 // subscribe()` from inside a useEffect — uncatchable by the error
 // boundary, which is exactly what blanked the admin at v0.11.26.
 // ──────────────────────────────────────────────────────────────────
-export default function AdminDashboard({ commsUnread }) {
+export default function AdminDashboard({
+  commsUnread,
+  // v0.11.29 — Dashboard state is now lifted to AdminLayoutDesktop
+  // so the workspace switcher can snapshot / restore it alongside
+  // sidebar state. The dashboard reads + writes via props; the
+  // useAdminPreference hooks live in the parent.
+  tileOrder,
+  setTileOrder,
+  hidden,
+  setHidden,
+}) {
   const { club, isManager, isSuperAdmin } = useAuth();
-  const [hidden, setHidden] = useAdminPreference('dashboard_hidden_tiles', []);
-  // v0.11.28 — Persisted tile order. List of visible tile IDs in the
-  // user's preferred display order. Hiding a tile removes it from
-  // this order; un-hiding appends it at the end. Drag-and-drop
-  // arrayMove writes back here directly. Per (user, club) via the
-  // existing useAdminPreference hook.
-  const [tileOrder, setTileOrder] = useAdminPreference('dashboard_tile_order', null);
   const [manageOpen, setManageOpen] = useState(false);
 
   // PointerSensor requires the pointer to move 6px before drag
