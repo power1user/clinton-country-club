@@ -19,6 +19,7 @@ import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
 import { useViewport } from '../hooks/useViewport.js';
+import { useAdminPreference } from '../hooks/useAdminPreference.js';
 import AdminLayoutDesktop from './admin/AdminLayoutDesktop.jsx';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
@@ -304,8 +305,22 @@ export default function AdminPanel() {
   // dev tools / debug overlays can already inspect viewport
   // state) and documents the v0.11.x intent at the call site.
   const { isDesktop } = useViewport();
-  const [area, setArea] = useState(null);   // top-level area, null = main hub
-  const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
+  // v0.11.7 — Last-section persistence. On desktop the manager
+  // usually picks up where they left off; remembering area+sec
+  // saves a click each session. Mobile drill-down resets on
+  // navigation because the back stack is the natural place keeper.
+  const [lastSection, setLastSection] = useAdminPreference(
+    'last_section',
+    { areaId: null, sectionId: null },
+  );
+  const [area, setArea] = useState(() => (isDesktop ? lastSection?.areaId : null) || null);
+  const [sec, setSec] = useState(() => (isDesktop ? lastSection?.sectionId : null) || null);
+  // Persist whenever desktop navigation lands on a section.
+  useEffect(() => {
+    if (!isDesktop) return;
+    setLastSection({ areaId: area, sectionId: sec });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop, area, sec]);
   const [query, setQuery] = useState('');   // admin hub search
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);

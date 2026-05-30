@@ -103,6 +103,29 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.7** — Phase 12: Sidebar collapse + last-section persistence.
+
+  First two wirings of the `admin_preferences` foundation from
+  v0.11.6:
+
+  · **Sidebar collapse state** persisted via
+    `useAdminPreference('sidebar_collapsed', [])`. Managers
+    toggling area groups in the desktop sidebar now have those
+    collapses remembered per club, across reloads and devices.
+    Stored as a flat array of area ids.
+
+  · **Last section memory** persisted via
+    `useAdminPreference('last_section', { areaId, sectionId })`.
+    On desktop, AdminPanel restores the last-visited section on
+    mount so managers land back where they left off instead of on
+    the empty state. Mobile drill-down still resets per nav stack
+    (that's the natural place keeper there).
+
+  Both are saved-state-only — no UI changes. Managers just
+  experience an admin tool that remembers what they were doing.
+
+  v0.11.8 layers Workspaces / personas on top of this same hook.
+
 - **v0.11.6** — Phase 12: `admin_preferences` table + hook.
 
   **Migration 61:** new `admin_preferences` table. Parallels the

@@ -36,6 +36,7 @@ import { G } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
+import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { SectionContent } from '../AdminPanel.jsx';
 
 // Hard width for the sidebar — chosen to fit the longest area
@@ -56,20 +57,21 @@ export default function AdminLayoutDesktop({
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
   const [paletteOpen, setPaletteOpen] = useState(false);
-  // Per-area expand state in the sidebar. Default ALL expanded —
-  // the platform's section count is small enough (under ~30 total)
-  // that an always-expanded tree is faster to scan than gating
-  // every group behind a click. The chevron stays so power users
-  // who prefer compact navigation can collapse what they don't
-  // touch. State is local to this mount; v0.11.7 will persist it
-  // through admin_preferences.
-  const [collapsed, setCollapsed] = useState(() => new Set());
+  // v0.11.7 — Sidebar collapse state persisted via admin_preferences.
+  // Default ALL expanded; manager toggles persist per (user, club)
+  // so it doesn't reset on reload or when switching browsers. Stored
+  // as a plain array of area ids in jsonb.
+  const [collapsedArray, setCollapsedArray] = useAdminPreference(
+    'sidebar_collapsed',
+    [],
+  );
+  const collapsed = new Set(collapsedArray || []);
   const toggleCollapse = (areaId) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
+    setCollapsedArray(prev => {
+      const next = new Set(prev || []);
       if (next.has(areaId)) next.delete(areaId);
       else next.add(areaId);
-      return next;
+      return [...next];
     });
   };
 
