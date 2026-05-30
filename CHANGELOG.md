@@ -103,6 +103,39 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.6** — Phase 12: `admin_preferences` table + hook.
+
+  **Migration 61:** new `admin_preferences` table. Parallels the
+  member-side `user_preferences` (v0.10.7) but keyed by auth
+  `user_id` + nullable `club_id` instead of `member_id` — super_
+  admins don't have a member row in every club, so admin UI state
+  has to live on the auth identity to travel cross-club.
+
+  · UNIQUE per `(user_id, club_id, key)` — NULL `club_id` = global
+    (preference travels with the admin across clubs); non-NULL =
+    club-scoped (preference applies only when administering that
+    club).
+  · RLS: users read + write their own row only.
+  · `updated_at` trigger.
+
+  **New hook `useAdminPreference(key, defaultValue, opts)`** —
+  `src/hooks/useAdminPreference.js`. Mirrors `useUserPreference`'s
+  API: returns `[value, setValue, ready]` with debounced writes
+  and on-unmount flush. `opts.clubScoped` (default `true`) chooses
+  whether the preference is per-club or cross-club.
+
+  First-use keys (v0.11.7+):
+  · `sidebar_collapsed` — array of area IDs the manager has
+    collapsed (per club)
+  · `last_section` — `{ areaId, sectionId }` for landing where
+    the manager left off
+  · `theme` — `{ mode: 'light' | 'dark' }` (global / cross-club)
+  · v0.11.8: `saved_views`, `workspaces`, `active_workspace`
+
+  No UI wiring yet — that's v0.11.7. This patch ships the
+  foundation so subsequent patches can drop in saved state without
+  schema changes.
+
 - **v0.11.5** — Phase 12: Cmd+K admin search palette.
 
   Global command-palette overlay at
