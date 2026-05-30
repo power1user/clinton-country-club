@@ -39,6 +39,7 @@ import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchP
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
 import DashboardErrorBoundary from '../../components/DashboardErrorBoundary.jsx';
+import Avatar from '../../components/Avatar.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { VERSION, PLATFORM_NAME } from '../../lib/version.js';
@@ -184,13 +185,41 @@ export default function AdminLayoutDesktop({
         borderRight: `1px solid ${G.greenDk}`,
         overflow: 'hidden',
       }}>
-        {/* Sidebar header — club name + small "Admin" chip + the
-            v0.11.11 workspace switcher chip directly below it. */}
+        {/* Sidebar header — Grounds platform mark at top, then the
+            club identity (eyebrow + title), then the v0.11.11
+            workspace switcher chip. Visual hierarchy from top
+            establishes "this is The Grounds platform; you're
+            administering Clinton CC inside it." */}
         <div style={{
           padding: '14px 18px',
           borderBottom: `1px solid rgba(168,216,184,0.18)`,
           flexShrink: 0,
         }}>
+          {/* v0.11.36 — Grounds platform mark. Small icon + wordmark
+              row; muted brass tint so it doesn't compete with the
+              club identity below. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            marginBottom: 14,
+            paddingBottom: 12,
+            borderBottom: '1px solid rgba(168,216,184,0.08)',
+          }}>
+            <img
+              src="/grounds-icon.png"
+              alt=""
+              style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0 }}
+            />
+            <span style={{
+              fontFamily: '"Playfair Display",serif',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#C4A040',
+              letterSpacing: '0.04em',
+            }}>
+              The Grounds
+            </span>
+          </div>
+
           <p style={{
             fontFamily: '"Playfair Display",serif',
             fontSize: 11,
@@ -376,25 +405,45 @@ export default function AdminLayoutDesktop({
           borderTop: `1px solid rgba(168,216,184,0.18)`,
           flexShrink: 0,
         }}>
-          <p style={{
-            fontFamily: '"Lora",serif',
-            fontSize: 11,
-            color: '#A8D8B8',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            margin: '0 0 4px',
+          {/* v0.11.36 — Identity row: avatar + name + "Signed in as"
+              eyebrow. Replaces the text-only footer block from
+              v0.11.16. The photo (or initial fallback) makes it
+              instantly clear which admin account is logged in —
+              important when a manager + super_admin share a shift. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            marginBottom: 10,
           }}>
-            Signed in as
-          </p>
-          <p style={{
-            fontFamily: '"Playfair Display",serif',
-            fontSize: 15,
-            color: '#F2EDE0',
-            margin: '0 0 10px',
-            fontWeight: 600,
-          }}>
-            {member?.name || 'Staff'}
-          </p>
+            <Avatar
+              photoUrl={member?.photo_url}
+              name={member?.name || 'Staff'}
+              size={36}
+              bgColor={G.greenDk}
+              fgColor="#A8D8B8"
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontFamily: '"Lora",serif',
+                fontSize: 9,
+                color: '#A8D8B8',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                margin: 0,
+              }}>
+                Signed in as
+              </p>
+              <p style={{
+                fontFamily: '"Playfair Display",serif',
+                fontSize: 14,
+                color: '#F2EDE0',
+                margin: '1px 0 0',
+                fontWeight: 600,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {member?.name || 'Staff'}
+              </p>
+            </div>
+          </div>
           <div
             onClick={pop}
             data-tap

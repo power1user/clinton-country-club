@@ -103,6 +103,29 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.36** — Grounds platform mark + admin identity in sidebar.
+
+  Two visual additions to the desktop admin sidebar:
+
+  · **Grounds platform mark at the top.** Small `/grounds-icon.png`
+    + "The Grounds" wordmark in a row, sitting above the
+    `CLINTON · ADMIN` eyebrow. Establishes the platform identity
+    before the club-specific identity. Brass-tinted typography so
+    it reads as the layer above without competing visually with
+    the club's primary nav. Soft divider underneath separates it
+    from the "Manage your club" heading.
+
+  · **Profile photo for the signed-in admin.** Replaces the
+    text-only "SIGNED IN AS / Marc Abla" footer block from v0.11.16
+    with a 36px circular Avatar next to the name + eyebrow. Uses
+    the existing `Avatar` component — `members.photo_url` if on
+    file, falls back to a brass initial-circle if not. Important
+    when a manager and super_admin share a workstation: at a glance
+    you can see whose session is active without reading the name.
+
+  Mobile admin shell unchanged — it has its own header and wasn't
+  in scope for this patch.
+
 - **v0.11.35** — Bug pair: RSVP spots countdown + menu item price input.
 
   **Bug 1: Spots remaining doesn't count down after RSVP.**
