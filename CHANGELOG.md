@@ -103,6 +103,43 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.31** — Phase 12 v2 closeout (docs).
+
+  Closes the v0.11.13–31 sub-phase. No runtime changes — docs only:
+
+  · **README.md** — Current version bumped to `v0.11.31 (Phase 12
+    v2 complete)`. New "Hybrid Analytics + Admin Dashboard" feature
+    inventory section covering the analytics_events table + dual-
+    write hook, dashboard aggregation RPCs, the 8-tile catalog,
+    drag-and-drop + show/hide + role-gating mechanics, per-workspace
+    dashboardLayout snapshots, the seeded workspaces with role-tuned
+    tile orders, and the DashboardErrorBoundary. Repo-layout tree
+    updated with AdminDashboard.jsx and DashboardErrorBoundary.jsx.
+  · **version.js** — phase index entry expanded to cover v0.11.13–31
+    as "Phase 12 v2" (kept inside the v0.11.x line rather than
+    bumping to v0.12.x because the work is layered on Phase 12's
+    desktop shell, not a separate architectural lift).
+
+  Phase 12 in one paragraph (final): managers no longer type into
+  320px inputs in the office. The desktop admin landed at v0.11.0,
+  got polished through v0.11.12 (sidebar, search, tables, side
+  panels, workspaces, dark mode, keyboard shortcuts), then in v2
+  (v0.11.13–31) picked up a phone-frame escape so the desktop
+  shell actually has room to render, a /admin deep-link entry,
+  the accordion sidebar UX, a typography pass tuned for reading
+  distance, default seeded workspaces, hybrid GA4 + Supabase
+  analytics, and a flexible per-workspace AdminDashboard as the
+  desktop landing. Eight tiles ship; more can be added by extending
+  TILE_CATALOG. Per-workspace layouts mean a manager who wears
+  multiple hats (kitchen lead in the morning, GM in the afternoon)
+  gets a different dashboard arrangement per hat.
+
+  Phase 13 will start rolling individual admin sections (Members,
+  Orders, RSVPs, Badges) onto the v0.11.3-shipped `AdminTable` +
+  v0.11.4 `SidePanel` primitives so the desktop shell stops *only*
+  being a navigation reskin and starts giving managers the dense,
+  scannable tables that motivated the phase in the first place.
+
 - **v0.11.30** — Four more dashboard tiles.
 
   Doubles the dashboard's tile catalog from 4 → 8. Each tile is

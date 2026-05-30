@@ -11,15 +11,17 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.11.12` (Phase 12 — Responsive Admin, complete)
+**Current version:** `v0.11.31` (Phase 12 v2 — Hybrid analytics + Admin Dashboard, complete)
 
 > This README is refreshed on every **minor** release (0.x bump). Phase 12
-> is the responsive-admin lift that opens at v0.11.0 and closes at v0.11.12.
-> The member app stays mobile-first PWA forever; the **admin section** now
-> renders in two layout shells — `AdminLayoutMobile` (current 3-level
-> drill-down, &lt;768px) and `AdminLayoutDesktop` (persistent sidebar +
-> topbar + main, ≥768px) — sharing the same section components. For
-> anything between releases, see [`CHANGELOG.md`](./CHANGELOG.md).
+> opens at v0.11.0 (responsive admin lift) and runs through v0.11.31. The
+> v0.11.21–31 sub-phase ("Phase 12 v2") adds the hybrid analytics layer
+> and the per-workspace flexible Admin Dashboard. The member app stays
+> mobile-first PWA forever; the **admin section** renders in two layout
+> shells — `AdminLayoutMobile` (current 3-level drill-down, &lt;768px)
+> and `AdminLayoutDesktop` (persistent sidebar + topbar + main, ≥768px) —
+> sharing the same section components. Desktop lands on the dashboard
+> by default. For anything between releases, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -199,6 +201,67 @@ logo + 3 brand colors + hero photo + tagline.
   referring member; CSV export of guests OR full visit history
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
+
+### 📊 Hybrid Analytics + Admin Dashboard (Phase 12 v2)
+- **Hybrid GA4 + Supabase analytics layer.** Every member-app event
+  fires to BOTH GA4 (member-app property, strategic layer — ML
+  audiences, BigQuery export, exploration UI, future marketing
+  attribution) AND a first-party `analytics_events` table in Supabase
+  (operational layer — fast multi-tenant SQL queries for the admin
+  dashboard, RLS-scoped by `club_id`, sub-50ms response). The two
+  layers have non-overlapping domains; `useAnalytics.js` dual-writes
+  via fire-and-forget so analytics never block member UX.
+- **`analytics_events` table** (migration 62) — `(club_id, member_id,
+  user_id, event_name, properties jsonb, url_path, user_agent, ts)`
+  with indexes on `(club_id, ts desc)` and `(club_id, event_name, ts
+  desc)` for the dashboard's hot-path queries. RLS: members/staff/
+  guests of the club can INSERT; only staff (or super_admin) can
+  SELECT. No UPDATE or DELETE — events are immutable.
+- **Dashboard aggregation RPCs** (migration 63) — `dashboard_dau_today`,
+  `dashboard_dau_yesterday`, `dashboard_dau_7d`, `dashboard_top_screens_today`.
+  All `SECURITY INVOKER` with `search_path` pinned per Supabase
+  hardening guidance; all timezone-aware against the club's local
+  timezone via `clubs.timezone`.
+- **AdminDashboard** (`src/components/AdminDashboard.jsx`) — the
+  default landing on desktop admin (root state = no area + no section).
+  Eight live tiles:
+  1. **Today's Activity** — DAU + ↑/↓ vs yesterday + 7-day sparkline
+  2. **Open Work** — food orders / lessons / pro shop inquiries
+     waiting (server-truth, shared subscription with the sidebar badges)
+  3. **Top Screens Today** — most-viewed member-app screens
+  4. **Community Pulse** — bulletin + partner + RSVP activity this week
+  5. **Upcoming Events** — next 3 with RSVP counts
+  6. **New Members This Week** — count + recent names
+  7. **Badges Awarded Recently** — last 5 awards
+  8. **Recent Bulletin Posts** — last 5 posts
+- **Tile flexibility:**
+  · **Drag-and-drop** reorder via `@dnd-kit`. Grip handle in each
+    tile's top-right; rest of the tile stays click-interactive.
+  · **Show/hide toggle** via "⚙ Manage tiles" header button.
+    Persisted as `dashboard_hidden_tiles` admin_preference.
+  · **Persisted order** as `dashboard_tile_order` admin_preference,
+    per (user, club). New tiles added in future patches append to
+    the end so existing layouts aren't disturbed.
+  · **Role-gated catalog** — each tile declares the minimum role
+    (`staff` / `manager` / `super_admin`); hidden from anyone below.
+- **Per-workspace dashboard layouts** — workspaces (v0.11.11) gain
+  an optional `dashboardLayout: { order, hidden }` snapshot. Applying
+  a workspace flips the dashboard tile arrangement to match. Five
+  seeded workspaces ship with role-tuned layouts:
+  · **Daily Ops** — Open Work first (kitchen / pro shop scan)
+  · **Member Services** — Community Pulse first (member touchpoints)
+  · **Events** — Top Screens first (event-surface attention)
+  · **Broadcasts** — Today's Activity first (audience size before send)
+  · **Setup** — Today's Activity + Top Screens only; ops + community hidden
+- **Dashboard sidebar item** — always-visible at the top of the
+  desktop sidebar; one click returns to the dashboard from any
+  section. Custom 4-pane grid icon.
+- **DashboardErrorBoundary** — class-based React error boundary
+  wraps the dashboard so a render-phase crash falls back to the
+  empty state instead of blanking the admin. Catches what
+  `getDerivedStateFromError` can catch; doesn't catch errors thrown
+  from inside `useEffect` (the v0.11.27 fix removed the one such
+  case that was blanking the admin during this phase).
 
 ### 🖥️ Responsive Admin (Phase 12)
 - **Two layout shells, one component tree.** Same admin sections, two
@@ -380,7 +443,9 @@ windhaven-app/
 │   │   ├── AdminTable.jsx               # Phase 12 desktop table primitive
 │   │   ├── SidePanel.jsx                # Phase 12 slide-in detail panel
 │   │   ├── AdminSearchPalette.jsx       # Phase 12 Cmd+K command palette
-│   │   └── AdminWorkspaceSwitcher.jsx   # Phase 12 named workspace switcher
+│   │   ├── AdminWorkspaceSwitcher.jsx   # Phase 12 named workspace switcher
+│   │   ├── AdminDashboard.jsx           # Phase 12 v2 admin landing dashboard
+│   │   └── DashboardErrorBoundary.jsx   # Phase 12 v2 dashboard crash guard
 │   └── screens/
 │       ├── Home.jsx · Login.jsx
 │       ├── GolfHub.jsx · CourseMap.jsx · PinMap.jsx · TeeTime.jsx · PartnerBoard.jsx

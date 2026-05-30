@@ -69,21 +69,40 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
-//   v0.11.x — Phase 12: Responsive Admin. The member app stays
-//             mobile-PWA-first forever; the ADMIN side gets a
-//             desktop + tablet shell so managers doing CRUD work
-//             in the office aren't typing into 320px inputs.
-//             Same components, two layouts: AdminLayoutMobile
-//             (current 3-level drill-down) and AdminLayoutDesktop
-//             (persistent left sidebar + top bar + main content
-//             area + side-panel detail pattern + tables for data-
-//             heavy sections). v0.11.0 lands the useViewport hook
-//             scaffold; v0.11.1 the desktop layout shell; tables,
-//             global search, side panels, multi-column forms,
-//             admin_preferences-backed saved layouts + workspaces,
-//             keyboard shortcuts, and dark mode land across the
-//             intervening patches; the final v0.11.x bump
-//             refreshes the README and closes the phase.
+//   v0.11.x — Phase 12: Responsive Admin (v0.11.0–12) + Phase 12 v2:
+//             Hybrid analytics + Admin Dashboard (v0.11.13–31).
+//             The member app stays mobile-PWA-first forever; the
+//             ADMIN side gets a desktop + tablet shell so managers
+//             doing CRUD work in the office aren't typing into
+//             320px inputs. Same components, two layouts:
+//             AdminLayoutMobile (current 3-level drill-down) and
+//             AdminLayoutDesktop (persistent left sidebar + top
+//             bar + main content area + side-panel detail pattern +
+//             tables for data-heavy sections). v0.11.0 lands the
+//             useViewport hook scaffold; v0.11.1 the desktop layout
+//             shell; tables, global search, side panels,
+//             multi-column forms, admin_preferences-backed saved
+//             layouts + workspaces, keyboard shortcuts, and dark
+//             mode land across the intervening patches; v0.11.12
+//             refreshes the README.
+//
+//             Phase 12 v2 (v0.11.13–31) layers on: phone-frame
+//             escape on desktop, /admin deep-link, accordion
+//             sidebar, comms-badge accuracy split, typography
+//             pass, default workspaces, then the BIG lift —
+//             hybrid GA4 + Supabase analytics (analytics_events
+//             table via migration 62, dashboard aggregation RPCs
+//             via migration 63, useAnalytics.js dual-write) +
+//             the flexible AdminDashboard. Dashboard ships with
+//             8 tiles, role-gated catalog, drag-and-drop reorder
+//             via @dnd-kit, show/hide toggle, per-(user, club)
+//             persistence in admin_preferences, and per-workspace
+//             dashboardLayout snapshots so applying a workspace
+//             flips the dashboard arrangement to match the role
+//             the manager is currently wearing. v0.11.25 server-
+//             fix added the missing UNIQUE NULLS NOT DISTINCT
+//             constraint to admin_preferences (silent-upsert
+//             failure on every Phase 12 preference until then).
 //   v0.10.x patch tail (Phase 11): Calendar, News, Menu, Push polish — an
 //             operational-quality pass across the surfaces members
 //             touch daily. Calendar gets schedule-override
@@ -108,7 +127,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.11.30';
+export const VERSION = '0.11.31';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
