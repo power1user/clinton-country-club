@@ -103,6 +103,50 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.21** — Hybrid analytics foundation (Migration 62 + dual-write).
+
+  Opens the v0.11.21–25 build sequence for the flexible per-workspace
+  admin Dashboard that lands as the desktop default.
+
+  **The architecture decision in one paragraph:** GA4 stays alive
+  exactly as it is for strategic value (ML audiences, BigQuery export,
+  future marketing attribution, exploration UI). A parallel first-
+  party event store lands in Supabase for the operational dashboard
+  (per-club SQL queries, multi-tenant via RLS, sub-50ms response).
+  The two layers have non-overlapping domains; useAnalytics.js fires
+  to both in parallel. After ~13 hours of GA4 setup work that
+  unblocked the API binding, this hybrid keeps that investment AND
+  gives Marc the fast dashboard he wants.
+
+  **Migration 62:** `analytics_events` table.
+  · Columns: `club_id` (FK, RLS scope), `member_id` (nullable),
+    `user_id` (auth.uid, nullable), `event_name` text,
+    `properties` jsonb, `url_path`, `user_agent`, `ts`.
+  · Indexes: `(club_id, ts desc)` for time-window queries,
+    `(club_id, event_name, ts desc)` for "top screens" / "push CTR",
+    `(club_id, member_id, ts desc)` partial for per-member DAU.
+  · RLS — INSERT: any member/staff/guest of the club can insert
+    events scoped to that club (forward-compat for guest analytics);
+    SELECT: only staff of the club (or super_admin); no UPDATE /
+    DELETE policies — events are immutable.
+  · Grants: `select, insert` to `authenticated`. anon excluded.
+  · Realtime: NOT subscribed (dashboard polls; per-event broadcasts
+    would 10x the cost).
+
+  **`src/lib/analytics.js`** — new `sendSupabaseEvent(supabase, …)`
+  helper. Fire-and-forget insert; failures are silently swallowed
+  so analytics NEVER block the member UX.
+
+  **`src/hooks/useAnalytics.js`** — now dual-writes. Every
+  `trackEvent` / `trackPageView` call fires to GA4 AND to the
+  `analytics_events` table in parallel. Auth gate is identical
+  (real member + non-guest + resolved club). `page_view` events
+  store the screen id under `properties.screen`.
+
+  PII policy unchanged: no names, emails, or membership numbers in
+  event properties. `member_id` / `user_id` ARE stored on the
+  Supabase side but as RLS-scoping FKs, not free-text identifiers.
+
 - **v0.11.20** — Comms badge accuracy: split open-work vs activity-feed.
 
   Reported: Food Orders badge showed **4** but only **2** open

@@ -99,3 +99,37 @@ export function _resetForTests() {
     delete window.gtag;
   }
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Supabase first-party event writer (v0.11.21).
+//
+// Hybrid analytics: every event fires to BOTH GA4 (above) AND the
+// `analytics_events` Supabase table. GA4 powers exploration + ML +
+// future marketing attribution; the Supabase table powers the fast
+// per-club admin dashboard with SQL queries (multi-tenant via RLS,
+// sub-50ms response). The two layers have non-overlapping domains
+// and don't fight each other.
+//
+// PII policy: same as GA4. The caller (useAnalytics hook) is the
+// gatekeeper — never include names, emails, or membership numbers
+// in properties. `club_id`, `member_id`, `user_id` are the only
+// scoping identifiers stored.
+//
+// Failure mode: fire-and-forget. A failed insert is silently
+// swallowed — analytics never block the member's UX. The dashboard
+// just won't see those events; that's an acceptable trade-off vs
+// surfacing an error toast to the member.
+// ──────────────────────────────────────────────────────────────────
+export function sendSupabaseEvent(supabase, { clubId, memberId, userId, eventName, properties, urlPath, userAgent }) {
+  if (!supabase || !clubId || !eventName) return;
+  // Fire and forget — analytics MUST NOT block the user.
+  supabase.from('analytics_events').insert({
+    club_id: clubId,
+    member_id: memberId || null,
+    user_id: userId || null,
+    event_name: eventName,
+    properties: properties || {},
+    url_path: urlPath || null,
+    user_agent: userAgent || null,
+  }).then(() => {}, () => {});
+}
