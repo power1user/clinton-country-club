@@ -103,6 +103,32 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.4** — Phase 12: `SidePanel` detail pattern.
+
+  Slide-in detail panel at `src/components/SidePanel.jsx`. When a
+  manager clicks a row in an AdminTable on desktop, the SidePanel
+  mounts on the right side of the main content area with the
+  row's full details. The list stays visible alongside — manager
+  flips between rows without losing scroll position.
+
+  Behavior:
+  · Mounts INSIDE the main content area (not document body) so
+    it overlays just the section, not the sidebar/topbar
+  · Backdrop scrim covers only the content area
+  · Click backdrop OR Esc to close
+  · Focus management: remembers the previously-focused element
+    on open, restores on close (a11y guideline)
+  · 220ms slide-in via translateX, with shadow fade
+  · Default width 420px (tunable via `width` prop), maxWidth 92%
+
+  Mount position: `position: absolute` relative to nearest
+  positioned ancestor. Consumers wrap their content in a
+  `position: relative` container so the panel only overlays that
+  container.
+
+  No section integrations yet — those land in the v0.11.6
+  integration patch after global search (v0.11.5) ships.
+
 - **v0.11.3** — Phase 12: `AdminTable` building block.
 
   Reusable desktop-shaped table primitive at
