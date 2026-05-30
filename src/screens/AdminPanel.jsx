@@ -304,7 +304,12 @@ export default function AdminPanel() {
   // Reading the hook here keeps the dependency live (so future
   // dev tools / debug overlays can already inspect viewport
   // state) and documents the v0.11.x intent at the call site.
-  const { isDesktop } = useViewport();
+  // v0.11.10 — Tablet polish. AdminLayoutDesktop mounts at tablet
+  // too (≥ 768 px) with a slimmer 200px sidebar, since iPad / split-
+  // screen sessions benefit far more from sidebar nav than from
+  // re-triggering the mobile drill-down inside a 1024px viewport.
+  // Pure mobile phones (<768) still get the drill-down.
+  const { isDesktop, isTabletUp, isTablet } = useViewport();
   // v0.11.7 — Last-section persistence. On desktop the manager
   // usually picks up where they left off; remembering area+sec
   // saves a click each session. Mobile drill-down resets on
@@ -358,13 +363,12 @@ export default function AdminPanel() {
     );
   }
 
-  // v0.11.1 — Desktop shell. AdminLayoutDesktop renders the
-  // persistent left sidebar (areas + sections tree) + top bar +
-  // main content. Sidebar clicks call setArea/setSec just like
-  // mobile drill-down does, so the shared component state stays
-  // the source of truth. Mobile + tablet still get the 3-level
-  // drill-down below.
-  if (isDesktop) {
+  // v0.11.1 — Desktop shell. v0.11.10 expands the mount to tablet
+  // too, with a slimmer sidebar so iPad / split-screen sessions
+  // get the sidebar pattern instead of re-triggering the mobile
+  // drill-down inside a 1024px viewport. Pure phones (<768) still
+  // get the mobile shell below.
+  if (isTabletUp) {
     return (
       <AdminLayoutDesktop
         area={area}
@@ -378,6 +382,7 @@ export default function AdminPanel() {
         isManager={isManager}
         isSuperAdmin={isSuperAdmin}
         commsUnread={commsUnread}
+        compact={isTablet}
       />
     );
   }

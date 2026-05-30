@@ -103,6 +103,28 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.10** — Phase 12: Tablet polish (compact sidebar).
+
+  The desktop admin shell now mounts at the **tablet** breakpoint too,
+  not just desktop. Managers reaching for an iPad in the office get the
+  same sidebar + topbar + main-area layout they'd see on a 27" monitor,
+  with the dimensions tuned for the smaller canvas.
+
+  `AdminPanel.jsx` now uses `isTabletUp` (≥768 px) for the layout
+  selection instead of `isDesktop` (≥1024 px), and passes a new
+  `compact={isTablet}` prop into `AdminLayoutDesktop`.
+
+  `AdminLayoutDesktop.jsx` gains a `compact` mode:
+  · Sidebar width: `260px` desktop → `200px` tablet
+  · Sidebar padding: `18px` desktop → `12px` tablet
+  · Main-area padding: `24/32/40` desktop → `20/22/32` tablet
+
+  Also adds `position: relative` to the grid root so `<SidePanel>`
+  (v0.11.4) reliably overlays only the main area on tablet too.
+
+  Mobile (&lt;768 px) still gets the 3-level drill-down shell —
+  unchanged, mobile-first PWA experience preserved.
+
 - **v0.11.9** — Phase 12: Keyboard shortcuts.
 
   Generic `useKeyboardShortcuts(map)` hook at

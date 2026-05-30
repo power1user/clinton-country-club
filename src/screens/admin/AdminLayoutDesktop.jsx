@@ -40,11 +40,12 @@ import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { SectionContent } from '../AdminPanel.jsx';
 
-// Hard width for the sidebar — chosen to fit the longest area
-// label ("Communications") + a small icon at our base font sizes
-// without wrap. Tuned for visual rhythm against the 1280px main
-// content max-width.
-const SIDEBAR_W = 260;
+// Sidebar width. 260 on desktop; 200 on tablet (compact mode).
+// "Communications" still fits at 200 with the chevron + smaller
+// inner padding tuned below. Top bar height stays the same so
+// the breadcrumb + bell row reads at both widths.
+const SIDEBAR_W_DESKTOP = 260;
+const SIDEBAR_W_TABLET  = 200;
 const TOPBAR_H  = 56;
 
 export default function AdminLayoutDesktop({
@@ -53,7 +54,13 @@ export default function AdminLayoutDesktop({
   member, club,
   isManager, isSuperAdmin,
   commsUnread,
+  compact = false,
 }) {
+  const SIDEBAR_W = compact ? SIDEBAR_W_TABLET : SIDEBAR_W_DESKTOP;
+  // v0.11.10 — Sidebar internal padding tunes down at tablet so
+  // section labels don't crowd the chevron column.
+  const sidePad = compact ? 12 : 18;
+  const mainPad = compact ? '20px 22px 32px' : '24px 32px 40px';
   const { goTab } = useNav();
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
@@ -126,6 +133,7 @@ export default function AdminLayoutDesktop({
 
   return (
     <div style={{
+      position: 'relative',
       flex: 1,
       display: 'grid',
       gridTemplateColumns: `${SIDEBAR_W}px 1fr`,
@@ -384,7 +392,8 @@ export default function AdminLayoutDesktop({
       <main style={{
         gridArea: 'main',
         overflowY: 'auto',
-        padding: '24px 32px 40px',
+        padding: mainPad,
+        position: 'relative',
       }}>
         <div style={{ maxWidth: 1280, margin: '0 auto' }}>
           {sec ? (
