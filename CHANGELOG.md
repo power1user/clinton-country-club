@@ -103,6 +103,43 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.28** — Dashboard drag-and-drop + "Dashboard" sidebar item.
+
+  Two features land together:
+
+  **1. Always-visible Dashboard link in the sidebar.** Sits above
+  the area accordion as the first sidebar item. One click clears
+  `area` + `sec` and returns to the root state = dashboard landing.
+  Selected styling (brass left bar + cream background) mirrors the
+  section rows. Custom icon (4-pane grid SVG) signals "overview" vs
+  the section icons. Always visible regardless of role or workspace.
+
+  **2. Drag-and-drop tile reorder via `@dnd-kit`.** Each tile gains a
+  6-dot grip handle in its top-right corner. Drag from the grip to
+  reorder; the rest of the tile stays click-interactive (so future
+  clickable tile contents work fine). Visual feedback during drag:
+  brass border, 0.85 opacity, drop shadow, z-index 10.
+
+  Persistence:
+  · New admin_preference `dashboard_tile_order` — list of visible
+    tile IDs in display order, per (user, club).
+  · `useAdminPreference` default is `null`; falls back to the
+    catalog's natural order when no row exists.
+  · Reorder computation: take the saved order, drop hidden tiles +
+    tiles the manager doesn't have role access to, then append any
+    visible-not-already-listed tiles at the end (so new tiles added
+    in a future patch land at the end of the manager's existing
+    layout — they don't displace their current arrangement).
+
+  `PointerSensor` activation requires 6px of pointer movement before
+  the drag engages, preventing accidental drags on simple clicks.
+
+  **Per-workspace dashboard layouts** are deferred to v0.11.29 (will
+  add a `dashboardLayout` field to each workspace and surface
+  "Save current layout to '<workspace>'" on the workspace switcher).
+  For now, the layout is per (user, club) — your tile order follows
+  you across workspaces at the same club.
+
 - **v0.11.27** — Fix: dashboard duplicated `useCommsUnread`
   subscription (THE black-screen root cause).
 

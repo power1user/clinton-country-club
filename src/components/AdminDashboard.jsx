@@ -29,6 +29,13 @@ import { G } from '../theme.js';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useAdminPreference } from '../hooks/useAdminPreference.js';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, arrayMove, rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ──────────────────────────────────────────────────────────────────
 // Tile registry
@@ -82,7 +89,20 @@ const TILE_CATALOG = [
 export default function AdminDashboard({ commsUnread }) {
   const { club, isManager, isSuperAdmin } = useAuth();
   const [hidden, setHidden] = useAdminPreference('dashboard_hidden_tiles', []);
+  // v0.11.28 — Persisted tile order. List of visible tile IDs in the
+  // user's preferred display order. Hiding a tile removes it from
+  // this order; un-hiding appends it at the end. Drag-and-drop
+  // arrayMove writes back here directly. Per (user, club) via the
+  // existing useAdminPreference hook.
+  const [tileOrder, setTileOrder] = useAdminPreference('dashboard_tile_order', null);
   const [manageOpen, setManageOpen] = useState(false);
+
+  // PointerSensor requires the pointer to move 6px before drag
+  // engages — prevents accidental drags when the manager just
+  // clicks the grip handle.
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: { distance: 6 },
+  }));
 
   const hiddenSet = new Set(Array.isArray(hidden) ? hidden : []);
 
@@ -101,7 +121,44 @@ export default function AdminDashboard({ commsUnread }) {
     [isManager, isSuperAdmin]
   );
 
-  const renderedTiles = visibleCatalog.filter(t => !hiddenSet.has(t.id));
+  // v0.11.28 — Compute the rendered tile order:
+  //   1. Start with the persisted order (or fall back to catalog order)
+  //   2. Drop tiles that aren't in the visible catalog (role-gated out)
+  //   3. Drop hidden tiles
+  //   4. Append any role-visible-not-hidden tiles that aren't already
+  //      listed (covers brand-new tiles added in a future patch — they
+  //      land at the end of the manager's existing layout)
+  const renderedTiles = useMemo(() => {
+    const orderList = Array.isArray(tileOrder) && tileOrder.length > 0
+      ? tileOrder
+      : visibleCatalog.map(t => t.id);
+    const out = [];
+    const seen = new Set();
+    for (const id of orderList) {
+      if (hiddenSet.has(id)) continue;
+      const tile = visibleCatalog.find(t => t.id === id);
+      if (!tile) continue;
+      out.push(tile);
+      seen.add(id);
+    }
+    for (const tile of visibleCatalog) {
+      if (seen.has(tile.id) || hiddenSet.has(tile.id)) continue;
+      out.push(tile);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tileOrder, hidden, visibleCatalog]);
+
+  // Drag-end handler — reorder the persisted tile order list.
+  const onDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const currentIds = renderedTiles.map(t => t.id);
+    const oldIndex = currentIds.indexOf(active.id);
+    const newIndex = currentIds.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    setTileOrder(arrayMove(currentIds, oldIndex, newIndex));
+  };
 
   return (
     <div style={{ position: 'relative' }}>
@@ -219,66 +276,121 @@ export default function AdminDashboard({ commsUnread }) {
         </div>
       )}
 
-      {/* Grid of tiles */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        gap: 16,
-      }}>
-        {renderedTiles.length === 0 && (
+      {/* Grid of tiles. v0.11.28 — wrapped in DndContext +
+          SortableContext for drag-and-drop reorder. The grip icon
+          in each tile's top-right is the drag handle; the rest of
+          the tile remains click-interactive. */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={renderedTiles.map(t => t.id)} strategy={rectSortingStrategy}>
           <div style={{
-            gridColumn: '1 / -1',
-            padding: '40px 24px',
-            textAlign: 'center',
-            background: G.card,
-            border: `1px solid ${G.border}`,
-            borderRadius: 8,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: 16,
           }}>
-            <p style={{
-              fontFamily: '"Playfair Display",serif',
-              fontStyle: 'italic',
-              fontSize: 16,
-              color: G.muted,
-              margin: 0,
-            }}>
-              All tiles hidden. Use "Manage tiles" to bring some back.
-            </p>
-          </div>
-        )}
-        {renderedTiles.map(t => {
-          const TileComp = t.component;
-          return (
-            <div
-              key={t.id}
-              style={{
-                gridColumn: `span ${t.size?.col || 2}`,
-                gridRow: `span ${t.size?.row || 1}`,
+            {renderedTiles.length === 0 && (
+              <div style={{
+                gridColumn: '1 / -1',
+                padding: '40px 24px',
+                textAlign: 'center',
                 background: G.card,
                 border: `1px solid ${G.border}`,
                 borderRadius: 8,
-                padding: '16px 18px',
-                minHeight: 180,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <p style={{
-                fontFamily: '"Lora",serif',
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: G.muted,
-                margin: '0 0 12px',
               }}>
-                {t.name}
-              </p>
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <TileComp clubId={club?.id} commsUnread={commsUnread} />
+                <p style={{
+                  fontFamily: '"Playfair Display",serif',
+                  fontStyle: 'italic',
+                  fontSize: 16,
+                  color: G.muted,
+                  margin: 0,
+                }}>
+                  All tiles hidden. Use "Manage tiles" to bring some back.
+                </p>
               </div>
-            </div>
-          );
-        })}
+            )}
+            {renderedTiles.map(t => (
+              <SortableTile
+                key={t.id}
+                tile={t}
+                clubId={club?.id}
+                commsUnread={commsUnread}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SortableTile — wraps each tile in a draggable card with a grip
+// handle (v0.11.28). The grip lives in the top-right; only its
+// pointer events trigger the drag, so the rest of the tile (links,
+// hover states, scroll inside) stays interactive.
+// ──────────────────────────────────────────────────────────────────
+function SortableTile({ tile, clubId, commsUnread }) {
+  const TileComp = tile.component;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tile.id });
+  const style = {
+    gridColumn: `span ${tile.size?.col || 2}`,
+    gridRow: `span ${tile.size?.row || 1}`,
+    background: G.card,
+    border: `1px solid ${isDragging ? G.brass : G.border}`,
+    borderRadius: 8,
+    padding: '16px 18px',
+    minHeight: 180,
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'relative',
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.85 : 1,
+    boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.25)' : 'none',
+    cursor: isDragging ? 'grabbing' : 'default',
+    zIndex: isDragging ? 10 : 'auto',
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <p style={{
+          flex: 1,
+          fontFamily: '"Lora",serif',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: G.muted,
+          margin: 0,
+        }}>
+          {tile.name}
+        </p>
+        {/* Grip — only this element registers as the drag activator.
+            Subtle muted color until hovered; cursor flips to 'grab'. */}
+        <div
+          {...listeners}
+          style={{
+            cursor: 'grab',
+            padding: 4,
+            marginRight: -4,
+            display: 'flex',
+            alignItems: 'center',
+            color: G.muted,
+            opacity: 0.55,
+          }}
+          aria-label={`Drag ${tile.name} to reorder`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="6" r="1" />
+            <circle cx="9" cy="12" r="1" />
+            <circle cx="9" cy="18" r="1" />
+            <circle cx="15" cy="6" r="1" />
+            <circle cx="15" cy="12" r="1" />
+            <circle cx="15" cy="18" r="1" />
+          </svg>
+        </div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <TileComp clubId={clubId} commsUnread={commsUnread} />
       </div>
     </div>
   );

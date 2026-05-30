@@ -221,6 +221,40 @@ export default function AdminLayoutDesktop({
 
         {/* Sidebar tree */}
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {/* v0.11.28 — Dashboard / Home link. Always visible at the
+              top of the sidebar; one click returns to the root
+              state (no area + no section), which renders the
+              AdminDashboard. Selected styling mirrors a section
+              row when we ARE at the root. Not an accordion — no
+              children, single tap. */}
+          <div
+            onClick={() => { setArea(null); setSec(null); }}
+            data-tap
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 22px 10px 18px',
+              cursor: 'pointer',
+              fontFamily: '"Lora",serif',
+              fontSize: 15,
+              color: (!area && !sec) ? '#F2EDE0' : 'rgba(242,237,224,0.78)',
+              background: (!area && !sec) ? 'rgba(155,122,30,0.22)' : 'transparent',
+              borderLeft: `3px solid ${(!area && !sec) ? G.brass : 'transparent'}`,
+              fontWeight: (!area && !sec) ? 600 : 400,
+              marginBottom: 4,
+              transition: 'background 0.12s, color 0.12s',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="3" y="3" width="7" height="9" />
+              <rect x="14" y="3" width="7" height="5" />
+              <rect x="14" y="12" width="7" height="9" />
+              <rect x="3" y="16" width="7" height="5" />
+            </svg>
+            <span>Dashboard</span>
+          </div>
+
           {areas.map(a => {
             const isAreaCollapsed = openArea !== a.id;
             const visibleSections = a.sections.filter(sectionVisible);
