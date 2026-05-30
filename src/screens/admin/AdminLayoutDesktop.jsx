@@ -36,6 +36,7 @@ import { G, applyThemeMode } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
+import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { SectionContent } from '../AdminPanel.jsx';
@@ -152,7 +153,8 @@ export default function AdminLayoutDesktop({
         borderRight: `1px solid ${G.greenDk}`,
         overflow: 'hidden',
       }}>
-        {/* Sidebar header — club name + small "Admin" chip */}
+        {/* Sidebar header — club name + small "Admin" chip + the
+            v0.11.11 workspace switcher chip directly below it. */}
         <div style={{
           padding: '14px 18px',
           borderBottom: `1px solid rgba(168,216,184,0.18)`,
@@ -179,6 +181,21 @@ export default function AdminLayoutDesktop({
           }}>
             Manage your club
           </p>
+
+          {/* v0.11.11 — Workspace switcher. Named bundles of
+              collapsed-area state + last section. Applying a
+              workspace restores both via onRestore — the existing
+              collapsed + last_section preference hooks then own
+              the live values. */}
+          <AdminWorkspaceSwitcher
+            collapsed={collapsedArray || []}
+            lastSection={{ areaId: area, sectionId: sec }}
+            onRestore={({ collapsed: nextCollapsed, lastSection }) => {
+              setCollapsedArray(nextCollapsed || []);
+              setArea(lastSection?.areaId || null);
+              setSec(lastSection?.sectionId || null);
+            }}
+          />
         </div>
 
         {/* Sidebar tree */}

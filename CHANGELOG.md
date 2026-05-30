@@ -103,6 +103,43 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.11** — Phase 12: Workspaces / personas.
+
+  Managers can save **named bundles of admin UI state** and flip
+  between them in one click. Each workspace is a snapshot of:
+
+  · `collapsed`    — which sidebar area groups are collapsed
+  · `lastSection`  — the `{ areaId, sectionId }` it lands on
+
+  Use case: a manager wears multiple hats. "Daily ops" expands
+  Communications + Pro Shop and lands on the food-order queue.
+  "Setup" expands Settings + Features and lands on Club Settings.
+  "Member services" expands People and lands on the Directory.
+  Defining each as a workspace turns a 4-click setup into one click.
+
+  New `AdminWorkspaceSwitcher` chip in the sidebar header (right
+  under the club name). Click → popover with:
+  · The list of saved workspaces (active one outlined)
+  · "Update '<active>' with current view" — re-snapshots
+  · "Save current view as…" — name input + Save button
+  · "Manage" toggle — inline rename + delete per workspace
+
+  Storage (on the v0.11.6 `admin_preferences` foundation):
+  · `workspaces` — **cross-club** array `[{ id, name, collapsed,
+    lastSection }, …]`. The list itself follows the admin so
+    workspaces defined for one club are available everywhere they
+    administer.
+  · `active_workspace` — **per-club** id. The same admin may wear
+    a different hat at each club they manage — pro-shop manager
+    at one, general manager at another — so the *active* workspace
+    is club-scoped while the *catalog* is cross-club.
+
+  Applying a workspace is a one-shot restore: the parent's
+  `sidebar_collapsed` and `last_section` hooks then own the live
+  values from then on. To re-capture changes, the user picks
+  "Update '<name>'" from the menu — no implicit overwrite when
+  tinkering destroys an intentional snapshot.
+
 - **v0.11.10** — Phase 12: Tablet polish (compact sidebar).
 
   The desktop admin shell now mounts at the **tablet** breakpoint too,
