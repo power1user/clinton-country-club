@@ -36,21 +36,22 @@ function uuid() {
   return 'ws_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
-// v0.11.17 — Seeded default workspaces. Every club ships with these
+// v0.11.19 — Seeded default workspaces. Every club ships with these
 // five out of the box so a fresh manager has useful presets the
 // moment they open the admin. Each workspace is a snapshot of:
-//   · `collapsed`    — area ids that should be collapsed
-//                       (i.e. NOT the target area for this workspace)
+//   · `expanded`     — the single area id that should be expanded
+//                       in the accordion sidebar (or null = none)
 //   · `lastSection`  — where to land
 //   · `readonly: true` — marks them as un-renamable / un-deletable;
 //                        the manager can apply them and create their
 //                        own customs, but the seeds always stay.
 //
-// Note the collapsed lists include every non-target area id including
-// `platform` — for non-super-admins that area doesn't render anyway,
-// so listing it as "collapsed" is harmless. The benefit is a single
-// canonical definition that works for super_admin + manager + admin
-// alike.
+// Schema simplified from v0.11.17 (which stored a `collapsed` array
+// of every-area-except-target). With the v0.11.19 accordion model
+// the sidebar can only have one area open at a time, so a single
+// `expanded` field is all the data we need. Legacy custom workspaces
+// with `collapsed` arrays are still applied — the apply path derives
+// `expanded` from `collapsed` as a fallback.
 //
 // Area ids come from AdminPanel.jsx AREAS: inbox, comms, events,
 // course, proshop, dining, people, clubsetup, platform.
@@ -58,42 +59,46 @@ const DEFAULT_WORKSPACES = [
   {
     id: 'default_daily',
     name: 'Daily Ops',
-    collapsed: ['comms', 'events', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    expanded: 'inbox',
     lastSection: { areaId: 'inbox', sectionId: 'inbox_food' },
     readonly: true,
   },
   {
     id: 'default_member_services',
     name: 'Member Services',
-    collapsed: ['inbox', 'comms', 'events', 'course', 'proshop', 'dining', 'clubsetup', 'platform'],
+    expanded: 'people',
     lastSection: { areaId: 'people', sectionId: 'people_all' },
     readonly: true,
   },
   {
     id: 'default_events',
     name: 'Events',
-    collapsed: ['inbox', 'comms', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    expanded: 'events',
     lastSection: { areaId: 'events', sectionId: 'eventsadmin' },
     readonly: true,
   },
   {
     id: 'default_broadcasts',
     name: 'Broadcasts',
-    collapsed: ['inbox', 'events', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    expanded: 'comms',
     lastSection: { areaId: 'comms', sectionId: 'news' },
     readonly: true,
   },
   {
     id: 'default_setup',
     name: 'Setup',
-    collapsed: ['inbox', 'comms', 'events', 'course', 'proshop', 'dining', 'people', 'platform'],
+    expanded: 'clubsetup',
     lastSection: { areaId: 'clubsetup', sectionId: 'clubsettings' },
     readonly: true,
   },
 ];
 
 export default function AdminWorkspaceSwitcher({
-  collapsed,
+  // v0.11.19 — Accordion sidebar: single area expanded at a time.
+  // Prop renamed from `collapsed` (array of closed area IDs) to
+  // `expanded` (single open area ID or null). Workspaces likewise
+  // store a single `expanded` field instead of an array.
+  expanded,
   lastSection,
   onRestore,
 }) {
@@ -138,11 +143,19 @@ export default function AdminWorkspaceSwitcher({
   const displayList = [...DEFAULT_WORKSPACES, ...customList];
   const active = displayList.find(w => w.id === activeId) || null;
 
-  // Apply a workspace — restore collapsed + lastSection and mark active.
+  // Apply a workspace — restore expanded area + lastSection and mark active.
+  // v0.11.19 — Falls back to deriving an `expanded` area from a legacy
+  // `collapsed` array if the workspace was saved under the pre-v0.11.19
+  // schema. lastSection.areaId is the most sensible fallback: it's
+  // the area we're about to land in, so opening it in the sidebar
+  // matches user intent.
   const applyWorkspace = (ws) => {
     if (!ws) return;
+    const nextExpanded = ws.expanded !== undefined
+      ? ws.expanded
+      : (ws.lastSection?.areaId ?? null);
     onRestore?.({
-      collapsed: Array.isArray(ws.collapsed) ? ws.collapsed : [],
+      expanded: nextExpanded,
       lastSection: ws.lastSection || { areaId: null, sectionId: null },
     });
     setActiveId(ws.id);
@@ -150,7 +163,7 @@ export default function AdminWorkspaceSwitcher({
     setManageMode(false);
   };
 
-  // Save current collapsed + lastSection as a new workspace.
+  // Save current expanded area + lastSection as a new workspace.
   const saveCurrentAs = () => {
     const name = creatingName.trim();
     if (!name) return;
@@ -158,7 +171,7 @@ export default function AdminWorkspaceSwitcher({
     const ws = {
       id,
       name,
-      collapsed: Array.isArray(collapsed) ? collapsed : [],
+      expanded: typeof expanded === 'string' ? expanded : null,
       lastSection: lastSection || { areaId: null, sectionId: null },
     };
     setWorkspaces(prev => [...(prev || []), ws]);
@@ -172,7 +185,7 @@ export default function AdminWorkspaceSwitcher({
     if (!active) return;
     setWorkspaces(prev => (prev || []).map(w => w.id === active.id ? {
       ...w,
-      collapsed: Array.isArray(collapsed) ? collapsed : [],
+      expanded: typeof expanded === 'string' ? expanded : null,
       lastSection: lastSection || { areaId: null, sectionId: null },
     } : w));
     setOpen(false);

@@ -103,6 +103,60 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.19** — Phase 12: Accordion sidebar (one area open at a time).
+
+  The desktop admin sidebar now follows the **accordion** pattern
+  used by Linear, Notion, and GitHub Settings: **at most one area
+  group is expanded at any time**. Click an area to open it; that
+  click automatically collapses whatever was previously open. Click
+  the open area to close it. Default state = nothing open (clean
+  table-of-contents view).
+
+  This replaces the v0.11.x model that stored an array of
+  collapsed-area-ids. That model had two flavors of bug:
+
+  · "Muddy" intermediate states persisted across reloads. A manager
+    who left two or three areas open during a session would refresh
+    and see the same scrambled state next time — instead of the
+    clean default. The fix attempts in v0.11.15 / v0.11.18 chased
+    edge cases of "null vs empty array" semantics; the accordion
+    model eliminates the entire category by reducing the state
+    space to one variable.
+  · Stale leftover state. Marc reported "menu still expanded after
+    refresh" — his admin_preferences row held a workspace-applied
+    array from earlier testing that re-hydrated on every load.
+
+  **Mechanism:**
+  · New preference key `sidebar_open_area` — stores a single area
+    id string, or null = nothing open. Default null.
+  · Old `sidebar_collapsed` rows are harmlessly orphaned. No
+    migration; the new default behavior IS the cleanup.
+  · `toggleAreaOpen(areaId)`: if it's already open → close
+    (null); otherwise → switch to it.
+
+  **Workspace schema update:**
+  · `DEFAULT_WORKSPACES` (seeded defaults from v0.11.17) reshaped:
+    each workspace now carries a single `expanded: 'areaId'` field
+    instead of an array of every-other-area-id under `collapsed`.
+    Cleaner, easier to read, and naturally matches the new model.
+  · Custom (user-saved) workspaces saved via `saveCurrentAs` /
+    `updateActive` now write `expanded` instead of `collapsed`.
+  · Legacy custom workspaces with `collapsed` arrays still apply —
+    the apply path uses `ws.expanded ?? ws.lastSection.areaId` so
+    they land on a sensible "open the area we're navigating into"
+    state.
+
+  Workspace switcher prop API: `collapsed` → `expanded` (single id
+  vs array). `onRestore` callback receives `{ expanded, lastSection }`
+  instead of `{ collapsed, lastSection }`. Only one consumer
+  (`AdminLayoutDesktop`) had to update.
+
+  Trade-off lost: a manager can no longer have two area groups open
+  side-by-side. That's the explicit point of the accordion pattern
+  (less visual noise, easier mental model) — for a club admin with
+  nine areas, having two open at once was a recipe for the muddy
+  state Marc hit.
+
 - **v0.11.18** — Phase 12 fix trio: search-bar click, collapse default, version chip.
 
   Three reported bugs in one patch:

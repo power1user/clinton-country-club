@@ -116,47 +116,25 @@ export default function AdminLayoutDesktop({
     'g b': () => { setArea('comms'); setSec(null); },
     'g e': () => { setArea('events'); setSec(null); },
   });
-  // v0.11.18 — Sidebar collapse state persisted via admin_preferences.
-  // Default ALL COLLAPSED for a fresh manager — they see the area
-  // headers (Communications, Broadcasts, Events, …) like a table of
-  // contents and click to expand into the sections they need.
+  // v0.11.19 — Accordion sidebar. AT MOST ONE area group expanded at
+  // a time. Click an area to open it (collapses whatever was open
+  // before); click the open area again to close it (back to all-
+  // collapsed). This replaces the v0.11.x array-of-collapsed-ids
+  // model — that one was hard to reason about (was [] = all open or
+  // all closed?), and made it easy for "muddy" intermediate states
+  // to persist across reloads.
   //
-  // Both the `null` sentinel ("no preference written") AND an empty
-  // array (`[]`) now fall back to the all-collapsed default. The empty
-  // array case turns up legitimately for users who landed early in
-  // Phase 12 when `[]` was written under the hood by various code
-  // paths; treating it as "use default" cleans those up automatically.
-  // toggleCollapse below also writes `null` instead of `[]` when the
-  // manager fully expands every area, so we never re-create the
-  // ambiguous empty-array state going forward.
-  //
-  // Trade-off: a manager who *explicitly* expands every area can't
-  // persist that across reloads (next load gives them all-collapsed
-  // again). That's vanishingly rare — getting to "all expanded" means
-  // 9 deliberate clicks against the new default. Worth it for the
-  // robust default behavior.
-  const [collapsedArray, setCollapsedArray] = useAdminPreference(
-    'sidebar_collapsed',
+  // Stored as a SINGLE area id string in `sidebar_open_area`, or
+  // null = nothing open (the default). New key on purpose — the old
+  // `sidebar_collapsed` rows are harmlessly orphaned, and no manager
+  // notices because the new default (everything collapsed) was what
+  // we wanted anyway.
+  const [openArea, setOpenArea] = useAdminPreference(
+    'sidebar_open_area',
     null,
   );
-  const allAreaIds = areas.map(a => a.id);
-  const hasExplicitCollapse = Array.isArray(collapsedArray) && collapsedArray.length > 0;
-  const effectiveCollapsedArray = hasExplicitCollapse ? collapsedArray : allAreaIds;
-  const collapsed = new Set(effectiveCollapsedArray);
-  const toggleCollapse = (areaId) => {
-    setCollapsedArray(prev => {
-      // Treat null-prev OR empty-array-prev (no/empty preference) as
-      // the all-collapsed baseline, so the first click EXPANDS the
-      // area the manager touched.
-      const base = (Array.isArray(prev) && prev.length > 0) ? prev : allAreaIds;
-      const next = new Set(base);
-      if (next.has(areaId)) next.delete(areaId);
-      else next.add(areaId);
-      // Collapsing back to empty? Write `null` instead of `[]` to
-      // keep the "no preference, use default" semantics clean.
-      if (next.size === 0) return null;
-      return [...next];
-    });
+  const toggleAreaOpen = (areaId) => {
+    setOpenArea(prev => prev === areaId ? null : areaId);
   };
 
   // The currently-displayed section's label, used by the top bar.
@@ -229,10 +207,10 @@ export default function AdminLayoutDesktop({
               collapsed + last_section preference hooks then own
               the live values. */}
           <AdminWorkspaceSwitcher
-            collapsed={effectiveCollapsedArray}
+            expanded={openArea}
             lastSection={{ areaId: area, sectionId: sec }}
-            onRestore={({ collapsed: nextCollapsed, lastSection }) => {
-              setCollapsedArray(nextCollapsed || []);
+            onRestore={({ expanded: nextExpanded, lastSection }) => {
+              setOpenArea(nextExpanded ?? null);
               setArea(lastSection?.areaId || null);
               setSec(lastSection?.sectionId || null);
             }}
@@ -242,7 +220,7 @@ export default function AdminLayoutDesktop({
         {/* Sidebar tree */}
         <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {areas.map(a => {
-            const isAreaCollapsed = collapsed.has(a.id);
+            const isAreaCollapsed = openArea !== a.id;
             const visibleSections = a.sections.filter(sectionVisible);
             if (visibleSections.length === 0) return null;
             const isCommsArea = a.id === 'inbox';
@@ -251,9 +229,9 @@ export default function AdminLayoutDesktop({
               : 0;
             return (
               <div key={a.id} style={{ marginBottom: 4 }}>
-                {/* Area header — expandable */}
+                {/* Area header — accordion toggle */}
                 <div
-                  onClick={() => toggleCollapse(a.id)}
+                  onClick={() => toggleAreaOpen(a.id)}
                   data-tap
                   style={{
                     display: 'flex',
