@@ -103,6 +103,55 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.34** — URGENT fix: admin broadcasts now actually push to phones.
+
+  Marc reported "urgent notification didn't push to phone." Diagnosis:
+  the entire push pipeline for admin broadcasts didn't exist. The
+  Composer (`NotificationsAdmin`) inserts to `notification_messages`;
+  realtime updates open browser sessions; the in-app inbox feed
+  picks it up. But there was NO trigger on `notification_messages`,
+  and the `send-push` Edge Function explicitly required `thread_id`
+  (only knew how to handle thread messages from the messaging
+  pipeline). Result: every "Push Broadcast" Marc ever sent landed
+  in-app only — never pushed to a single phone.
+
+  **`send-push` Edge Function v7** (deployed). Now branches on
+  `payload.table`:
+  · `messages` → existing thread-message flow (unchanged).
+  · `notification_messages` → new broadcast flow:
+    1. Fetch club name for the title prefix.
+    2. Fetch all members of `club_id`, get their `push_subscriptions`.
+    3. Build title: `<Club> · <broadcast title>`. Urgency=urgent
+       gets a `🔔 URGENT ·` prefix.
+    4. Body: first 140 chars of broadcast body.
+    5. TTL by urgency: urgent 24h, high 12h, normal 4h (controls
+       how long the push service holds the message for offline
+       devices).
+    6. `data.url` = `/inbox` so tap-through opens the inbox.
+    7. Fan-out via `webpush.sendNotification`; prune stale endpoints
+       (404 / 410) the same way the message flow does.
+
+  **Migration 65** — two triggers + `fn_send_push_on_broadcast()`:
+  · INSERT trigger: fires when `published_at IS NOT NULL` at insert
+    time ("Publish now" toggle ON).
+  · UPDATE trigger: fires when `published_at` transitions NULL →
+    NOT NULL ("Save as draft" → later "Publish"). Editing an
+    already-published row does NOT re-push.
+  · `published_at IS NULL` drafts never push. Belt-and-suspenders:
+    the Edge Function also checks `msg.published_at` and refuses
+    if NULL.
+
+  audience_filter (jsonb on `notification_messages`) is IGNORED in
+  v7 — broadcasts go to every member of the club. Future patch can
+  read the filter and narrow recipients.
+
+  No client changes — `NotificationsAdmin`'s Composer already does
+  the right thing; the gap was server-side end-to-end.
+
+  Existing rows in `notification_messages` (Marc's earlier test
+  sends) won't retroactively push. Marc should send a NEW broadcast
+  to verify the pipeline.
+
 - **v0.11.33** — Workspace tile re-assignments + role-based first-load defaults.
 
   Two related fixes for the "too many tiles, not curated" feeling:
