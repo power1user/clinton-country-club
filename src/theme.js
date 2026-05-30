@@ -63,3 +63,33 @@ export function applyClubPalette(club) {
   root.style.setProperty('--g-secondary', club?.secondary_color || PALETTE_DEFAULTS.secondary);
   root.style.setProperty('--g-accent',    club?.accent_color    || PALETTE_DEFAULTS.accent);
 }
+
+// v0.11.8 — Theme mode toggle. Overrides the bg/card/text/muted/
+// border CSS variables on document.documentElement. Light mode
+// (the default) clears the overrides so the fallback hex values
+// in the G object win. Dark mode sets explicit dark equivalents.
+//
+// Toggleable only from the admin sidebar (admin_preferences key
+// 'theme' with mode 'light' | 'dark', cross-club). When an admin
+// toggles dark, the whole app flips — including member views the
+// admin happens to visit afterward. That's fine: members never
+// see the toggle themselves.
+const THEME_DARK = {
+  '--g-bg':     '#15171A',
+  '--g-card':   '#1E2125',
+  '--g-text':   '#E8E4D8',
+  '--g-muted':  '#8B8F95',
+  '--g-border': '#2C3035',
+};
+
+export function applyThemeMode(mode) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (mode === 'dark') {
+    for (const [k, v] of Object.entries(THEME_DARK)) root.style.setProperty(k, v);
+    root.dataset.theme = 'dark';
+  } else {
+    for (const k of Object.keys(THEME_DARK)) root.style.removeProperty(k);
+    delete root.dataset.theme;
+  }
+}

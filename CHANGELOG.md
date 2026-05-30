@@ -103,6 +103,31 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.8** — Phase 12: Dark mode toggle (admin sidebar).
+
+  Small affordance in the desktop sidebar footer flips the whole
+  app between light + dark. Backed by `useAdminPreference('theme',
+  …, { clubScoped: false })` so the choice travels with the admin
+  across every club they touch and doesn't flip on club switch.
+
+  Implementation routes through the existing CSS-variable layer in
+  `theme.js`: new `applyThemeMode(mode)` helper sets `--g-bg`,
+  `--g-card`, `--g-text`, `--g-muted`, `--g-border` overrides on
+  `document.documentElement` when dark, removes them when light.
+  Existing `G.bg`, `G.card`, etc. already resolve via `var(--g-…,
+  fallback)` so the swap propagates through every component
+  without per-component wiring.
+
+  Dark palette: bg `#15171A`, card `#1E2125`, text `#E8E4D8`,
+  muted `#8B8F95`, border `#2C3035`. Functional state colors (open
+  green, closed red, brass accent) stay constant — they're meant
+  to read regardless of theme.
+
+  Member-facing surfaces inherit dark when the admin toggles it
+  too (they share the same CSS variables); members never see the
+  toggle themselves, so this is an admin-controlled cross-app
+  preference rather than a per-user member feature.
+
 - **v0.11.7** — Phase 12: Sidebar collapse + last-section persistence.
 
   First two wirings of the `admin_preferences` foundation from

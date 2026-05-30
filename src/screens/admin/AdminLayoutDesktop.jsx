@@ -31,8 +31,8 @@
 // This v0.11.1 commit gets the shape on screen — clean and
 // navigable — without the polish.
 
-import { useState } from 'react';
-import { G } from '../../theme.js';
+import { useEffect, useState } from 'react';
+import { G, applyThemeMode } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
@@ -57,6 +57,20 @@ export default function AdminLayoutDesktop({
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // v0.11.8 — Dark mode toggle. Cross-club preference (clubScoped:
+  // false) — managing multiple clubs shouldn't flip the theme on
+  // you when you switch between them. applyThemeMode sets CSS
+  // custom properties on documentElement so the theme propagates
+  // through the existing G.* var() fallbacks without per-component
+  // wiring.
+  const [theme, setTheme] = useAdminPreference(
+    'theme',
+    { mode: 'light' },
+    { clubScoped: false },
+  );
+  useEffect(() => {
+    applyThemeMode(theme?.mode || 'light');
+  }, [theme?.mode]);
   // v0.11.7 — Sidebar collapse state persisted via admin_preferences.
   // Default ALL expanded; manager toggles persist per (user, club)
   // so it doesn't reset on reload or when switching browsers. Stored
@@ -271,6 +285,37 @@ export default function AdminLayoutDesktop({
             }}
           >
             ← Back to MyClub
+          </div>
+
+          {/* v0.11.8 — Dark mode toggle. Cross-club preference,
+              small affordance tucked under the back-to-myclub link
+              so power users discover it but the default UI stays
+              clean. */}
+          <div
+            onClick={() => setTheme({ mode: theme?.mode === 'dark' ? 'light' : 'dark' })}
+            data-tap
+            style={{
+              marginTop: 10,
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: '"Lora",serif',
+              fontSize: 10,
+              color: '#A8D8B8',
+              cursor: 'pointer',
+              opacity: 0.78,
+              userSelect: 'none',
+            }}
+          >
+            {theme?.mode === 'dark' ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            )}
+            <span>{theme?.mode === 'dark' ? 'Switch to light' : 'Switch to dark'}</span>
           </div>
         </div>
       </aside>
