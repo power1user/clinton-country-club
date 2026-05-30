@@ -103,6 +103,38 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.26** — Re-wire AdminDashboard as landing, with ErrorBoundary.
+
+  Now that v0.11.25 fixed the silent upsert failure on
+  `admin_preferences` (the most likely root cause of the v0.11.22
+  black-screen crash), re-mount the dashboard as the desktop landing.
+  Safety net: a class-based `DashboardErrorBoundary` wraps the
+  dashboard so any future render-time crash falls back to a stripped
+  empty state instead of blanking the whole admin.
+
+  **`src/components/DashboardErrorBoundary.jsx`** — React only
+  supports error boundaries via class components. Catches errors via
+  `getDerivedStateFromError` + `componentDidCatch`, logs the error
+  + componentStack to console (so a future crash is identifiable
+  immediately from DevTools), and renders the `fallback` prop until
+  the consumer bumps `resetKey`.
+
+  **`AdminLayoutDesktop`** — root state (no area, no section) now
+  renders:
+  ```
+  <DashboardErrorBoundary fallback={<DesktopEmptyState …/>}>
+    <AdminDashboard />
+  </DashboardErrorBoundary>
+  ```
+  The area-selected-but-no-section state still renders the existing
+  "Pick a section under <area>" empty state directly.
+
+  Expected outcome: dashboard mounts cleanly because the
+  `useAdminPreference('dashboard_hidden_tiles', [])` upsert that
+  was looping/failing in v0.11.22 now has a constraint to resolve
+  against. If a different bug surfaces, the boundary catches it +
+  Marc sees a console error pinpointing the offending tile.
+
 - **v0.11.25** — Server fix: admin_preferences silent upsert failures.
 
   Migration 64 — Adds the long-missing UNIQUE constraint to

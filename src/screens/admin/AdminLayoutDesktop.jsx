@@ -38,6 +38,7 @@ import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
+import DashboardErrorBoundary from '../../components/DashboardErrorBoundary.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { VERSION, PLATFORM_NAME } from '../../lib/version.js';
@@ -464,15 +465,26 @@ export default function AdminLayoutDesktop({
               isManager={isManager}
               isSuperAdmin={isSuperAdmin}
             />
-          ) : (
-            // v0.11.23 hotfix — reverted v0.11.22's AdminDashboard
-            // landing because it was triggering a render-time crash
-            // that surfaced as a black screen (React tree unmounted,
-            // revealing the #0C100C html/body background under the
-            // phone-frame). The AdminDashboard component still ships
-            // and will be re-wired once the crash root cause is
-            // pinpointed via console + a wrapping error boundary.
+          ) : activeArea ? (
+            // Area picked, no section yet — keep the existing
+            // "Pick a section under <area>" hint.
             <DesktopEmptyState areaLabel={activeArea?.l} />
+          ) : (
+            // v0.11.26 — Root state lands on the dashboard, wrapped
+            // in a class-based ErrorBoundary so a render-time bug in
+            // any tile can never blank the whole admin again. On
+            // crash, the boundary logs to console (`Dashboard
+            // crashed:` + component stack) and falls back to a
+            // stripped-down empty state. The v0.11.22 black-screen
+            // bug was almost certainly the admin_preferences upsert
+            // 400 (fixed in v0.11.25 by migration 64 adding the
+            // missing UNIQUE constraint) — this remount tests the
+            // theory while keeping a safety net under it.
+            <DashboardErrorBoundary
+              fallback={<DesktopEmptyState areaLabel="" />}
+            >
+              <AdminDashboard />
+            </DashboardErrorBoundary>
           )}
         </div>
       </main>
