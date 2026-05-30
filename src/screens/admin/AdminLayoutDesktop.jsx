@@ -37,6 +37,7 @@ import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
+import AdminDashboard from '../../components/AdminDashboard.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { VERSION, PLATFORM_NAME } from '../../lib/version.js';
@@ -463,8 +464,15 @@ export default function AdminLayoutDesktop({
               isManager={isManager}
               isSuperAdmin={isSuperAdmin}
             />
-          ) : (
+          ) : activeArea ? (
+            // Area picked, no section yet — the existing "pick a
+            // section under <area>" hint still applies here.
             <DesktopEmptyState areaLabel={activeArea?.l} />
+          ) : (
+            // v0.11.22 — no area + no section = ROOT. The dashboard
+            // becomes the landing page. Replaces the generic "Pick
+            // a section" empty state we had pre-v0.11.22.
+            <AdminDashboard />
           )}
         </div>
       </main>

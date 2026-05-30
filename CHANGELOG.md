@@ -103,6 +103,61 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.22** — AdminDashboard v1: tile framework + four tiles.
+
+  The desktop admin's **root state** (no area + no section selected)
+  now lands on a live dashboard instead of the generic "Pick a
+  section" empty state. Closes task #41 (default landing screen).
+
+  **Migration 63** — four `dashboard_*` aggregation RPCs:
+  · `dashboard_dau_today(uuid)` — distinct active users today
+    (members or anonymous user_ids), club-local timezone.
+  · `dashboard_dau_yesterday(uuid)` — same, prior day (for delta).
+  · `dashboard_dau_7d(uuid)` — `(day, dau)` rows for the last 7
+    days, including zero-rows so the sparkline never has gaps.
+  · `dashboard_top_screens_today(uuid, int)` — top N most-viewed
+    screens today, grouped on `properties->>'screen'`.
+
+  All RPCs are SECURITY INVOKER with `search_path` pinned. They
+  respect the analytics_events RLS — a club_admin can only aggregate
+  THEIR club's events.
+
+  **`src/components/AdminDashboard.jsx`** — orchestrator + four
+  inline tile components:
+  · **Today's Activity** — DAU today, ↑/↓ vs yesterday delta,
+    7-day sparkline (today's bar in brass, prior days in muted
+    green). Sparkline x-axis labels with single-letter weekday.
+  · **Open Work** — total of items needing action across food
+    orders, lesson requests, pro shop inquiries (same numbers as
+    the v0.11.20 sidebar badges, surfaced as a big visible card).
+  · **Top Screens Today** — top 5 page_view screens with bars +
+    counts. Reads from the RPC.
+  · **Community Pulse** — bulletin posts + partner posts + event
+    RSVPs in the last 7 days. Reads existing tables directly.
+
+  **Tile framework:**
+  · Tile catalog defined in `TILE_CATALOG` array — id, name,
+    description, role gate (`staff` / `manager` / `super_admin`),
+    component reference, grid size.
+  · Role-gating: each tile declares the minimum role. Currently
+    all four are `staff` (anyone with admin access); future tiles
+    can be more restricted.
+  · Show/hide via "⚙ Manage tiles" button in the header.
+    Persisted as `dashboard_hidden_tiles` admin_preference
+    (array of tile ids the manager has hidden). Per (user, club)
+    via the existing useAdminPreference hook.
+  · Layout is a fixed 4-column CSS grid for now. v0.11.23 layers
+    drag-and-drop reorder + per-workspace persistence via @dnd-kit.
+
+  **Wired in `AdminLayoutDesktop`:** at the root level (no area, no
+  section), render `<AdminDashboard />`. When an area is selected
+  but no section, the existing `DesktopEmptyState` ("Pick a section
+  under <area>") still renders.
+
+  Members on tablet + desktop start seeing the dashboard
+  immediately; mobile shell unchanged (mobile users land on the
+  area grid as before).
+
 - **v0.11.21** — Hybrid analytics foundation (Migration 62 + dual-write).
 
   Opens the v0.11.21–25 build sequence for the flexible per-workspace
