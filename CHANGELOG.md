@@ -103,6 +103,60 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.16** — Phase 12 polish: Desktop admin shell typography pass.
+
+  Bumped every font size in the desktop admin **shell** from mobile-
+  tuned (9-13px body, 16-18px headings) to standard desktop SaaS
+  scale (12-15px body, 19-22px headings) — matching Linear / Notion /
+  modern admin tools. Manager reading distance is finally accounted
+  for; nothing in the shell looks like a phone preview anymore.
+
+  Bumps by component:
+
+  **`AdminLayoutDesktop.jsx`** — sidebar widths 260→280 desktop /
+  200→220 tablet; topbar height 56→64 to fit the larger title.
+  · Sidebar eyebrow ("CLUB · ADMIN"): 9→11
+  · Sidebar title ("Manage your club"): 16→19 (Playfair)
+  · Area headers: 10→12 (UPPERCASE)
+  · Section labels: 13→15
+  · Unread badges: 9→11
+  · Footer "Signed in as": 9→11
+  · Footer name: 13→15
+  · Back to MyClub: 11→13
+  · Dark mode toggle: 10→12 (icons 12→14)
+  · Breadcrumbs: 11→13
+  · Top bar title: 18→22 (Playfair)
+  · Empty state h2: 20→24, body 13→15, icon 56→64
+
+  **`AdminSearchPalette.jsx`**:
+  · Result label: 14→16 (Playfair)
+  · Result area subtitle: 11→13
+  · Result enter-key chip: 10→12
+  · Empty-state hint: 13→15
+  · SearchTrigger button: 12→14 (icon 14→16, kbd 11→12)
+  · SearchTrigger minWidth: 200→240
+
+  **`AdminWorkspaceSwitcher.jsx`**:
+  · Trigger chip: 11→13 (icons 11→13 / 10→12)
+  · Popover header label: 10→12
+  · "Manage" link: 10→12
+  · Empty-state hint: 11→13
+  · Workspace row: 12→14
+  · "Active" tag: 9→11
+  · "Update with current view": 11→13
+  · "Save current view as" label: 10→12
+  · Save input: 12→14
+  · Save button: 11→13
+  · WorkspaceRow rename input: 12→14
+  · WorkspaceRow delete X: 14→18
+
+  Section content (the dozens of admin pages inside the main area —
+  Members, Orders, RSVPs, Settings, etc.) is still mobile-tuned and
+  not touched in this patch. That's a section-by-section follow-up
+  tracked as a Phase 13 task (introduces `body.admin-fullscreen`-
+  scoped CSS or section-by-section `useViewport().isTabletUp`
+  branches keyed off the new scale).
+
 - **v0.11.15** — Phase 12 polish: Sidebar areas collapsed by default.
 
   Fresh managers landing on the desktop admin now see the area

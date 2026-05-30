@@ -135,19 +135,19 @@ export default function AdminWorkspaceSwitcher({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          marginTop: 10,
-          padding: '6px 10px',
+          gap: 8,
+          marginTop: 12,
+          padding: '8px 12px',
           background: 'rgba(168,216,184,0.10)',
           border: '1px solid rgba(168,216,184,0.22)',
           borderRadius: 6,
           cursor: 'pointer',
           fontFamily: '"Lora",serif',
-          fontSize: 11,
+          fontSize: 13,
           color: '#F2EDE0',
         }}
       >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="7" height="7" />
           <rect x="14" y="3" width="7" height="7" />
           <rect x="3" y="14" width="7" height="7" />
@@ -156,7 +156,7 @@ export default function AdminWorkspaceSwitcher({
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {active ? active.name : 'Workspace'}
         </span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2">
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
@@ -181,7 +181,7 @@ export default function AdminWorkspaceSwitcher({
         }}>
           {/* Header */}
           <div style={{
-            padding: '8px 12px',
+            padding: '10px 14px',
             borderBottom: `1px solid ${G.border}`,
             display: 'flex',
             alignItems: 'center',
@@ -189,7 +189,7 @@ export default function AdminWorkspaceSwitcher({
           }}>
             <span style={{
               fontFamily: '"Lora",serif',
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
@@ -202,7 +202,7 @@ export default function AdminWorkspaceSwitcher({
               data-tap
               style={{
                 fontFamily: '"Lora",serif',
-                fontSize: 10,
+                fontSize: 12,
                 color: G.brass,
                 cursor: 'pointer',
                 textDecoration: 'underline',
@@ -216,9 +216,9 @@ export default function AdminWorkspaceSwitcher({
           {/* Workspace list */}
           {list.length === 0 && (
             <div style={{
-              padding: '10px 12px',
+              padding: '12px 14px',
               fontFamily: '"Lora",serif',
-              fontSize: 11,
+              fontSize: 13,
               color: G.muted,
               fontStyle: 'italic',
             }}>
@@ -243,10 +243,10 @@ export default function AdminWorkspaceSwitcher({
               onClick={updateActive}
               data-tap
               style={{
-                padding: '8px 12px',
+                padding: '10px 14px',
                 borderTop: `1px solid ${G.border}`,
                 fontFamily: '"Lora",serif',
-                fontSize: 11,
+                fontSize: 13,
                 color: G.brass,
                 cursor: 'pointer',
               }}
@@ -258,18 +258,18 @@ export default function AdminWorkspaceSwitcher({
           {/* Save current as new */}
           {!manageMode && (
             <div style={{
-              padding: '8px 12px',
+              padding: '10px 14px',
               borderTop: `1px solid ${G.border}`,
               background: G.bg,
             }}>
               <p style={{
                 fontFamily: '"Lora",serif',
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 700,
                 letterSpacing: '0.10em',
                 textTransform: 'uppercase',
                 color: G.muted,
-                margin: '0 0 6px',
+                margin: '0 0 8px',
               }}>
                 Save current view as
               </p>
@@ -283,11 +283,11 @@ export default function AdminWorkspaceSwitcher({
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    padding: '6px 8px',
+                    padding: '8px 10px',
                     border: `1px solid ${G.border}`,
                     borderRadius: 4,
                     fontFamily: '"Lora",serif',
-                    fontSize: 12,
+                    fontSize: 14,
                     color: G.text,
                     background: G.card,
                   }}
@@ -297,12 +297,12 @@ export default function AdminWorkspaceSwitcher({
                   disabled={!creatingName.trim()}
                   data-tap
                   style={{
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     border: `1px solid ${G.brass}`,
                     background: creatingName.trim() ? G.brass : 'transparent',
                     color: creatingName.trim() ? '#FFFFFF' : G.muted,
                     fontFamily: '"Lora",serif',
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 600,
                     borderRadius: 4,
                     cursor: creatingName.trim() ? 'pointer' : 'not-allowed',
@@ -328,11 +328,11 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
   if (manageMode) {
     return (
       <div style={{
-        padding: '6px 12px',
+        padding: '8px 14px',
         borderBottom: `1px solid ${G.border}`,
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 8,
       }}>
         <input
           type="text"
@@ -343,11 +343,11 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
           style={{
             flex: 1,
             minWidth: 0,
-            padding: '4px 6px',
+            padding: '6px 8px',
             border: `1px solid ${G.border}`,
             borderRadius: 4,
             fontFamily: '"Lora",serif',
-            fontSize: 12,
+            fontSize: 14,
             color: G.text,
             background: G.card,
           }}
@@ -357,13 +357,13 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
           data-tap
           aria-label={`Delete workspace ${ws.name}`}
           style={{
-            padding: '4px 6px',
+            padding: '4px 8px',
             border: 'none',
             background: 'transparent',
             color: G.cls,
             cursor: 'pointer',
             fontFamily: '"Lora",serif',
-            fontSize: 14,
+            fontSize: 18,
             lineHeight: 1,
           }}
         >
@@ -378,7 +378,7 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
       onClick={onApply}
       data-tap
       style={{
-        padding: '8px 12px',
+        padding: '10px 14px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
@@ -386,7 +386,7 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
         background: isActive ? 'rgba(155,122,30,0.10)' : 'transparent',
         borderLeft: `3px solid ${isActive ? G.brass : 'transparent'}`,
         fontFamily: '"Lora",serif',
-        fontSize: 12,
+        fontSize: 14,
         color: G.text,
       }}
     >
@@ -396,7 +396,7 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
       {isActive && (
         <span style={{
           fontFamily: '"Lora",serif',
-          fontSize: 9,
+          fontSize: 11,
           color: G.brass,
           fontWeight: 700,
           letterSpacing: '0.10em',

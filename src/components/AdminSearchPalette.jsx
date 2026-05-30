@@ -185,7 +185,7 @@ export default function AdminSearchPalette({
         {/* Results */}
         <div ref={listRef} style={{ maxHeight: '50vh', overflowY: 'auto', padding: '6px 0' }}>
           {results.length === 0 && (
-            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '24px 14px', margin: 0 }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 15, color: G.muted, textAlign: 'center', padding: '28px 16px', margin: 0 }}>
               No sections match "{query}".
             </p>
           )}
@@ -198,26 +198,26 @@ export default function AdminSearchPalette({
               data-tap
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 18px',
+                padding: '12px 18px',
                 background: i === activeIdx ? G.bg : 'transparent',
                 cursor: 'pointer',
                 borderLeft: `3px solid ${i === activeIdx ? G.brass : 'transparent'}`,
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.2 }}>
+                <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.2 }}>
                   {r.sectionLabel}
                 </p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0 0' }}>
                   {r.areaLabel}
                 </p>
               </div>
               {i === activeIdx && (
                 <span style={{
-                  fontFamily: 'monospace', fontSize: 10,
+                  fontFamily: 'monospace', fontSize: 12,
                   color: G.brass,
                   background: 'rgba(155,122,30,0.10)',
-                  padding: '2px 6px', borderRadius: 3,
+                  padding: '3px 7px', borderRadius: 3,
                 }}>↵</span>
               )}
             </div>
@@ -241,23 +241,23 @@ export function SearchTrigger({ onClick }) {
       type="button"
       data-tap
       style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 10,
         background: G.bg,
         border: `1px solid ${G.border}`,
         borderRadius: 6,
-        padding: '6px 10px',
+        padding: '8px 12px',
         cursor: 'pointer',
-        fontFamily: '"Lora",serif', fontSize: 12,
+        fontFamily: '"Lora",serif', fontSize: 14,
         color: G.muted,
-        minWidth: 200,
+        minWidth: 240,
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="11" cy="11" r="8" />
         <path d="M21 21l-4.35-4.35" />
       </svg>
       <span style={{ flex: 1, textAlign: 'left' }}>Search admin…</span>
-      <span style={{ fontFamily: 'monospace', fontSize: 11, background: '#FFF', border: `1px solid ${G.border}`, padding: '1px 5px', borderRadius: 3 }}>
+      <span style={{ fontFamily: 'monospace', fontSize: 12, background: '#FFF', border: `1px solid ${G.border}`, padding: '2px 6px', borderRadius: 3 }}>
         {mod}+K
       </span>
     </button>

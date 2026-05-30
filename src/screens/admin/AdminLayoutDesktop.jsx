@@ -41,13 +41,14 @@ import { useAdminPreference } from '../../hooks/useAdminPreference.js';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { SectionContent } from '../AdminPanel.jsx';
 
-// Sidebar width. 260 on desktop; 200 on tablet (compact mode).
-// "Communications" still fits at 200 with the chevron + smaller
-// inner padding tuned below. Top bar height stays the same so
-// the breadcrumb + bell row reads at both widths.
-const SIDEBAR_W_DESKTOP = 260;
-const SIDEBAR_W_TABLET  = 200;
-const TOPBAR_H  = 56;
+// Sidebar width + topbar height. v0.11.16 — bumped to accommodate
+// the larger desktop-SaaS typography scale (section labels 15px,
+// area headers 12px UPPER, breadcrumb title 22px). Section labels
+// still ellipsis at 280px when a club's section name happens to be
+// unusually long; that's expected modern admin UX.
+const SIDEBAR_W_DESKTOP = 280;
+const SIDEBAR_W_TABLET  = 220;
+const TOPBAR_H  = 64;
 
 export default function AdminLayoutDesktop({
   area, sec, setArea, setSec,
@@ -192,18 +193,18 @@ export default function AdminLayoutDesktop({
         }}>
           <p style={{
             fontFamily: '"Playfair Display",serif',
-            fontSize: 9,
+            fontSize: 11,
             color: '#A8D8B8',
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
-            margin: '0 0 2px',
+            margin: '0 0 4px',
             fontWeight: 600,
           }}>
             {club?.name?.replace(/\s+Country\s+Club\s*$/i, '') || 'Club'} · Admin
           </p>
           <p style={{
             fontFamily: '"Playfair Display",serif',
-            fontSize: 16,
+            fontSize: 19,
             color: '#F2EDE0',
             margin: 0,
             fontWeight: 700,
@@ -248,10 +249,10 @@ export default function AdminLayoutDesktop({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    padding: '8px 18px',
+                    padding: '10px 18px',
                     cursor: 'pointer',
                     fontFamily: '"Lora",serif',
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
                     letterSpacing: '0.14em',
                     textTransform: 'uppercase',
@@ -264,15 +265,15 @@ export default function AdminLayoutDesktop({
                       background: G.clsBg,
                       color: '#F2E5C0',
                       fontFamily: '"Lora",serif',
-                      fontSize: 9,
+                      fontSize: 11,
                       fontWeight: 700,
-                      padding: '1px 7px',
-                      borderRadius: 8,
+                      padding: '2px 8px',
+                      borderRadius: 9,
                       letterSpacing: '0.04em',
                     }}>{areaUnread}</span>
                   )}
                   <svg
-                    width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2"
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="2"
                     style={{ transform: isAreaCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }}
                   ><path d="M6 9l6 6 6-6" /></svg>
                 </div>
@@ -289,13 +290,13 @@ export default function AdminLayoutDesktop({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        padding: '8px 22px 8px 28px',
+                        padding: '10px 22px 10px 30px',
                         cursor: 'pointer',
                         fontFamily: '"Lora",serif',
-                        fontSize: 13,
+                        fontSize: 15,
                         color: isActive ? '#F2EDE0' : 'rgba(242,237,224,0.78)',
                         background: isActive ? 'rgba(155,122,30,0.22)' : 'transparent',
-                        borderLeft: `2px solid ${isActive ? G.brass : 'transparent'}`,
+                        borderLeft: `3px solid ${isActive ? G.brass : 'transparent'}`,
                         fontWeight: isActive ? 600 : 400,
                         transition: 'background 0.12s, color 0.12s',
                       }}
@@ -308,7 +309,7 @@ export default function AdminLayoutDesktop({
                           background: G.clsBg,
                           color: '#F2E5C0',
                           fontFamily: '"Lora",serif',
-                          fontSize: 9,
+                          fontSize: 11,
                           fontWeight: 700,
                           padding: '1px 6px',
                           borderRadius: 8,
@@ -331,19 +332,19 @@ export default function AdminLayoutDesktop({
         }}>
           <p style={{
             fontFamily: '"Lora",serif',
-            fontSize: 9,
+            fontSize: 11,
             color: '#A8D8B8',
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
-            margin: '0 0 2px',
+            margin: '0 0 4px',
           }}>
             Signed in as
           </p>
           <p style={{
             fontFamily: '"Playfair Display",serif',
-            fontSize: 13,
+            fontSize: 15,
             color: '#F2EDE0',
-            margin: '0 0 8px',
+            margin: '0 0 10px',
             fontWeight: 600,
           }}>
             {member?.name || 'Staff'}
@@ -353,7 +354,7 @@ export default function AdminLayoutDesktop({
             data-tap
             style={{
               fontFamily: '"Lora",serif',
-              fontSize: 11,
+              fontSize: 13,
               color: '#A8D8B8',
               cursor: 'pointer',
               textDecoration: 'underline',
@@ -371,10 +372,10 @@ export default function AdminLayoutDesktop({
             onClick={() => setTheme({ mode: theme?.mode === 'dark' ? 'light' : 'dark' })}
             data-tap
             style={{
-              marginTop: 10,
-              display: 'flex', alignItems: 'center', gap: 6,
+              marginTop: 12,
+              display: 'flex', alignItems: 'center', gap: 7,
               fontFamily: '"Lora",serif',
-              fontSize: 10,
+              fontSize: 12,
               color: '#A8D8B8',
               cursor: 'pointer',
               opacity: 0.78,
@@ -382,12 +383,12 @@ export default function AdminLayoutDesktop({
             }}
           >
             {theme?.mode === 'dark' ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4" />
                 <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
               </svg>
             ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
@@ -466,7 +467,7 @@ export default function AdminLayoutDesktop({
 function Breadcrumbs({ area, section, onHome, onArea }) {
   const crumbStyle = {
     fontFamily: '"Lora",serif',
-    fontSize: 11,
+    fontSize: 13,
     color: G.muted,
     cursor: 'pointer',
     textDecoration: 'none',
@@ -474,13 +475,13 @@ function Breadcrumbs({ area, section, onHome, onArea }) {
   };
   const sepStyle = {
     fontFamily: '"Lora",serif',
-    fontSize: 11,
+    fontSize: 13,
     color: G.border,
-    margin: '0 6px',
+    margin: '0 7px',
   };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
         <span onClick={onHome} data-tap style={crumbStyle}>Admin</span>
         {area && (
           <>
@@ -491,7 +492,7 @@ function Breadcrumbs({ area, section, onHome, onArea }) {
       </div>
       <p style={{
         fontFamily: '"Playfair Display",serif',
-        fontSize: 18,
+        fontSize: 22,
         fontWeight: 700,
         color: G.text,
         margin: 0,
@@ -514,28 +515,28 @@ function DesktopEmptyState({ areaLabel }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      minHeight: 360, textAlign: 'center', padding: '40px 24px',
+      minHeight: 360, textAlign: 'center', padding: '48px 24px',
     }}>
-      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.2" style={{ marginBottom: 16 }}>
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.2" style={{ marginBottom: 18 }}>
         <path d="M3 7h18M3 12h18M3 17h18" />
         <path d="M6 4h0.01M6 9h0.01M6 14h0.01M6 19h0.01" />
       </svg>
       <h2 style={{
         fontFamily: '"Playfair Display",serif',
         fontStyle: 'italic',
-        fontSize: 20,
+        fontSize: 24,
         color: G.muted,
-        margin: '0 0 8px',
+        margin: '0 0 10px',
       }}>
         {areaLabel ? `Pick a section under ${areaLabel}` : 'Pick a section from the sidebar'}
       </h2>
       <p style={{
         fontFamily: '"Lora",serif',
-        fontSize: 13,
+        fontSize: 15,
         color: G.muted,
         lineHeight: 1.6,
         margin: 0,
-        maxWidth: 360,
+        maxWidth: 420,
       }}>
         The left sidebar lists every admin area you have access to.
         Click any section to open it here.
