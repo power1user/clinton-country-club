@@ -103,6 +103,26 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.3** — Phase 12: `AdminTable` building block.
+
+  Reusable desktop-shaped table primitive at
+  `src/components/AdminTable.jsx`. Sections that render dense card
+  lists on mobile (Members, Food Orders, Event RSVPs, Badges) can
+  mount this on desktop for a real table — sortable columns,
+  sticky header, optional bulk-select checkboxes, custom cell
+  renderers, loading + empty states, row hover, row click.
+
+  Single-column sort with three-state cycle (asc → desc → clear).
+  Selection state is local to the table; consumers wire bulk
+  actions via the `onSelectionChange` callback. Striped rows for
+  scannability. Cell renderers default to `row[col.key] ?? '—'`
+  so simple cases need just `{ key, label }`.
+
+  No section integrations in this patch — that lands in v0.11.6
+  after the side-panel detail pattern (v0.11.4) and global
+  search (v0.11.5) ship. Building blocks first, integration
+  patch hits them all together.
+
 - **v0.11.2** — Phase 12: Top-bar breadcrumbs.
 
   Replaces the v0.11.1 two-line eyebrow + title in the desktop top
