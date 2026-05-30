@@ -103,6 +103,39 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.25** — Server fix: admin_preferences silent upsert failures.
+
+  Migration 64 — Adds the long-missing UNIQUE constraint to
+  `admin_preferences`. Migration 61 (v0.11.6) only declared
+  `PRIMARY KEY (id)`; every `useAdminPreference` upsert through
+  PostgREST's `?on_conflict=user_id,club_id,key` returned 400
+  because PostgreSQL had no matching constraint to resolve against.
+
+  The failure was **silent at the JS layer** — the Promise rejection
+  was caught and discarded — so the bug stayed invisible across
+  every Phase 12 preference: `sidebar_collapsed`, `sidebar_open_area`,
+  `last_section`, `theme`, `workspaces`, `active_workspace`,
+  `dashboard_hidden_tiles`. Every "leftover state" issue we chased
+  (sidebar staying expanded after toggle, theme not persisting
+  cross-club, workspaces feeling unreliable) traces back here. Reads
+  worked fine; writes silently dropped on the floor unless they were
+  the very first write for that (user_id, club_id, key) tuple.
+
+  Fix: `UNIQUE NULLS NOT DISTINCT (user_id, club_id, key)` — the
+  `NULLS NOT DISTINCT` clause (PG 15+) treats NULL `club_id` rows
+  (cross-club preferences like theme + workspaces) as equal for
+  uniqueness purposes. A standard UNIQUE constraint would have
+  allowed duplicate `(user_id, NULL, key)` rows, defeating the
+  upsert for cross-club preferences specifically.
+
+  Migration also dedupes any accidental duplicates that leaked
+  through the unconstrained period — keeps the most-recently-updated
+  row per (user_id, club_id, key) tuple, deletes the rest.
+
+  **No JS changes** — the upsert code in `useAdminPreference` was
+  already correct; it just had no constraint to anchor on. After
+  this migration, every Phase 12 preference now persists reliably.
+
 - **v0.11.24** — Fix: comms-unread 400 on `event_registrations`.
 
   The v0.11.20 `useCommsUnread` redesign hardcoded `created_at` as
