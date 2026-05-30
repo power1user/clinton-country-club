@@ -1,22 +1,37 @@
-// Communications-area unread tracking (v0.9.4).
+// Communications-area unread tracking (v0.9.4, redesigned v0.11.20).
 //
-// Each sub-queue (Food Orders, Lesson Requests, Pro Shop Inquiries,
-// Guest Registrations, Clubhouse Messages, Event RSVPs) shows a
-// numeric badge counting items added since the staff member last
-// viewed that sub-queue. "Viewed" timestamps are stored per
-// (club_id, section_id) in localStorage — per-device, no server
-// round-trip required.
+// Each sub-queue shows a numeric badge. Two different semantics
+// depending on whether the queue represents OPEN WORK or an
+// ACTIVITY FEED:
+//
+//   OPEN WORK (badge = items needing action)
+//     · inbox_food     — food_orders in active statuses
+//     · inbox_lessons  — pro_shop_inquiries (kind=lesson) not closed
+//     · inbox_proshop  — pro_shop_inquiries (other) not closed
+//
+//   ACTIVITY FEED (badge = items added since last viewed)
+//     · inbox_guests     — new guest registrations
+//     · inbox_clubhouse  — new clubhouse threads
+//     · inbox_rsvps      — new event registrations
+//
+// Original v0.9.4 used "since last viewed" for every queue. That
+// matched the activity-feed queues but produced wrong counts for
+// open-work queues: a food order from yesterday already picked up
+// still counted as "unread" because it was created after the last
+// viewed timestamp. Marc reported 4 / 2 (badge said 4 active food
+// orders, only 2 were open) — that's what this redesign fixes.
+//
+// localStorage still tracks lastViewed timestamps. It's a no-op for
+// open-work queues (their count doesn't depend on lastViewed) but
+// activity-feed queues use it the same way as before. `markViewed`
+// is safe to call on either kind.
 //
 // Tradeoffs:
-//   · localStorage means each device tracks independently. If a
-//     manager checks orders on their phone then opens the admin on
-//     a tablet, the tablet's counter starts cold. That's the right
-//     behavior for "I haven't seen this on THIS device yet."
-//   · No backfill: brand-new visit shows lifetime backlog as
-//     unread. Acceptable for the scaffold; clears once they view.
-//
-// v0.9.5 + v0.9.6 polish the per-queue UX; this file owns the
-// shared count + viewed-state plumbing.
+//   · localStorage means each device tracks activity feeds
+//     independently. Open-work counts are server-truth — same on
+//     every device.
+//   · No backfill on activity feeds: brand-new visit shows lifetime
+//     backlog as unread. Acceptable; clears once they view.
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from './supabase.js';
 
@@ -70,8 +85,30 @@ export function useCommsUnread(clubId) {
     const viewed = readViewed(clubId);
     const since = (id) => viewed[id] || EPOCH;
 
-    // Helper: parallel HEAD count by table + (optional) extra filter.
-    const c = async (table, sinceTs, applyExtra) => {
+    // Open-work statuses — kept in sync with FoodOrdersAdmin's
+    // ACTIVE_STATUSES and LessonRequestsAdmin's status enum.
+    //   · food_orders: legacy 'out_for_delivery' still counted so
+    //     pre-v0.10.18 rows on slow-to-migrate clubs render correctly.
+    //   · pro_shop_inquiries: 'done' and 'cancelled' are the closed
+    //     terminal states; pending / contacted / scheduled all need
+    //     follow-up so they count.
+    const FOOD_OPEN    = ['pending', 'preparing', 'out_for_delivery', 'ready_for_pickup'];
+    const INQUIRY_OPEN = ['pending', 'contacted', 'scheduled'];
+
+    // Helper: parallel HEAD count, status-in filter (open-work).
+    const cOpen = async (table, openStatuses, applyExtra) => {
+      let q = supabase
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', clubId)
+        .in('status', openStatuses);
+      if (applyExtra) q = applyExtra(q);
+      const { count } = await q;
+      return count || 0;
+    };
+
+    // Helper: parallel HEAD count, created-since filter (activity-feed).
+    const cSince = async (table, sinceTs, applyExtra) => {
       let q = supabase
         .from(table)
         .select('id', { count: 'exact', head: true })
@@ -83,17 +120,17 @@ export function useCommsUnread(clubId) {
     };
 
     const [food, lessons, proshop, guests, rsvps, clubhouse] = await Promise.all([
-      c('food_orders',         since('inbox_food')),
-      // pro_shop_inquiries.kind discriminates lessons vs general
-      c('pro_shop_inquiries',  since('inbox_lessons'),  q => q.eq('kind', 'lesson')),
-      c('pro_shop_inquiries',  since('inbox_proshop'),  q => q.neq('kind', 'lesson')),
-      c('guests',              since('inbox_guests')),
-      c('event_registrations', since('inbox_rsvps')),
-      // Clubhouse messages: count threads with kind='clubhouse' that
-      // received activity since lastViewed. We use threads.created_at
-      // here for the scaffold — v0.9.6 can refine to messages.created_at
-      // for true new-message tracking.
-      c('threads',             since('inbox_clubhouse'), q => q.eq('kind', 'clubhouse')),
+      // OPEN-WORK queues — server-truth count of actionable items.
+      cOpen('food_orders',         FOOD_OPEN),
+      cOpen('pro_shop_inquiries',  INQUIRY_OPEN, q => q.eq('kind', 'lesson')),
+      cOpen('pro_shop_inquiries',  INQUIRY_OPEN, q => q.neq('kind', 'lesson')),
+      // ACTIVITY-FEED queues — items added since lastViewed (per-device).
+      cSince('guests',              since('inbox_guests')),
+      cSince('event_registrations', since('inbox_rsvps')),
+      // Clubhouse messages: threads-since-last-viewed for now. A
+      // future patch can refine to messages.created_at for true
+      // new-message-since-last-view tracking.
+      cSince('threads',             since('inbox_clubhouse'), q => q.eq('kind', 'clubhouse')),
     ]);
 
     setCounts({
@@ -108,15 +145,23 @@ export function useCommsUnread(clubId) {
 
   useEffect(() => { recompute(); }, [recompute]);
 
-  // Realtime — any insert on a relevant table triggers a bump. Cheap
-  // because the recount is 6 HEAD queries that return only counts.
+  // Realtime — any insert OR update on a relevant table triggers a
+  // bump. UPDATE coverage matters for the open-work queues: a manager
+  // flipping a food order's status to 'delivered' should drop the
+  // count by 1 without waiting for a page reload. Cheap because the
+  // recount is 6 HEAD queries that return only counts.
   useEffect(() => {
     if (!clubId) return;
     const bump = () => setTick(t => t + 1);
     const channel = supabase
       .channel(`comms-unread:${clubId}`)
+      // food_orders + pro_shop_inquiries: INSERT (new arrival → bump)
+      // and UPDATE (status flip → drop) both matter.
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'food_orders',         filter: `club_id=eq.${clubId}` }, bump)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'food_orders',         filter: `club_id=eq.${clubId}` }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pro_shop_inquiries',  filter: `club_id=eq.${clubId}` }, bump)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pro_shop_inquiries',  filter: `club_id=eq.${clubId}` }, bump)
+      // Activity feeds: INSERT only (status doesn't affect count).
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'guests',              filter: `club_id=eq.${clubId}` }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_registrations', filter: `club_id=eq.${clubId}` }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads',             filter: `club_id=eq.${clubId}` }, bump)

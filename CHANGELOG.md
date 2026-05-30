@@ -103,6 +103,47 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.20** — Comms badge accuracy: split open-work vs activity-feed.
+
+  Reported: Food Orders badge showed **4** but only **2** open
+  orders existed in the queue. Root cause: `useCommsUnread` counted
+  *every row created since the last viewed timestamp* across all
+  six sub-queues. So a food order from yesterday already picked up
+  still counted as "unread" until you toggled "Show completed" and
+  viewed it — a semantic mismatch for the work queues.
+
+  Redesigned the counting logic to split the six sub-queues into
+  two semantic groups:
+
+  **Open-work queues** (badge = items needing action, server-truth
+  count, identical on every device):
+  · `inbox_food` — food_orders in `{ pending, preparing,
+    out_for_delivery, ready_for_pickup }` — kept in sync with
+    `FoodOrdersAdmin`'s `ACTIVE_STATUSES`.
+  · `inbox_lessons` — pro_shop_inquiries (kind=lesson) in
+    `{ pending, contacted, scheduled }`.
+  · `inbox_proshop` — pro_shop_inquiries (other) in the same set.
+
+  **Activity-feed queues** (badge = items added since last viewed,
+  per-device, unchanged from v0.9.4):
+  · `inbox_guests` — new guest registrations.
+  · `inbox_rsvps` — new event registrations.
+  · `inbox_clubhouse` — new clubhouse threads.
+
+  The mental model for the manager now matches: a work queue's
+  badge equals what's actually in the queue waiting for them; an
+  activity feed's badge equals what's new since they last looked.
+
+  Also added UPDATE realtime listeners on `food_orders` and
+  `pro_shop_inquiries` so a status flip (order → delivered, lesson
+  → done) drops the badge **immediately** without requiring a page
+  reload. Previously only INSERT events bumped the counter.
+
+  No schema changes. localStorage `lastViewed` timestamps are still
+  read for activity-feed queues; they're a harmless no-op for
+  open-work queues. `markViewed` calls from sections are safe on
+  both kinds.
+
 - **v0.11.19** — Phase 12: Accordion sidebar (one area open at a time).
 
   The desktop admin sidebar now follows the **accordion** pattern
