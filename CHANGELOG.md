@@ -103,6 +103,43 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.30** — Four more dashboard tiles.
+
+  Doubles the dashboard's tile catalog from 4 → 8. Each tile is
+  self-contained with its own supabase query against existing
+  tables — no new RPCs, no schema changes.
+
+  · **Upcoming Events** — Next three events on the calendar
+    (`event_date >= today`) with RSVP counts via PostgREST's
+    nested-aggregate shorthand (`event_registrations(count)`).
+    Date displayed as month + day-number for fast visual scanning.
+  · **New Members This Week** — Count of members joined in the last
+    7 days, plus the 5 most recent names. Big number up top, names
+    below with join dates.
+  · **Badges Awarded Recently** — Last 5 badge awards across the
+    club, with the shield-shape clip-path mini-badge in the badge's
+    color + member name + award date. Reads from `member_badges`
+    joined to `members.name` + `badges.name/color/club_id`;
+    filtered client-side to this club's badges.
+  · **Recent Bulletin Posts** — Last 5 posts on the bulletin board,
+    with title (or first 50 chars of body if untitled), author name,
+    and date. Reads `bulletin_posts` joined to `members.name`.
+
+  All four tiles use the standard staff role gate. They appear at
+  the end of the manager's existing layout on first visit (per
+  v0.11.28's "new tiles append" semantics) — no displacement of
+  existing arrangement.
+
+  Default workspace layouts NOT updated to include the new tiles —
+  they'd land in the "all visible at the end" position when a
+  workspace is applied without `dashboardLayout`. A manager can
+  reorder them and "Update '<workspace>' with current view" to
+  bake the new tiles into their workspace.
+
+  Push CTR tile (originally planned) deferred — needs `push_opened`
+  event instrumentation in the service worker (`/sw.js`) which is
+  out of scope for this patch.
+
 - **v0.11.29** — Per-workspace dashboard layouts.
 
   Workspaces now carry an optional `dashboardLayout: { order, hidden }`

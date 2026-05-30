@@ -72,6 +72,40 @@ const TILE_CATALOG = [
     component: CommunityPulseTile,
     size: { col: 2, row: 1 },
   },
+  // v0.11.30 — Four additional tiles. Each is self-contained with its
+  // own supabase query and renders independently.
+  {
+    id: 'upcoming_events',
+    name: 'Upcoming Events',
+    description: 'Next three events with RSVP counts.',
+    minRole: 'staff',
+    component: UpcomingEventsTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'new_members',
+    name: 'New Members This Week',
+    description: 'Members who joined in the last 7 days.',
+    minRole: 'staff',
+    component: NewMembersTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'badges_awarded',
+    name: 'Badges Awarded Recently',
+    description: 'The five most recent badge awards.',
+    minRole: 'staff',
+    component: RecentBadgesTile,
+    size: { col: 2, row: 1 },
+  },
+  {
+    id: 'recent_bulletin',
+    name: 'Recent Bulletin Posts',
+    description: 'Newest member posts on the bulletin board.',
+    minRole: 'staff',
+    component: RecentBulletinTile,
+    size: { col: 2, row: 1 },
+  },
 ];
 
 // ──────────────────────────────────────────────────────────────────
@@ -582,6 +616,306 @@ function TopScreensTile({ clubId }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// v0.11.30 additional tiles
+// ──────────────────────────────────────────────────────────────────
+
+function UpcomingEventsTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      // Pull next 3 events with RSVP counts via the PostgREST
+      // nested-aggregate shorthand. Filter to today-or-later in
+      // UTC (good enough for a per-club admin — exact club-local
+      // bucketing is overkill for "next 3 upcoming").
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from('events')
+        .select('id, title, event_date, event_registrations(count)')
+        .eq('club_id', clubId)
+        .gte('event_date', todayIso)
+        .order('event_date', { ascending: true })
+        .limit(3);
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No upcoming events on the calendar.</p>;
+  }
+  return (
+    <div>
+      {rows.map((r, i) => {
+        const rsvpCount = r.event_registrations?.[0]?.count ?? 0;
+        const d = new Date(r.event_date);
+        return (
+          <div key={r.id} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '8px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+          }}>
+            <div style={{ flexShrink: 0, width: 44, textAlign: 'center' }}>
+              <p style={{
+                fontFamily: '"Lora",serif',
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: G.brass,
+                margin: 0,
+              }}>
+                {d.toLocaleDateString(undefined, { month: 'short' })}
+              </p>
+              <p style={{
+                fontFamily: '"Playfair Display",serif',
+                fontSize: 20,
+                fontWeight: 700,
+                color: G.text,
+                margin: 0,
+                lineHeight: 1,
+              }}>
+                {d.getDate()}
+              </p>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontFamily: '"Playfair Display",serif',
+                fontSize: 14,
+                fontWeight: 700,
+                color: G.text,
+                margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {r.title}
+              </p>
+              <p style={{
+                fontFamily: '"Lora",serif',
+                fontSize: 11,
+                color: G.muted,
+                margin: '2px 0 0',
+              }}>
+                {rsvpCount} RSVP{rsvpCount === 1 ? '' : 's'}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NewMembersTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('members')
+        .select('id, name, created_at')
+        .eq('club_id', clubId)
+        .gt('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+        <span style={{
+          fontFamily: '"Playfair Display",serif',
+          fontSize: 36,
+          fontWeight: 700,
+          color: rows.length > 0 ? G.green : G.text,
+          lineHeight: 1,
+        }}>
+          {rows.length}
+        </span>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>
+          joined this week
+        </span>
+      </div>
+      {rows.length === 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+          No new members in the last 7 days.
+        </p>
+      )}
+      {rows.slice(0, 5).map((m, i) => (
+        <div key={m.id} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+          padding: '6px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <span style={{
+            fontFamily: '"Lora",serif',
+            fontSize: 13,
+            color: G.text,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            flex: 1, minWidth: 0,
+          }}>
+            {m.name || 'Member'}
+          </span>
+          <span style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted, marginLeft: 8 }}>
+            {new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      ))}
+      {rows.length > 5 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '6px 0 0' }}>
+          + {rows.length - 5} more
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RecentBadgesTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      // member_badges joined via supabase relational shorthand to
+      // members.name + badges.name/color. RLS on member_badges +
+      // badges should both scope by club via their respective
+      // policies.
+      const { data } = await supabase
+        .from('member_badges')
+        .select('id, awarded_at, members(name), badges(name, color, club_id)')
+        .order('awarded_at', { ascending: false })
+        .limit(15);
+      if (cancelled) return;
+      // Client-side filter to this club's badges (member_badges has
+      // no club_id directly; the join's badges.club_id is what
+      // ties it to the club).
+      const filtered = (Array.isArray(data) ? data : [])
+        .filter(r => r.badges?.club_id === clubId)
+        .slice(0, 5);
+      setRows(filtered);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No badges awarded recently.</p>;
+  }
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={r.id} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <div style={{
+            flexShrink: 0,
+            width: 20, height: 24,
+            background: r.badges?.color || G.brass,
+            clipPath: 'polygon(50% 0%, 100% 0%, 100% 65%, 50% 100%, 0% 65%, 0% 0%)',
+          }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: '"Lora",serif',
+              fontSize: 13,
+              color: G.text,
+              margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              <span style={{ fontWeight: 600 }}>{r.badges?.name || 'Badge'}</span>
+              <span style={{ color: G.muted, fontWeight: 400 }}> · {r.members?.name || 'Member'}</span>
+            </p>
+            <p style={{
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: G.muted,
+              margin: '1px 0 0',
+            }}>
+              {new Date(r.awarded_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentBulletinTile({ clubId }) {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    if (!clubId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('bulletin_posts')
+        .select('id, title, body, created_at, members(name)')
+        .eq('club_id', clubId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (cancelled) return;
+      setRows(Array.isArray(data) ? data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [clubId]);
+
+  if (rows == null) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>Loading…</p>;
+  }
+  if (rows.length === 0) {
+    return <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No bulletin posts yet.</p>;
+  }
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={r.id} style={{
+          padding: '8px 0',
+          borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+        }}>
+          <p style={{
+            fontFamily: '"Playfair Display",serif',
+            fontSize: 13,
+            fontWeight: 700,
+            color: G.text,
+            margin: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {r.title || (r.body ? r.body.slice(0, 50) : 'Untitled')}
+          </p>
+          <p style={{
+            fontFamily: '"Lora",serif',
+            fontSize: 11,
+            color: G.muted,
+            margin: '2px 0 0',
+          }}>
+            {r.members?.name || 'Member'} · {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
