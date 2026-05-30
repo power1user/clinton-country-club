@@ -103,6 +103,40 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.17** — Phase 12 polish: Default workspaces seeded for every club.
+
+  Every club now ships with **five default workspaces** every manager
+  sees the moment they open the workspace switcher — no setup, no
+  "what do I put here?" friction. The presets cover the typical hats
+  a club manager (or shared GM/Pro Shop manager) wears day-to-day:
+
+  · **Daily Ops** — Communications expanded, lands on Food Orders
+  · **Member Services** — People expanded, lands on Directory
+  · **Events** — Events expanded, lands on Events admin
+  · **Broadcasts** — Broadcasts expanded, lands on News
+  · **Setup** — Club Settings expanded, lands on Branding & Contact
+
+  Each default is marked `readonly: true`. They render in the
+  switcher popover with a small italic `seeded` tag, can be applied
+  like any custom workspace, but **can't be renamed, deleted, or
+  updated** — the manager defines their own customs alongside if
+  they want tunable presets.
+
+  Implementation: hardcoded `DEFAULT_WORKSPACES` constant in
+  `AdminWorkspaceSwitcher.jsx`, merged with the manager's custom
+  list at render time. The custom list still lives in
+  `admin_preferences.workspaces` (cross-club) exactly as before;
+  defaults are NOT written there, so there's no migration and a
+  future seed-set edit just changes the constant (no DB sync). The
+  `renameWorkspace` / `deleteWorkspace` setters early-return on any
+  id matching `DEFAULT_WORKSPACES`, defensive against any future
+  caller. The "Update '<name>' with current view" affordance is
+  hidden when the active workspace is `readonly`.
+
+  Manage mode shows only the manager's **custom** workspaces — the
+  five seeds always exist, are explicitly called out in the empty
+  state, and aren't part of the personal-organization surface.
+
 - **v0.11.16** — Phase 12 polish: Desktop admin shell typography pass.
 
   Bumped every font size in the desktop admin **shell** from mobile-

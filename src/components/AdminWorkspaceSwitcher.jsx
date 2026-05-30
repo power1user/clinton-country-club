@@ -36,6 +36,62 @@ function uuid() {
   return 'ws_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
+// v0.11.17 — Seeded default workspaces. Every club ships with these
+// five out of the box so a fresh manager has useful presets the
+// moment they open the admin. Each workspace is a snapshot of:
+//   · `collapsed`    — area ids that should be collapsed
+//                       (i.e. NOT the target area for this workspace)
+//   · `lastSection`  — where to land
+//   · `readonly: true` — marks them as un-renamable / un-deletable;
+//                        the manager can apply them and create their
+//                        own customs, but the seeds always stay.
+//
+// Note the collapsed lists include every non-target area id including
+// `platform` — for non-super-admins that area doesn't render anyway,
+// so listing it as "collapsed" is harmless. The benefit is a single
+// canonical definition that works for super_admin + manager + admin
+// alike.
+//
+// Area ids come from AdminPanel.jsx AREAS: inbox, comms, events,
+// course, proshop, dining, people, clubsetup, platform.
+const DEFAULT_WORKSPACES = [
+  {
+    id: 'default_daily',
+    name: 'Daily Ops',
+    collapsed: ['comms', 'events', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    lastSection: { areaId: 'inbox', sectionId: 'inbox_food' },
+    readonly: true,
+  },
+  {
+    id: 'default_member_services',
+    name: 'Member Services',
+    collapsed: ['inbox', 'comms', 'events', 'course', 'proshop', 'dining', 'clubsetup', 'platform'],
+    lastSection: { areaId: 'people', sectionId: 'people_all' },
+    readonly: true,
+  },
+  {
+    id: 'default_events',
+    name: 'Events',
+    collapsed: ['inbox', 'comms', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    lastSection: { areaId: 'events', sectionId: 'eventsadmin' },
+    readonly: true,
+  },
+  {
+    id: 'default_broadcasts',
+    name: 'Broadcasts',
+    collapsed: ['inbox', 'events', 'course', 'proshop', 'dining', 'people', 'clubsetup', 'platform'],
+    lastSection: { areaId: 'comms', sectionId: 'news' },
+    readonly: true,
+  },
+  {
+    id: 'default_setup',
+    name: 'Setup',
+    collapsed: ['inbox', 'comms', 'events', 'course', 'proshop', 'dining', 'people', 'platform'],
+    lastSection: { areaId: 'clubsetup', sectionId: 'clubsettings' },
+    readonly: true,
+  },
+];
+
 export default function AdminWorkspaceSwitcher({
   collapsed,
   lastSection,
@@ -72,8 +128,15 @@ export default function AdminWorkspaceSwitcher({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const list = Array.isArray(workspaces) ? workspaces : [];
-  const active = list.find(w => w.id === activeId) || null;
+  // v0.11.17 — Merge seeded defaults with the manager's custom list.
+  // `customList` is what useAdminPreference returned (writable).
+  // `displayList` is what the popover renders in normal mode (defaults
+  // first, then customs). `active` resolves from displayList so a
+  // default workspace can be active even though it's not in
+  // admin_preferences.
+  const customList = Array.isArray(workspaces) ? workspaces : [];
+  const displayList = [...DEFAULT_WORKSPACES, ...customList];
+  const active = displayList.find(w => w.id === activeId) || null;
 
   // Apply a workspace — restore collapsed + lastSection and mark active.
   const applyWorkspace = (ws) => {
@@ -116,12 +179,14 @@ export default function AdminWorkspaceSwitcher({
   };
 
   const renameWorkspace = (id, nextName) => {
+    if (DEFAULT_WORKSPACES.some(w => w.id === id)) return;  // readonly guard
     const name = (nextName || '').trim();
     if (!name) return;
     setWorkspaces(prev => (prev || []).map(w => w.id === id ? { ...w, name } : w));
   };
 
   const deleteWorkspace = (id) => {
+    if (DEFAULT_WORKSPACES.some(w => w.id === id)) return;  // readonly guard
     setWorkspaces(prev => (prev || []).filter(w => w.id !== id));
     if (activeId === id) setActiveId(null);
   };
@@ -213,8 +278,23 @@ export default function AdminWorkspaceSwitcher({
             </span>
           </div>
 
-          {/* Workspace list */}
-          {list.length === 0 && (
+          {/* Workspace list. In manage mode, we render only the
+              manager's CUSTOM workspaces (defaults are protected;
+              the manage UI is for their personal organization).
+              In normal mode, defaults are shown first with a small
+              "Seeded" tag, then the manager's customs. */}
+          {!manageMode && displayList.map(ws => (
+            <WorkspaceRow
+              key={ws.id}
+              ws={ws}
+              isActive={ws.id === activeId}
+              manageMode={false}
+              onApply={() => applyWorkspace(ws)}
+              onRename={() => {}}
+              onDelete={() => {}}
+            />
+          ))}
+          {manageMode && customList.length === 0 && (
             <div style={{
               padding: '12px 14px',
               fontFamily: '"Lora",serif',
@@ -222,23 +302,26 @@ export default function AdminWorkspaceSwitcher({
               color: G.muted,
               fontStyle: 'italic',
             }}>
-              No workspaces yet. Save your current view to start.
+              No custom workspaces yet. The five seeded workspaces are
+              always available and can't be renamed or removed.
             </div>
           )}
-          {list.map(ws => (
+          {manageMode && customList.map(ws => (
             <WorkspaceRow
               key={ws.id}
               ws={ws}
               isActive={ws.id === activeId}
-              manageMode={manageMode}
+              manageMode={true}
               onApply={() => applyWorkspace(ws)}
               onRename={(n) => renameWorkspace(ws.id, n)}
               onDelete={() => deleteWorkspace(ws.id)}
             />
           ))}
 
-          {/* Update active */}
-          {!manageMode && active && (
+          {/* Update active — only for non-readonly (custom) workspaces.
+              Seeded defaults are static; applying them and then
+              tinkering doesn't write back into the seed. */}
+          {!manageMode && active && !active.readonly && (
             <div
               onClick={updateActive}
               data-tap
@@ -393,6 +476,20 @@ function WorkspaceRow({ ws, isActive, manageMode, onApply, onRename, onDelete })
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {ws.name}
       </span>
+      {/* v0.11.17 — Small "Seeded" tag on default workspaces so the
+          manager understands why they can't be renamed/deleted in
+          Manage mode. Shown alongside (or instead of) the Active tag. */}
+      {ws.readonly && (
+        <span style={{
+          fontFamily: '"Lora",serif',
+          fontSize: 10,
+          color: G.muted,
+          fontStyle: 'italic',
+          letterSpacing: '0.04em',
+        }}>
+          seeded
+        </span>
+      )}
       {isActive && (
         <span style={{
           fontFamily: '"Lora",serif',
