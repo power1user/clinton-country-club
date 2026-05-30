@@ -37,6 +37,7 @@ import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import { useAdminPreference } from '../../hooks/useAdminPreference.js';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import { SectionContent } from '../AdminPanel.jsx';
 
 // Hard width for the sidebar — chosen to fit the longest area
@@ -71,6 +72,26 @@ export default function AdminLayoutDesktop({
   useEffect(() => {
     applyThemeMode(theme?.mode || 'light');
   }, [theme?.mode]);
+
+  // v0.11.9 — Keyboard shortcuts.
+  //   /     — focus search palette
+  //   g h   — go home (clear area + sec)
+  //   g i   — Communications inbox
+  //   g p   — People
+  //   g s   — Club Settings
+  //   g f   — Features (within Club Settings)
+  //   g b   — Broadcasts
+  //   g e   — Events
+  // Auto-skipped when typing into an input.
+  useKeyboardShortcuts({
+    '/':   () => setPaletteOpen(true),
+    'g h': () => { setArea(null); setSec(null); },
+    'g i': () => { setArea('inbox'); setSec(null); },
+    'g p': () => { setArea('people'); setSec(null); },
+    'g s': () => { setArea('clubset'); setSec(null); },
+    'g b': () => { setArea('comms'); setSec(null); },
+    'g e': () => { setArea('events'); setSec(null); },
+  });
   // v0.11.7 — Sidebar collapse state persisted via admin_preferences.
   // Default ALL expanded; manager toggles persist per (user, club)
   // so it doesn't reset on reload or when switching browsers. Stored

@@ -103,6 +103,31 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.9** — Phase 12: Keyboard shortcuts.
+
+  Generic `useKeyboardShortcuts(map)` hook at
+  `src/hooks/useKeyboardShortcuts.js`. Supports single-key
+  bindings AND Gmail/GitHub-style "g + letter" chord pairs
+  (press `g`, then a letter within 1.2 s).
+
+  Auto-skips when focus is in an editable element (input,
+  textarea, contenteditable, select) so typing "p" into a search
+  field doesn't blast you to the People area.
+
+  Wired into `AdminLayoutDesktop`:
+  · `/` — focus the search palette
+  · `g h` — go home (clear area + sec)
+  · `g i` — Communications inbox
+  · `g p` — People
+  · `g s` — Club Settings
+  · `g b` — Broadcasts
+  · `g e` — Events
+
+  Cmd+K / Ctrl+K still opens the search palette (lives in
+  `AdminSearchPalette.jsx`'s own listener) so power users have
+  two ways to invoke it depending on whether their hand is on
+  the meta key.
+
 - **v0.11.8** — Phase 12: Dark mode toggle (admin sidebar).
 
   Small affordance in the desktop sidebar footer flips the whole
