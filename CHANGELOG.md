@@ -103,6 +103,30 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.5** — Phase 12: Cmd+K admin search palette.
+
+  Global command-palette overlay at
+  `src/components/AdminSearchPalette.jsx`. Cmd+K (Mac) or Ctrl+K
+  (Windows/Linux) opens a centered modal with a search input +
+  results list. Typing fuzzy-filters across every admin section
+  by label, area name, and description. Arrow keys move the
+  highlight; Enter selects; Esc closes.
+
+  Empty query shows the first 8 sections as a "browse" mode so
+  the palette is useful even before typing.
+
+  Section-only indexing in this patch. Live member / event /
+  order indexing via Supabase is a follow-up — the palette UI +
+  key bindings + result row shape don't change when richer
+  sources land, just the index source.
+
+  `<SearchTrigger>` exported alongside — a discoverability button
+  shown in the top bar between breadcrumbs and BellChip:
+  *"Search admin…  ⌘+K"*. Mounted in `AdminLayoutDesktop`.
+
+  Mobile + tablet skip the palette — the mobile drill-down has
+  its own existing search field inside the admin hub.
+
 - **v0.11.4** — Phase 12: `SidePanel` detail pattern.
 
   Slide-in detail panel at `src/components/SidePanel.jsx`. When a

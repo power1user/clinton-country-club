@@ -35,6 +35,7 @@ import { useState } from 'react';
 import { G } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
+import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import { SectionContent } from '../AdminPanel.jsx';
 
 // Hard width for the sidebar — chosen to fit the longest area
@@ -52,6 +53,9 @@ export default function AdminLayoutDesktop({
   commsUnread,
 }) {
   const { goTab } = useNav();
+  // v0.11.5 — palette open state. The palette also opens on Cmd+K
+  // globally; the SearchTrigger button is a discoverability hint.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // Per-area expand state in the sidebar. Default ALL expanded —
   // the platform's section count is small enough (under ~30 total)
   // that an always-expanded tree is faster to scan than gating
@@ -294,8 +298,19 @@ export default function AdminLayoutDesktop({
             onArea={() => { setSec(null); }}
           />
         </div>
+        {/* v0.11.5 — global search trigger. Cmd+K opens the palette
+            globally too; this button is the discoverability hint. */}
+        <SearchTrigger onClick={() => setPaletteOpen(true)} />
         <BellChip />
       </header>
+
+      {/* v0.11.5 — global search palette. Mounts hidden; opens via
+          Cmd+K or the SearchTrigger button. */}
+      <AdminSearchPalette
+        areas={areas}
+        sectionVisible={sectionVisible}
+        onPick={(r) => { setArea(r.areaId); setSec(r.sectionId); }}
+      />
 
       {/* ─── Main content ─── */}
       <main style={{
