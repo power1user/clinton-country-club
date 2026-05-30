@@ -103,6 +103,27 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.15** — Phase 12 polish: Sidebar areas collapsed by default.
+
+  Fresh managers landing on the desktop admin now see the area
+  headers — Communications, Broadcasts, Events, Golf Course, Pro
+  Shop, Dining, People, Club Settings, Platform — as a clean table
+  of contents instead of a 30-row exploded sidebar with every
+  section expanded.
+
+  Mechanism: `sidebar_collapsed` admin_preference now defaults to
+  the `null` sentinel ("no preference written") instead of `[]`
+  ("explicitly nothing collapsed"). When null, the sidebar collapses
+  ALL area ids derived from the live areas prop. The moment the
+  manager toggles any single area, the hook writes an explicit
+  array and that takes over — so a manager who explicitly opens
+  all areas sticks at "all open" across reloads. Per-(user, club)
+  persistence still applies.
+
+  Workspace switcher updated to pass the EFFECTIVE collapsed array
+  (the resolved-from-null version) so "Save current view" captures
+  what the manager actually sees, not the raw sentinel.
+
 - **v0.11.14** — Phase 12 polish: `/admin` deep-link entry.
 
   Managers and the support team can now go directly to the admin

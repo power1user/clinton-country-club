@@ -114,18 +114,34 @@ export default function AdminLayoutDesktop({
     'g b': () => { setArea('comms'); setSec(null); },
     'g e': () => { setArea('events'); setSec(null); },
   });
-  // v0.11.7 — Sidebar collapse state persisted via admin_preferences.
-  // Default ALL expanded; manager toggles persist per (user, club)
-  // so it doesn't reset on reload or when switching browsers. Stored
-  // as a plain array of area ids in jsonb.
+  // v0.11.15 — Sidebar collapse state persisted via admin_preferences.
+  // Default ALL COLLAPSED for a fresh manager — they see the area
+  // headers (Communications, Broadcasts, Events, …) like a table of
+  // contents and click to expand into the sections they need. The
+  // alternative — all expanded by default — exploded the sidebar to
+  // ~30 rows on first load and buried the area structure.
+  //
+  // Stored as a plain array of area ids in jsonb. The `null` sentinel
+  // means "no preference written yet" → fall back to the all-collapsed
+  // default. Once the manager toggles a single area, the hook writes
+  // an explicit array (possibly empty, possibly subset) and we use
+  // that going forward — so a manager who explicitly opens all areas
+  // sticks at "all open" across reloads.
   const [collapsedArray, setCollapsedArray] = useAdminPreference(
     'sidebar_collapsed',
-    [],
+    null,
   );
-  const collapsed = new Set(collapsedArray || []);
+  const allAreaIds = areas.map(a => a.id);
+  const effectiveCollapsedArray = collapsedArray === null ? allAreaIds : collapsedArray;
+  const collapsed = new Set(effectiveCollapsedArray);
   const toggleCollapse = (areaId) => {
     setCollapsedArray(prev => {
-      const next = new Set(prev || []);
+      // Treat null-prev (no preference yet) as the all-collapsed
+      // baseline, so the first click EXPANDS the area the manager
+      // touched — opposite of "all expanded" days when first click
+      // would have collapsed it.
+      const base = prev === null ? allAreaIds : prev;
+      const next = new Set(base);
       if (next.has(areaId)) next.delete(areaId);
       else next.add(areaId);
       return [...next];
@@ -202,7 +218,7 @@ export default function AdminLayoutDesktop({
               collapsed + last_section preference hooks then own
               the live values. */}
           <AdminWorkspaceSwitcher
-            collapsed={collapsedArray || []}
+            collapsed={effectiveCollapsedArray}
             lastSection={{ areaId: area, sectionId: sec }}
             onRestore={({ collapsed: nextCollapsed, lastSection }) => {
               setCollapsedArray(nextCollapsed || []);
