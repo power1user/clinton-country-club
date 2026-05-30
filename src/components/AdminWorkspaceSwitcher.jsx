@@ -55,16 +55,29 @@ function uuid() {
 //
 // Area ids come from AdminPanel.jsx AREAS: inbox, comms, events,
 // course, proshop, dining, people, clubsetup, platform.
-// v0.11.29 — seeded workspaces gain a `dashboardLayout` snapshot so
-// switching workspaces also tunes the dashboard tile order + hidden
-// set to match the role / focus of that hat. The orders below mirror
-// the manager's likely scan pattern in that workspace:
-//   · Daily Ops → Open Work first (kitchen / pro shop morning sweep)
-//   · Member Services → Community Pulse first (member touchpoints)
-//   · Events → Top Screens first (which event surfaces are popular)
-//   · Broadcasts → Today's Activity first (audience size before send)
-//   · Setup → today_activity + top_screens; ops + community hidden
-const _DASHBOARD_ALL = ['today_activity', 'open_work', 'top_screens', 'community_pulse'];
+// v0.11.29 + v0.11.33 — seeded workspaces carry a `dashboardLayout`
+// snapshot that switches the dashboard tile order + hidden set to
+// match the role / focus of that workspace. v0.11.33 expanded each
+// workspace to cover the full 19-tile catalog meaningfully:
+//
+//   · Daily Ops      → ops + status + queues; board/membership hidden
+//   · Member Services→ membership + community; ops minimized
+//   · Events         → event surfaces + community; ops/board hidden
+//   · Broadcasts     → comms surfaces; ops/board hidden
+//   · Setup          → minimal: engagement + directory health only
+//
+// The `hidden` list is comprehensive — every tile NOT in the visible
+// `order` is explicitly hidden so applying a workspace yields a
+// focused dashboard (5-6 tiles), not 19. The manager can still
+// "Manage tiles" to unhide anything they want for that workspace.
+//
+// Tile ids (alphabetical) — kept here as a quick reference:
+//   active_guests, badges_awarded, community_pulse,
+//   course_status_now, directory_completeness, engagement_score,
+//   membership_snapshot, new_members, open_work, order_velocity,
+//   pending_approvals, push_today, recent_bulletin, recent_news,
+//   today_activity, todays_events, top_screens, trending_posts,
+//   upcoming_events
 
 const DEFAULT_WORKSPACES = [
   {
@@ -73,8 +86,20 @@ const DEFAULT_WORKSPACES = [
     expanded: 'inbox',
     lastSection: { areaId: 'inbox', sectionId: 'inbox_food' },
     dashboardLayout: {
-      order: ['open_work', 'today_activity', 'community_pulse', 'top_screens'],
-      hidden: [],
+      order: [
+        'open_work',
+        'course_status_now',
+        'todays_events',
+        'order_velocity',
+        'active_guests',
+        'today_activity',
+      ],
+      hidden: [
+        'top_screens', 'community_pulse', 'upcoming_events', 'new_members',
+        'badges_awarded', 'recent_bulletin', 'membership_snapshot',
+        'pending_approvals', 'engagement_score', 'directory_completeness',
+        'push_today', 'recent_news', 'trending_posts',
+      ],
     },
     readonly: true,
   },
@@ -84,8 +109,20 @@ const DEFAULT_WORKSPACES = [
     expanded: 'people',
     lastSection: { areaId: 'people', sectionId: 'people_all' },
     dashboardLayout: {
-      order: ['community_pulse', 'today_activity', 'top_screens', 'open_work'],
-      hidden: [],
+      order: [
+        'pending_approvals',
+        'new_members',
+        'community_pulse',
+        'directory_completeness',
+        'recent_bulletin',
+        'today_activity',
+      ],
+      hidden: [
+        'open_work', 'top_screens', 'upcoming_events', 'badges_awarded',
+        'course_status_now', 'todays_events', 'order_velocity',
+        'active_guests', 'membership_snapshot', 'engagement_score',
+        'push_today', 'recent_news', 'trending_posts',
+      ],
     },
     readonly: true,
   },
@@ -95,8 +132,20 @@ const DEFAULT_WORKSPACES = [
     expanded: 'events',
     lastSection: { areaId: 'events', sectionId: 'eventsadmin' },
     dashboardLayout: {
-      order: ['top_screens', 'community_pulse', 'today_activity', 'open_work'],
-      hidden: [],
+      order: [
+        'upcoming_events',
+        'todays_events',
+        'community_pulse',
+        'top_screens',
+        'today_activity',
+        'badges_awarded',
+      ],
+      hidden: [
+        'open_work', 'new_members', 'recent_bulletin', 'course_status_now',
+        'order_velocity', 'active_guests', 'membership_snapshot',
+        'pending_approvals', 'engagement_score', 'directory_completeness',
+        'push_today', 'recent_news', 'trending_posts',
+      ],
     },
     readonly: true,
   },
@@ -106,8 +155,20 @@ const DEFAULT_WORKSPACES = [
     expanded: 'comms',
     lastSection: { areaId: 'comms', sectionId: 'news' },
     dashboardLayout: {
-      order: ['today_activity', 'top_screens', 'community_pulse', 'open_work'],
-      hidden: [],
+      order: [
+        'push_today',
+        'recent_news',
+        'trending_posts',
+        'top_screens',
+        'today_activity',
+        'community_pulse',
+      ],
+      hidden: [
+        'open_work', 'upcoming_events', 'new_members', 'badges_awarded',
+        'recent_bulletin', 'course_status_now', 'todays_events',
+        'order_velocity', 'active_guests', 'membership_snapshot',
+        'pending_approvals', 'engagement_score', 'directory_completeness',
+      ],
     },
     readonly: true,
   },
@@ -117,8 +178,19 @@ const DEFAULT_WORKSPACES = [
     expanded: 'clubsetup',
     lastSection: { areaId: 'clubsetup', sectionId: 'clubsettings' },
     dashboardLayout: {
-      order: ['today_activity', 'top_screens'],
-      hidden: ['open_work', 'community_pulse'],
+      order: [
+        'today_activity',
+        'engagement_score',
+        'directory_completeness',
+        'top_screens',
+      ],
+      hidden: [
+        'open_work', 'community_pulse', 'upcoming_events', 'new_members',
+        'badges_awarded', 'recent_bulletin', 'course_status_now',
+        'todays_events', 'order_velocity', 'active_guests',
+        'membership_snapshot', 'pending_approvals', 'push_today',
+        'recent_news', 'trending_posts',
+      ],
     },
     readonly: true,
   },

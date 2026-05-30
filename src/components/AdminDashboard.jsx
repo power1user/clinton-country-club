@@ -200,6 +200,60 @@ const TILE_CATALOG = [
 ];
 
 // ──────────────────────────────────────────────────────────────────
+// v0.11.33 — First-load defaults by role.
+//
+// Goal: a new admin opening the dashboard for the first time should
+// see a curated, non-overwhelming starting point matched to their
+// role — not all 15-19 tiles dumped on the screen at once. Once
+// they customize (drag, hide/show via Manage tiles), their saved
+// state takes over and never resets across logins.
+//
+// Used ONLY when both `tileOrder` (dashboard_tile_order) AND
+// `hidden` (dashboard_hidden_tiles) are still at their default
+// "no preference written" state. Any manual edit OR a workspace
+// apply writes those keys and takes precedence forever after.
+//
+// Two profiles:
+//   · `manager` — broader overview including board / membership tiles
+//   · `staff`   — operations + community focus; the four manager-
+//                 only tiles are role-gated out of the catalog for
+//                 staff anyway, so listing them here is unnecessary.
+// super_admin uses the manager profile (everything available).
+// ──────────────────────────────────────────────────────────────────
+const DEFAULT_LAYOUT_BY_ROLE = {
+  manager: {
+    order: [
+      'today_activity',
+      'open_work',
+      'todays_events',
+      'pending_approvals',
+      'recent_news',
+      'community_pulse',
+    ],
+    hidden: [
+      'top_screens', 'upcoming_events', 'new_members', 'badges_awarded',
+      'recent_bulletin', 'course_status_now', 'order_velocity',
+      'active_guests', 'membership_snapshot', 'engagement_score',
+      'directory_completeness', 'push_today', 'trending_posts',
+    ],
+  },
+  staff: {
+    order: [
+      'today_activity',
+      'open_work',
+      'todays_events',
+      'community_pulse',
+      'recent_news',
+    ],
+    hidden: [
+      'top_screens', 'upcoming_events', 'new_members', 'badges_awarded',
+      'recent_bulletin', 'course_status_now', 'order_velocity',
+      'active_guests', 'push_today', 'trending_posts',
+    ],
+  },
+};
+
+// ──────────────────────────────────────────────────────────────────
 // AdminDashboard — orchestrator
 //
 // v0.11.27 — Accepts `commsUnread` as a prop instead of calling
@@ -248,33 +302,59 @@ export default function AdminDashboard({
     [isManager, isSuperAdmin]
   );
 
-  // v0.11.28 — Compute the rendered tile order:
-  //   1. Start with the persisted order (or fall back to catalog order)
-  //   2. Drop tiles that aren't in the visible catalog (role-gated out)
-  //   3. Drop hidden tiles
-  //   4. Append any role-visible-not-hidden tiles that aren't already
-  //      listed (covers brand-new tiles added in a future patch — they
+  // v0.11.33 — Role-appropriate first-load defaults. Used ONLY when
+  // the user has no saved order AND no saved hidden set (truly fresh
+  // visit). Any customization or workspace apply writes those keys
+  // and takes precedence. super_admin gets the manager profile.
+  const roleDefaultLayout = useMemo(() => {
+    const profile = (isManager || isSuperAdmin) ? 'manager' : 'staff';
+    return DEFAULT_LAYOUT_BY_ROLE[profile];
+  }, [isManager, isSuperAdmin]);
+
+  const isFreshFirstVisit = !Array.isArray(tileOrder) && (!Array.isArray(hidden) || hidden.length === 0);
+
+  // v0.11.28 + v0.11.33 — Compute the rendered tile order:
+  //   1. Pick an order list:
+  //        · saved tileOrder if the user has customized, OR
+  //        · role-default order if this is the user's first visit, OR
+  //        · catalog order as ultimate fallback
+  //   2. Pick a hidden set:
+  //        · saved hidden if the user has touched the toggle, OR
+  //        · role-default hidden if this is the first visit
+  //   3. Drop tiles that aren't in the visible catalog (role-gated)
+  //   4. Drop hidden tiles
+  //   5. Append any role-visible-not-hidden tiles not already listed
+  //      (covers brand-new tiles added in a future patch — they
   //      land at the end of the manager's existing layout)
   const renderedTiles = useMemo(() => {
-    const orderList = Array.isArray(tileOrder) && tileOrder.length > 0
-      ? tileOrder
-      : visibleCatalog.map(t => t.id);
+    let orderList;
+    let effectiveHidden;
+    if (Array.isArray(tileOrder) && tileOrder.length > 0) {
+      orderList = tileOrder;
+      effectiveHidden = hiddenSet;
+    } else if (isFreshFirstVisit) {
+      orderList = roleDefaultLayout.order;
+      effectiveHidden = new Set(roleDefaultLayout.hidden);
+    } else {
+      orderList = visibleCatalog.map(t => t.id);
+      effectiveHidden = hiddenSet;
+    }
     const out = [];
     const seen = new Set();
     for (const id of orderList) {
-      if (hiddenSet.has(id)) continue;
+      if (effectiveHidden.has(id)) continue;
       const tile = visibleCatalog.find(t => t.id === id);
       if (!tile) continue;
       out.push(tile);
       seen.add(id);
     }
     for (const tile of visibleCatalog) {
-      if (seen.has(tile.id) || hiddenSet.has(tile.id)) continue;
+      if (seen.has(tile.id) || effectiveHidden.has(tile.id)) continue;
       out.push(tile);
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tileOrder, hidden, visibleCatalog]);
+  }, [tileOrder, hidden, visibleCatalog, isFreshFirstVisit, roleDefaultLayout]);
 
   // Drag-end handler — reorder the persisted tile order list.
   const onDragEnd = (event) => {

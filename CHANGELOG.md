@@ -103,6 +103,52 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.33** — Workspace tile re-assignments + role-based first-load defaults.
+
+  Two related fixes for the "too many tiles, not curated" feeling:
+
+  **1. Seeded workspaces now meaningfully cover the full 19-tile
+  catalog.** When v0.11.30 + v0.11.32 added 15 new tiles, the
+  v0.11.29 workspace `dashboardLayout` snapshots still only listed
+  the original 4 — meaning a manager who applied "Daily Ops" got
+  the 4 original tiles in workspace order, plus the 15 new ones
+  appended at the end (per the "new tiles don't displace existing
+  arrangement" rule). Net effect: applying any workspace gave you
+  ALL 19 tiles, defeating the point of workspaces. Now each
+  workspace lists 4-6 visible tiles + explicitly hides the rest:
+
+  · **Daily Ops** → open_work, course_status_now, todays_events,
+    order_velocity, active_guests, today_activity. Hides everything
+    board/membership/comms — kitchen / pro shop morning sweep.
+  · **Member Services** → pending_approvals, new_members,
+    community_pulse, directory_completeness, recent_bulletin,
+    today_activity. Hides ops / board / comms.
+  · **Events** → upcoming_events, todays_events, community_pulse,
+    top_screens, today_activity, badges_awarded. Hides ops / board.
+  · **Broadcasts** → push_today, recent_news, trending_posts,
+    top_screens, today_activity, community_pulse. Hides ops / board.
+  · **Setup** → today_activity, engagement_score,
+    directory_completeness, top_screens. Minimal — config focus.
+
+  **2. Role-based first-load defaults.** Brand-new admin opens the
+  dashboard, has never customized → no longer sees all 15-19 tiles
+  dumped on the screen. New `DEFAULT_LAYOUT_BY_ROLE` map:
+
+  · **manager / super_admin** (6 visible): today_activity, open_work,
+    todays_events, pending_approvals, recent_news, community_pulse.
+  · **staff** (5 visible): today_activity, open_work, todays_events,
+    community_pulse, recent_news. (The 4 manager-only tiles are
+    role-gated out of the catalog for staff regardless.)
+
+  Used ONLY when both `dashboard_tile_order` AND
+  `dashboard_hidden_tiles` are at their default "no preference"
+  state (truly fresh visit). The moment the manager drags a tile,
+  toggles "Manage tiles", or applies a workspace, their saved
+  state takes over and never reverts.
+
+  Per-(user, club) persistence remains unchanged — once a user
+  customizes, they don't have to change it every login.
+
 - **v0.11.32** — Eleven more dashboard tiles (Ops + Membership + Comms).
 
   Triples the dashboard's tile catalog from 8 → 19. Three new
