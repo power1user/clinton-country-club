@@ -103,6 +103,25 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.23** — HOTFIX: unwire AdminDashboard from the desktop landing.
+
+  Marc reported the admin screen going black after v0.11.22 landed
+  the AdminDashboard as the default desktop landing. Symptom is the
+  classic React-tree-unmount: a render-time exception in the
+  dashboard component bubbles up, React unmounts the subtree, and
+  the underlying `#0C100C` html/body background shows through the
+  phone-frame container.
+
+  Quick fix: revert AdminLayoutDesktop's root state back to
+  `DesktopEmptyState`. The `<AdminDashboard />` component still
+  ships (the TILE_CATALOG, RPCs, and useAnalytics dual-write are
+  all in place from v0.11.21/v0.11.22) — only the wiring as the
+  landing page is reverted.
+
+  Root cause needs identifying via browser console; will re-wire
+  with a defensive error boundary in a follow-up patch so a tile
+  crash never blanks the whole admin again.
+
 - **v0.11.22** — AdminDashboard v1: tile framework + four tiles.
 
   The desktop admin's **root state** (no area + no section selected)

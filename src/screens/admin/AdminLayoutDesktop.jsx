@@ -464,15 +464,15 @@ export default function AdminLayoutDesktop({
               isManager={isManager}
               isSuperAdmin={isSuperAdmin}
             />
-          ) : activeArea ? (
-            // Area picked, no section yet — the existing "pick a
-            // section under <area>" hint still applies here.
-            <DesktopEmptyState areaLabel={activeArea?.l} />
           ) : (
-            // v0.11.22 — no area + no section = ROOT. The dashboard
-            // becomes the landing page. Replaces the generic "Pick
-            // a section" empty state we had pre-v0.11.22.
-            <AdminDashboard />
+            // v0.11.23 hotfix — reverted v0.11.22's AdminDashboard
+            // landing because it was triggering a render-time crash
+            // that surfaced as a black screen (React tree unmounted,
+            // revealing the #0C100C html/body background under the
+            // phone-frame). The AdminDashboard component still ships
+            // and will be re-wired once the crash root cause is
+            // pinpointed via console + a wrapping error boundary.
+            <DesktopEmptyState areaLabel={activeArea?.l} />
           )}
         </div>
       </main>
