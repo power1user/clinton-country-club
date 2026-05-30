@@ -71,6 +71,67 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+---
+
+## v0.11.x — Phase 12: Responsive Admin
+
+Member app stays mobile-first PWA forever. The ADMIN side gets a
+desktop + tablet shell so managers doing real CRUD work in the
+office aren't typing into 320px inputs. Same component tree, two
+layouts:
+
+· **AdminLayoutMobile** — current 3-level drill-down (area cards
+  → section cards → section content). What every admin sees today.
+· **AdminLayoutDesktop** — persistent left sidebar + top bar +
+  main content area. Tables instead of cards for data-heavy
+  sections, side-panel detail pattern, multi-column forms,
+  global search across sections.
+
+Shipping plan (12 patches under one minor bump):
+
+  v0.11.0 — useViewport scaffold + minor bump (this commit)
+  v0.11.1 — AdminLayoutDesktop shell (sidebar + top bar + content)
+  v0.11.2 — Sidebar tree wired (breadcrumbs, active highlighting)
+  v0.11.3 — Tables for Members / Orders / RSVPs / Badges
+  v0.11.4 — Side-panel detail pattern
+  v0.11.5 — Global admin search (Cmd+K)
+  v0.11.6 — Multi-column forms + inline table editing
+  v0.11.7 — Migration 61: admin_preferences + saved layouts
+  v0.11.8 — Workspaces / personas
+  v0.11.9 — Keyboard shortcuts
+  v0.11.10 — Dark mode toggle (admin-only)
+  v0.11.11 — Tablet polish (collapsible sidebar, density)
+  v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
+
+- **v0.11.0** — Phase 12 opens: `useViewport` scaffold.
+
+  Foundation patch. No visible UI change yet; the hook gets
+  wired into AdminPanel but every viewport currently renders the
+  existing mobile-first shell. v0.11.1 layers in the
+  AdminLayoutDesktop component and starts the visible rollout.
+
+  New `src/hooks/useViewport.js`:
+  · CSS-pixel breakpoints exported as constants:
+    `BREAKPOINT_TABLET = 768`, `BREAKPOINT_DESKTOP = 1024`
+  · `viewportForWidth(w)` pure resolver function (testable
+    independent of React)
+  · `useViewport()` hook returns `{ viewport, isMobile, isTablet,
+    isDesktop, isTabletUp, isDesktopUp }`
+  · `resize` listener debounced via `requestAnimationFrame` so
+    window-drag doesn't trigger dozens of state updates per
+    second
+  · SSR safety: server-side `typeof window === 'undefined'`
+    falls back to `'mobile'`; first client effect re-resolves
+
+  Bumped minor to v0.11.0 per protocol (architectural foundation,
+  Phase 12 opens). README updated with the in-progress notice;
+  full Phase 12 inventory lands at the closing patch (v0.11.12)
+  rather than spreading edits across every intervening commit.
+
+---
+
+## v0.10.x patch tail — final Phase 11 patches
+
 - **v0.10.18** — Food orders: To-Go / Eat-In pivot (delivery gone).
 
   Revises the v0.10.15 taxonomy. On-course delivery is out — staff

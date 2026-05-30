@@ -18,6 +18,7 @@ import {
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
+import { useViewport } from '../hooks/useViewport.js';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -239,6 +240,16 @@ const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.i
 
 export default function AdminPanel() {
   const { club, member, isAdmin, isSuperAdmin, isManager, hasPerm } = useAuth();
+  // v0.11.0 (Phase 12) — viewport detection wired but not yet
+  // differentiated. Every viewport currently renders the mobile-
+  // first AdminPanel UI we shipped in v0.7+. v0.11.1 introduces
+  // an AdminLayoutDesktop shell (persistent left sidebar + top
+  // bar + main content) which mounts only when isDesktop is true.
+  // Reading the hook here keeps the dependency live (so future
+  // dev tools / debug overlays can already inspect viewport
+  // state) and documents the v0.11.x intent at the call site.
+  // eslint-disable-next-line no-unused-vars
+  const { viewport, isDesktop } = useViewport();
   const [area, setArea] = useState(null);   // top-level area, null = main hub
   const [sec, setSec] = useState(null);     // section within area, null = area sub-hub
   const [query, setQuery] = useState('');   // admin hub search

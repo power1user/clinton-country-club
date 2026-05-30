@@ -69,7 +69,22 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
-//   v0.11.x — Phase 11: Calendar, News, Menu, Push polish — an
+//   v0.11.x — Phase 12: Responsive Admin. The member app stays
+//             mobile-PWA-first forever; the ADMIN side gets a
+//             desktop + tablet shell so managers doing CRUD work
+//             in the office aren't typing into 320px inputs.
+//             Same components, two layouts: AdminLayoutMobile
+//             (current 3-level drill-down) and AdminLayoutDesktop
+//             (persistent left sidebar + top bar + main content
+//             area + side-panel detail pattern + tables for data-
+//             heavy sections). v0.11.0 lands the useViewport hook
+//             scaffold; v0.11.1 the desktop layout shell; tables,
+//             global search, side panels, multi-column forms,
+//             admin_preferences-backed saved layouts + workspaces,
+//             keyboard shortcuts, and dark mode land across the
+//             intervening patches; the final v0.11.x bump
+//             refreshes the README and closes the phase.
+//   v0.10.x patch tail (Phase 11): Calendar, News, Menu, Push polish — an
 //             operational-quality pass across the surfaces members
 //             touch daily. Calendar gets schedule-override
 //             indicators (hollow brass ring on affected dates, day-
@@ -93,7 +108,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.10.18';
+export const VERSION = '0.11.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

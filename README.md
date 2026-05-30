@@ -11,10 +11,12 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.10.10` (Phase 11 — Calendar, News, Menu, Push polish)
+**Current version:** `v0.11.0` (Phase 12 — Responsive Admin, in progress)
 
-> This README is refreshed on every **minor** release (0.x bump). For
-> anything that shipped after v0.10.10, see [`CHANGELOG.md`](./CHANGELOG.md).
+> This README is refreshed on every **minor** release (0.x bump). Phase 12
+> is the responsive-admin lift that opens at v0.11.0 and ships across the
+> v0.11.x patches; the README's full Phase 12 feature inventory lands with
+> the closing patch. For anything between, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
