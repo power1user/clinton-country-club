@@ -103,6 +103,21 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.2** — Phase 12: Top-bar breadcrumbs.
+
+  Replaces the v0.11.1 two-line eyebrow + title in the desktop top
+  bar with a real breadcrumb trail: **Admin › Communications ›
+  Food Orders** (eyebrow row) + section title beneath. Each
+  ancestor crumb walks the state back to that level — clicking
+  *Admin* clears area + section (shows the home empty state),
+  clicking *Communications* clears just section (shows the area's
+  empty state). The current section's title stays non-interactive.
+
+  Mobile + tablet unchanged.
+
+  Reserved the center slot of the top bar for the v0.11.5 global
+  search input so layout doesn't shift when search lands.
+
 - **v0.11.1** — Phase 12: `AdminLayoutDesktop` shell.
 
   First visible Phase 12 change. At ≥ 1024 px the admin section now

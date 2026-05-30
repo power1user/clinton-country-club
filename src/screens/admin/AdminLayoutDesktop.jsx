@@ -269,7 +269,10 @@ export default function AdminLayoutDesktop({
         </div>
       </aside>
 
-      {/* ─── Top bar ─── */}
+      {/* ─── Top bar ─── breadcrumbs (v0.11.2) + bell. The center
+          slot in the top bar is reserved for the global search
+          input landing in v0.11.5; for now it stays empty so the
+          spacing doesn't shift when search shows up. */}
       <header style={{
         gridArea: 'topbar',
         background: '#FFFFFF',
@@ -279,30 +282,17 @@ export default function AdminLayoutDesktop({
         padding: '0 24px',
         gap: 16,
       }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontFamily: '"Lora",serif',
-            fontSize: 10,
-            color: G.muted,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            margin: '0 0 1px',
-          }}>
-            {activeArea?.l || 'Admin'}
-          </p>
-          <p style={{
-            fontFamily: '"Playfair Display",serif',
-            fontSize: 18,
-            fontWeight: 700,
-            color: G.text,
-            margin: 0,
-            lineHeight: 1.15,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {topTitle}
-          </p>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {/* Breadcrumb row — Admin › Area › Section. Each
+              ancestor crumb is clickable and walks the state back
+              to that level. The current crumb is non-interactive
+              and styled with the heavier title weight. */}
+          <Breadcrumbs
+            area={activeArea}
+            section={activeSection}
+            onHome={() => { setArea(null); setSec(null); }}
+            onArea={() => { setSec(null); }}
+          />
         </div>
         <BellChip />
       </header>
@@ -327,6 +317,53 @@ export default function AdminLayoutDesktop({
         </div>
       </main>
     </div>
+  );
+}
+
+// v0.11.2 — Breadcrumb component. Two ancestor crumbs ("Admin"
+// + the active area) link back; the current section is rendered
+// as the title. When nothing is selected, only "Admin" shows
+// and the row is still informative ("you're at the root").
+function Breadcrumbs({ area, section, onHome, onArea }) {
+  const crumbStyle = {
+    fontFamily: '"Lora",serif',
+    fontSize: 11,
+    color: G.muted,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    letterSpacing: '0.04em',
+  };
+  const sepStyle = {
+    fontFamily: '"Lora",serif',
+    fontSize: 11,
+    color: G.border,
+    margin: '0 6px',
+  };
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 1 }}>
+        <span onClick={onHome} data-tap style={crumbStyle}>Admin</span>
+        {area && (
+          <>
+            <span style={sepStyle}>›</span>
+            <span onClick={onArea} data-tap style={crumbStyle}>{area.l}</span>
+          </>
+        )}
+      </div>
+      <p style={{
+        fontFamily: '"Playfair Display",serif',
+        fontSize: 18,
+        fontWeight: 700,
+        color: G.text,
+        margin: 0,
+        lineHeight: 1.15,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {section?.l || area?.l || 'Manage your club'}
+      </p>
+    </>
   );
 }
 
