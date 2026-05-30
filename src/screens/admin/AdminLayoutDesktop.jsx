@@ -62,7 +62,7 @@ export default function AdminLayoutDesktop({
   // section labels don't crowd the chevron column.
   const sidePad = compact ? 12 : 18;
   const mainPad = compact ? '20px 22px 32px' : '24px 32px 40px';
-  const { goTab } = useNav();
+  const { goTab, pop } = useNav();
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -333,7 +333,7 @@ export default function AdminLayoutDesktop({
             {member?.name || 'Staff'}
           </p>
           <div
-            onClick={() => goTab('myclub')}
+            onClick={pop}
             data-tap
             style={{
               fontFamily: '"Lora",serif',

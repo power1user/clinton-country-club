@@ -32,7 +32,7 @@ export function priceToNumber(p) {
 }
 const ROOT_KEY = (tab) => `tab:${tab}`;
 
-export function NavProvider({ children }) {
+export function NavProvider({ children, initialDeepLink = null }) {
   const [tab, setTab] = useState('home');
   const [stacks, setStacks] = useState({ home: [], golf: [], food: [], community: [], myclub: [] });
   const [dir, setDir] = useState('forward');
@@ -60,6 +60,28 @@ export function NavProvider({ children }) {
     if (typeof window === 'undefined') return;
     window.history.replaceState({ tag: 'app-root', navId: 0 }, '');
   }, []);
+
+  // v0.11.14 — Initial deep-link routing. When the browser landed on
+  // a recognized URL path (today only `/admin`), set up the tab + stack
+  // as if the user had navigated to that screen via the menu. We push
+  // a matching history entry so pop() / browser-back work the same as
+  // an in-app push() would. Runs exactly once on mount; after that,
+  // navigation is in-memory only and the URL stays at /admin until the
+  // user refreshes elsewhere.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (initialDeepLink === 'admin') {
+      // Land on the admin panel under the MyClub tab. Screen ID stays
+      // the canonical `myclub/admin` so AdminPanel mounts via SCREENS
+      // lookup; only the URL the manager TYPED was shorter.
+      setTab('myclub');
+      const key = `e:${Date.now()}:deeplink`;
+      setStacks(p => ({ ...p, myclub: [{ id: 'myclub/admin', params: {}, key }] }));
+      navIdRef.current += 1;
+      window.history.pushState({ tag: 'in-app', navId: navIdRef.current, tab: 'myclub', screen: 'myclub/admin' }, '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDeepLink]);
 
   // popstate: browser back / forward / system back gesture
   useEffect(() => {

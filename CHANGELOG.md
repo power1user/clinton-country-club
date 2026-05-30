@@ -103,6 +103,31 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.14** — Phase 12 polish: `/admin` deep-link entry.
+
+  Managers and the support team can now go directly to the admin
+  panel by typing `clubslug.groundslive.com/admin` — no need to
+  remember the internal `/myclub/admin` path. The screen ID
+  internally stays canonical (`myclub/admin` — the admin panel still
+  belongs to the MyClub tab's back stack), only the URL shortens.
+
+  How:
+  · `App.jsx` — new `getInitialDeepLink()` parallels the existing
+    `/guest/<slug>` pathname check. Returns `'admin'` for `/admin`
+    or `/admin/*`. Passed to `NavProvider` as `initialDeepLink`.
+  · `useNav.jsx` — `NavProvider` accepts the prop and, on mount,
+    sets `tab='myclub'`, pushes `myclub/admin` onto the MyClub
+    stack, and pushes a matching browser-history entry so the back
+    button behaves the same as if the manager had tapped through
+    the menu.
+  · `AdminLayoutDesktop.jsx` — "Back to MyClub" link switched from
+    `goTab('myclub')` to `pop()` so it pops the stack uniformly
+    regardless of how admin was entered.
+
+  Bookmarkable. Refresh-safe. SPA-fallback already wired (Cloudflare
+  Pages serves index.html for unknown paths — same mechanism the
+  `/guest/<slug>` route uses today).
+
 - **v0.11.13** — Phase 12 fix: Admin escapes the phone-frame on desktop.
 
   Phase 12 bug surfaced as soon as a manager opened the desktop

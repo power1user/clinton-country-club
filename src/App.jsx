@@ -264,6 +264,20 @@ function isOnGuestRegistrationRoute() {
   return /^\/guest\/[a-z0-9-]+/i.test(window.location.pathname);
 }
 
+// v0.11.14 — deep-link detection. Returns a "deep link" sentinel that
+// NavProvider applies on mount. Today only `/admin` is recognized —
+// drops the manager directly onto the admin panel, skipping the
+// MyClub → "Admin Panel" tap path. The screen ID stays internally
+// `myclub/admin` (the back stack lives under the MyClub tab); only
+// the URL is shortened. Add more sentinels here if we ever want
+// `/inbox`, `/calendar`, etc. as bookmarkable entry points.
+function getInitialDeepLink() {
+  if (typeof window === 'undefined') return null;
+  const p = window.location.pathname;
+  if (/^\/admin(\/|$)/i.test(p)) return 'admin';
+  return null;
+}
+
 function Gate() {
   const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel } = useAuth();
 
@@ -318,7 +332,7 @@ function Gate() {
   // If supabase isn't configured (no env vars), let the prototype run with mock data.
   if (!isConfigured) {
     return (
-      <NavProvider>
+      <NavProvider initialDeepLink={getInitialDeepLink()}>
         <ScreenRenderer />
       </NavProvider>
     );
@@ -351,7 +365,7 @@ function Gate() {
   }
 
   return (
-    <NavProvider>
+    <NavProvider initialDeepLink={getInitialDeepLink()}>
       <ScreenRenderer />
     </NavProvider>
   );
