@@ -8,16 +8,24 @@ import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAnalytics } from '../hooks/useAnalytics.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 
-// v0.10.15 — Delivery vs. To-Go selection now drives the order flow.
-//   · 'delivery' — staff bring the order to the member's on-course
-//     location. Hole picker required; notes free-text.
-//   · 'to_go' — member picks up at the clubhouse. Pickup time
-//     defaults to +30min in 15-minute increments; blank = ASAP.
+// v0.10.18 — Order type pivot: To-Go vs Eat-In.
+//   · 'to_go'  — member picks up at the clubhouse window.
+//   · 'eat_in' — member dines at the clubhouse.
 //
-// Migration 59 added food_orders.order_type + requested_pickup_time.
-// The Communications food-orders queue (FoodOrdersAdmin) renders a
-// Delivery/To-Go chip per row so kitchen staff can stage orders
-// correctly without tapping into each one.
+// Both flows end with the member walking off the course to the
+// clubhouse. The difference is whether they take the food with
+// them (to_go) or sit down to eat it (eat_in). On-course delivery
+// (v0.10.15) is gone — staff finding members on 18 holes proved
+// operationally messy.
+//
+// What's the hole picker for, then? It's the kitchen's primary
+// timing signal: the member's current hole + the club's typical
+// hole-completion time tells staff when to fire the order so it
+// matches the member's arrival at the clubhouse. Both order types
+// use it.
+//
+// Migration 60 backfilled existing 'delivery' rows to 'to_go' and
+// updated the CHECK constraint to ('to_go', 'eat_in') only.
 
 const PICKUP_INCREMENT_MIN = 15;
 const PICKUP_DEFAULT_OFFSET_MIN = 30;
@@ -42,7 +50,7 @@ export default function CourseOrder() {
   const { club, member, canMemberWrite } = useAuth();
   const brand = useBrand();
   const { trackEvent } = useAnalytics();
-  const [orderType, setOrderType] = useState('delivery');
+  const [orderType, setOrderType] = useState('to_go');
   const [hole, setHole] = useState(null);
   const [pickupTime, setPickupTime] = useState(''); // ISO string when set; '' = ASAP
   const [notes, setNotes] = useState('');
@@ -75,10 +83,10 @@ export default function CourseOrder() {
     );
   }
 
-  // Validation:
-  //   · delivery requires a hole
-  //   · to_go has no required fields (pickup time can stay blank for ASAP)
-  const submitReady = cart.length > 0 && (orderType === 'to_go' || hole != null) && !busy;
+  // Validation: hole is required for both types — it's the kitchen's
+  // timing signal. Pickup time stays optional (blank = ASAP, fire
+  // whenever the order rotates to the top of the queue).
+  const submitReady = cart.length > 0 && hole != null && !busy;
 
   const placeOrder = async () => {
     if (!submitReady) return;
@@ -92,9 +100,9 @@ export default function CourseOrder() {
       member_id: member.id,
       items: cart.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })),
       order_type: orderType,
-      hole: orderType === 'delivery' ? hole : null,
+      hole,
       location_note: notes || null,
-      requested_pickup_time: orderType === 'to_go' && pickupTime ? pickupTime : null,
+      requested_pickup_time: pickupTime || null,
       subtotal: parseFloat(cartTotal),
     });
     setBusy(false);
@@ -147,25 +155,28 @@ export default function CourseOrder() {
           )}
         </div>
 
-        {/* v0.10.15 — Delivery method picker. Two big tap targets
-            stacked vertically so the choice is unmistakable. Selection
-            drives which fields render below (hole vs pickup time). */}
+        {/* v0.10.18 — Order type picker: To-Go vs Eat-In. Both end
+            at the clubhouse; the choice signals staff how to plate
+            and serve (counter handoff vs sit-down setup). */}
         {cart.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <SectionHead label="How would you like your order?" />
+            <SectionHead label="How will you have your order?" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { id: 'delivery', label: 'Deliver to me on the course', sub: 'Staff bring it to your hole.', icon: (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 21V7l9-4 9 4v14" />
-                    <path d="M9 21V11h6v10" />
-                  </svg>
-                )},
-                { id: 'to_go', label: 'Pick up at the clubhouse (To-Go)', sub: 'Ready when you walk in.', icon: (
+                { id: 'to_go', label: 'To-Go', sub: 'Grab and head out from the clubhouse window.', icon: (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2l1 4h10l1-4" />
                     <path d="M5 6h14l-1 14H6L5 6z" />
                     <path d="M9 10v6M15 10v6" />
+                  </svg>
+                )},
+                { id: 'eat_in', label: 'Eat In', sub: 'Sit down at the clubhouse and dine.', icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    {/* fork + knife glyph */}
+                    <path d="M7 2v10a2 2 0 002 2h0v8" />
+                    <path d="M5 2v6" />
+                    <path d="M9 2v6" />
+                    <path d="M16 2c-1.5 0-3 1.5-3 4v6h2v10h2V2z" />
                   </svg>
                 )},
               ].map(opt => {
@@ -197,11 +208,15 @@ export default function CourseOrder() {
           </div>
         )}
 
-        {/* Delivery branch — existing hole picker. */}
-        {cart.length > 0 && orderType === 'delivery' && (
+        {/* Hole picker — always shown for both order types. It's the
+            kitchen's primary timing signal: current hole + typical
+            pace = when to fire. */}
+        {cart.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <SectionHead label="What hole are you on?" />
-            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 10px' }}>So the kitchen knows roughly when to deliver.</p>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 10px' }}>
+              So the kitchen can time your order to your walk-off.
+            </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {Array.from({ length: brand.holes }, (_, i) => i + 1).map(n => (
                 <div key={n} onClick={() => setHole(n)} data-tap style={{ width: 42, height: 42, borderRadius: 3, background: hole === n ? G.green : G.card, border: `1.5px solid ${hole === n ? G.green : G.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -212,13 +227,13 @@ export default function CourseOrder() {
           </div>
         )}
 
-        {/* To-Go branch — pickup time picker. Blank = ASAP. Always
-            renders the "ASAP" pill first as the default. */}
-        {cart.length > 0 && orderType === 'to_go' && (
+        {/* Pickup / arrival time — optional for both types. Blank =
+            "fire whenever it bubbles up the queue." */}
+        {cart.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <SectionHead label="When would you like to pick up?" />
+            <SectionHead label={orderType === 'eat_in' ? 'When would you like to be seated?' : 'When would you like to pick up?'} />
             <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 10px' }}>
-              Optional — leave blank for as soon as possible.
+              Optional — leave blank for as soon as you walk in.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <div
@@ -268,9 +283,7 @@ export default function CourseOrder() {
           <div style={{ padding: '12px 14px', background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0 }}>
-              {orderType === 'delivery'
-                ? <>Staff will <strong style={{ color: G.text }}>bring it to your hole</strong> when ready.</>
-                : <>You'll get a push notification when your order is <strong style={{ color: G.text }}>ready for pickup</strong> at the clubhouse.</>}
+              Our team will do our best to have your order <strong style={{ color: G.text }}>ready for you at the clubhouse</strong>.
             </p>
           </div>
         )}
@@ -285,7 +298,7 @@ export default function CourseOrder() {
           <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: submitReady ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
             {busy
               ? 'Placing order…'
-              : orderType === 'delivery' && hole == null
+              : hole == null
                 ? 'Select your current hole to continue'
                 : `Place Order · $${cartTotal}`}
           </span>

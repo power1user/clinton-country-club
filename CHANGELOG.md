@@ -71,6 +71,54 @@ v0.10.9 push sender identity → **v0.10.10** docs wrap (README
 refresh + version.js phase entry) → v0.10.11 course-map empty
 state bug fix.
 
+- **v0.10.18** — Food orders: To-Go / Eat-In pivot (delivery gone).
+
+  Revises the v0.10.15 taxonomy. On-course delivery is out — staff
+  finding members on 18 holes was operationally messy. Both new
+  types end at the clubhouse; the choice signals staff how to plate
+  and serve.
+
+  **Migration 60:** `food_orders.order_type` CHECK constraint
+  becomes `('to_go', 'eat_in')`. Backfilled every pre-v0.10.18
+  row with `order_type='delivery'` to `'to_go'` as the closest
+  semantic match. `hole`, `location_note`, and
+  `requested_pickup_time` columns unchanged.
+
+  **Member flow** (`CourseOrder.jsx`):
+  · Picker is now **To-Go** vs **Eat-In** with descriptive subtitles
+    ("Grab and head out from the clubhouse window" / "Sit down at
+    the clubhouse and dine").
+  · **Hole picker stays for both types** — not because food is
+    delivered to the hole, but because the member's current hole
+    is the kitchen's best signal for when to fire the order so it's
+    ready when the member walks off the course. Required for both.
+  · **Pickup-time pills stay for both types** — optional, blank =
+    ASAP. Label adapts ("When would you like to pick up?" vs
+    "When would you like to be seated?").
+  · Bottom info card unified copy:
+    *"Our team will do our best to have your order ready for you
+    at the clubhouse."*
+
+  **Confirmation** (`OrderConfirm.jsx`) — type-aware uppercase
+  eyebrow + subtitle ("Pickup at the clubhouse" / "Dining at the
+  clubhouse"). Hole + time shown for both.
+
+  **Kitchen queue** (`FoodOrdersAdmin`):
+  · Chip per row is now **`TO-GO · Hole N · time`** (brass) or
+    **`EAT-IN · Hole N · time`** (green). Both order types ride
+    the same row layout.
+  · Status select unified for both types:
+    `pending → preparing → ready_for_pickup → delivered`
+    (`cancelled` always available). Legacy `out_for_delivery`
+    values still render correctly for any rows from before the
+    backfill, but new orders never use it.
+  · Status-flip handler now sends a push for **both** types on
+    `ready_for_pickup` transitions (was to_go only). Push body
+    softened to "Your order is ready at the clubhouse." which
+    fits both contexts.
+
+  No new dependencies.
+
 - **v0.10.17** — GA4 activation in production.
 
   No code changes. `VITE_GA4_MEMBER_ID` was set in Cloudflare Pages

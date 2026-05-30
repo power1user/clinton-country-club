@@ -1,14 +1,10 @@
-// OrderConfirm — v0.10.15 to_go awareness.
+// OrderConfirm — v0.10.18 To-Go / Eat-In aware.
 //
-// Renders one of two layouts driven by the order_type passed from
-// CourseOrder via nav state:
-//   · delivery — same as the v0.10 design: confirms the hole the
-//     member's on, kitchen will bring it out.
-//   · to_go    — confirms pickup at the clubhouse + the requested
-//     time (or "as soon as possible" when blank). Pickup time
-//     formats locally in the device's timezone — the
-//     requested_pickup_time row column is stored as a UTC
-//     timestamptz so formatting on the device handles it cleanly.
+// Both order types end at the clubhouse. Copy differs slightly
+// (handoff window vs sit-down service) but the destination is the
+// same. Pickup/arrival time formats locally so the device handles
+// the timezone conversion; the requested_pickup_time column is
+// stored as UTC timestamptz.
 
 import { G } from '../theme.js';
 import { useNav } from '../hooks/useNav.jsx';
@@ -25,10 +21,10 @@ function fmtPickup(iso) {
 
 export default function OrderConfirm({ params }) {
   const { goTab, clearCart } = useNav();
-  const orderType = params?.orderType || 'delivery';
+  const orderType = params?.orderType || 'to_go';
   const hole = params?.hole || null;
   const pickupTime = fmtPickup(params?.pickupTime);
-  const isToGo = orderType === 'to_go';
+  const isEatIn = orderType === 'eat_in';
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -42,7 +38,7 @@ export default function OrderConfirm({ params }) {
         </div>
         <h2 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: G.text, margin: '0 0 10px' }}>Order Confirmed</h2>
 
-        {!isToGo && hole && (
+        {hole && (
           <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.muted, margin: '0 0 6px', fontStyle: 'italic' }}>
             You're currently on hole {hole}
           </p>
@@ -50,24 +46,18 @@ export default function OrderConfirm({ params }) {
 
         <div style={{ marginTop: 14, marginBottom: 24, padding: '16px 20px', background: G.card, borderRadius: 6, width: '100%', border: `1px solid ${G.border}` }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            {isToGo ? 'Pickup' : 'Delivery'}
+            {isEatIn ? 'Eat In' : 'To-Go'}
           </p>
           <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.3 }}>
-            {isToGo
-              ? (pickupTime ? `Ready at ${pickupTime}` : 'Ready as soon as possible')
-              : 'On the way to your hole'}
+            {pickupTime ? `Ready at ${pickupTime}` : 'Ready as soon as possible'}
           </p>
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '6px 0 0' }}>
-            {isToGo
-              ? 'Pick up at the clubhouse'
-              : 'Staff will bring it to you'}
+            {isEatIn ? 'Dining at the clubhouse' : 'Pickup at the clubhouse'}
           </p>
         </div>
 
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 28px', lineHeight: 1.6 }}>
-          {isToGo
-            ? `You'll get a push notification when it's ready${pickupTime ? '' : '. We\'ll have it ready as soon as we can'}.`
-            : `The kitchen has your order. Staff will deliver it to ${hole ? `hole ${hole}` : 'your location'} as soon as it's ready.`}
+          Our team will do our best to have your order ready for you at the clubhouse. You'll get a push notification when it's ready.
         </p>
 
         <Brass onPress={() => { clearCart(); goTab('food', { reset: true }); }} style={{ width: '100%', padding: '13px' }}>Done</Brass>

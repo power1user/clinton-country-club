@@ -657,14 +657,14 @@ export function FoodOrdersAdmin() {
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [club?.id]);
 
-  // v0.10.15 — Status updater. For to_go orders flipping to
+  // v0.10.18 — Status updater. When ANY order flips to
   // 'ready_for_pickup' we also post a message into the order's
   // auto-thread so the existing send-push function fires a push
-  // notification. The thread is linked via threads.context_table +
-  // context_id so we look it up by (order id, 'food_orders').
+  // notification. Both to_go and eat_in send a notification —
+  // members walking off the course want to know either way.
   const setStatus = async (row, status) => {
     await supabase.from('food_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', row.id);
-    if (row.order_type === 'to_go' && status === 'ready_for_pickup') {
+    if (status === 'ready_for_pickup') {
       try {
         const { data: thread } = await supabase
           .from('threads')
@@ -676,7 +676,7 @@ export function FoodOrdersAdmin() {
           await supabase.from('messages').insert({
             thread_id: thread.id,
             sender_user_id: thread.created_by,
-            body: 'Your order is ready. Please pick up at the clubhouse.',
+            body: 'Your order is ready at the clubhouse.',
           });
         }
         // If no thread is found we silently no-op — the status flip
@@ -686,16 +686,18 @@ export function FoodOrdersAdmin() {
     }
   };
 
-  // v0.10.15 — status options now branch by order_type. Delivery
-  // orders use the existing pending → preparing → out_for_delivery
-  // → delivered flow. To-Go orders use pending → preparing →
-  // ready_for_pickup → delivered. cancelled is always available.
-  const DELIVERY_STATUSES = ['pending', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
-  const TOGO_STATUSES     = ['pending', 'preparing', 'ready_for_pickup', 'delivered', 'cancelled'];
+  // v0.10.18 — status options unified for the To-Go / Eat-In types.
+  // Both end at the clubhouse so both use:
+  //   pending → preparing → ready_for_pickup → delivered (+ cancelled)
+  // Legacy 'out_for_delivery' values still render correctly if any
+  // pre-v0.10.18 rows exist (cancelled never actually happens for
+  // existing delivery rows post-migration since the backfill flipped
+  // them to to_go), but new orders never use it.
+  const STATUS_OPTIONS = ['pending', 'preparing', 'ready_for_pickup', 'delivered', 'cancelled'];
   const STATUS_COLORS = {
     pending: G.brass,
     preparing: G.limBg,
-    out_for_delivery: G.openBg,
+    out_for_delivery: G.openBg,    // legacy — kept so pre-v0.10.18 rows render
     ready_for_pickup: G.openBg,
     delivered: G.muted,
     cancelled: G.clsBg,
@@ -737,23 +739,22 @@ export function FoodOrdersAdmin() {
         </div>
       )}
       {visibleRows.map(r => {
-        const isToGo = r.order_type === 'to_go';
-        const statusOptions = isToGo ? TOGO_STATUSES : DELIVERY_STATUSES;
-        // v0.10.15 — prominent Delivery / To-Go chip with the
-        // relevant secondary line (hole vs pickup time) so kitchen
-        // staff can stage orders without tapping into the row.
+        // v0.10.18 — TO-GO / EAT-IN chips. Both types include hole
+        // (kitchen timing signal) + requested time (or ASAP). Legacy
+        // 'delivery' rows shouldn't exist post-migration but defensive-
+        // render them as TO-GO so the queue never breaks.
+        const orderType = r.order_type === 'eat_in' ? 'eat_in' : 'to_go';
+        const isEatIn = orderType === 'eat_in';
         const orderTypeChip = (
           <span style={{
             fontFamily: '"Lora",serif', fontSize: 9,
             color: '#F2E5C0',
-            background: isToGo ? G.brass : G.green,
+            background: isEatIn ? G.green : G.brass,
             padding: '2px 8px', borderRadius: 2,
             textTransform: 'uppercase', letterSpacing: '0.08em',
             fontWeight: 700,
           }}>
-            {isToGo
-              ? `TO-GO · ${fmtPickupTime(r.requested_pickup_time)}`
-              : `DELIVERY · ${r.hole != null ? `Hole ${r.hole}` : 'no hole'}`}
+            {`${isEatIn ? 'EAT-IN' : 'TO-GO'} · Hole ${r.hole != null ? r.hole : '—'} · ${fmtPickupTime(r.requested_pickup_time)}`}
           </span>
         );
         return (
@@ -789,7 +790,7 @@ export function FoodOrdersAdmin() {
             disabled={!canEdit}
             style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
           >
-            {statusOptions.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+            {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
           </select>
         </div>
         );
