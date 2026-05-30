@@ -103,6 +103,26 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.24** — Fix: comms-unread 400 on `event_registrations`.
+
+  The v0.11.20 `useCommsUnread` redesign hardcoded `created_at` as
+  the "since lastViewed" timestamp column for every activity-feed
+  table. But `event_registrations` uses `registered_at` (predates
+  the unified-naming convention) — so every admin page-load fired a
+  HEAD query against `event_registrations` with `?created_at=gt.…`
+  and got back a 400 from PostgREST. Silent at the JS layer
+  (HEAD-count failure is swallowed by the `await`-then-`count || 0`
+  pattern), but noisy in the Network panel.
+
+  Fix: `cSince` now takes a per-table `tsColumn` parameter. Callers
+  pass `'registered_at'` for `event_registrations` and `'created_at'`
+  for `guests` + `threads`. No schema changes.
+
+  Unrelated to the v0.11.22→v0.11.23 black-screen hotfix — that was
+  a render-time crash in the dashboard wiring. This 400 has been
+  firing since v0.11.20 and just stayed unnoticed until Marc
+  inspected the Network tab.
+
 - **v0.11.23** — HOTFIX: unwire AdminDashboard from the desktop landing.
 
   Marc reported the admin screen going black after v0.11.22 landed

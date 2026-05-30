@@ -107,13 +107,19 @@ export function useCommsUnread(clubId) {
       return count || 0;
     };
 
-    // Helper: parallel HEAD count, created-since filter (activity-feed).
-    const cSince = async (table, sinceTs, applyExtra) => {
+    // Helper: parallel HEAD count, "added since" filter (activity-feed).
+    // v0.11.24 — `tsColumn` parameter because not every table uses
+    // `created_at` as its insertion timestamp. event_registrations
+    // uses `registered_at` (predates the unified-naming convention).
+    // Calling .gt('created_at', ...) on event_registrations returned
+    // a 400 from PostgREST every page load — silent fail at the JS
+    // layer, noisy in the network panel.
+    const cSince = async (table, sinceTs, tsColumn, applyExtra) => {
       let q = supabase
         .from(table)
         .select('id', { count: 'exact', head: true })
         .eq('club_id', clubId)
-        .gt('created_at', sinceTs);
+        .gt(tsColumn || 'created_at', sinceTs);
       if (applyExtra) q = applyExtra(q);
       const { count } = await q;
       return count || 0;
@@ -125,12 +131,12 @@ export function useCommsUnread(clubId) {
       cOpen('pro_shop_inquiries',  INQUIRY_OPEN, q => q.eq('kind', 'lesson')),
       cOpen('pro_shop_inquiries',  INQUIRY_OPEN, q => q.neq('kind', 'lesson')),
       // ACTIVITY-FEED queues — items added since lastViewed (per-device).
-      cSince('guests',              since('inbox_guests')),
-      cSince('event_registrations', since('inbox_rsvps')),
+      cSince('guests',              since('inbox_guests'),    'created_at'),
+      cSince('event_registrations', since('inbox_rsvps'),     'registered_at'),
       // Clubhouse messages: threads-since-last-viewed for now. A
       // future patch can refine to messages.created_at for true
       // new-message-since-last-view tracking.
-      cSince('threads',             since('inbox_clubhouse'), q => q.eq('kind', 'clubhouse')),
+      cSince('threads',             since('inbox_clubhouse'), 'created_at', q => q.eq('kind', 'clubhouse')),
     ]);
 
     setCounts({
