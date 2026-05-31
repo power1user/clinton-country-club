@@ -129,6 +129,36 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.3** — Event recurrence: weekly interval (biweekly + every-N-weeks).
+
+  Weekly recurring events get a new **Every [N] week(s) on
+  [weekday]** picker in the EventEditor. Default is N=1 (the
+  back-compat path — identical to the v0.9.12 "Weekly on the
+  same day" behavior). N=2 gives biweekly board meetings,
+  weekly leagues that play every other week, ladies' golf night
+  on a two-week cadence; N=3 / N=4 handle "every three weeks"
+  socials and 4-week recurring tournaments where the
+  monthly_first/_nth rules would misalign with the actual
+  series cadence.
+
+  Capped at **MAX_WEEKLY_INTERVAL = 12 weeks** (~quarterly) so
+  the picker stays scannable and a stray click can't insert a
+  52-row "every 52 weeks" series. The hard MAX_OCCURRENCES = 52
+  cap from v0.9.12 still applies — with N=2 + a one-year end
+  date, the series materializes to ~26 rows.
+
+  Pattern description line below the picker spells out the
+  cadence ("Pattern: every 2 weeks on Tuesday.") before the
+  occurrence-count preview so a manager can verify the rule
+  before they commit the multi-row insert.
+
+  No schema change — events stay materialized into one row per
+  occurrence with a shared `recurrence_group_id`. The N-week
+  interval is purely a parameter to `generateOccurrences()` at
+  create time; the materialized rows look identical to
+  hand-entered events on the calendar (dow, day_num, date_label
+  all denormalized as usual).
+
 - **v0.12.2** — Notification dismissal: swipe + bulk-select (never hard-deletes).
 
   Two new affordances on top of the existing per-row X + confirm
