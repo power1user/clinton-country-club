@@ -151,15 +151,76 @@ Outbound replies sent from the admin UI go via Resend appearing as
 `support@groundslive.com` with correct In-Reply-To / References
 headers, so Gmail threads them properly on the recipient's side.
 
-Shipping plan (six patches under one minor bump):
+Shipping plan (seven patches under one minor bump):
 
   v0.13.0 — Inbound pipeline (migration 66 + receive Edge Function +
              Cloudflare Email Worker). Nothing visible in admin yet.
-  v0.13.1 — Push fan-out (send-push v9 + DB trigger).
-  v0.13.2 — Outbound reply pipeline (send-support-reply + Resend).
-  v0.13.3 — Admin UI (Platform → Support section).
-  v0.13.4 — Bell + OS app-badge + realtime live updates.
-  v0.13.5 — Attachments via Supabase Storage + Phase 14 closeout.
+  v0.13.1 — Destination management (migration 67 + 2 Edge Functions
+             + admin UI under Platform → Support → Team).
+  v0.13.2 — Push fan-out (send-push v9 + DB trigger).
+  v0.13.3 — Outbound reply pipeline (send-support-reply + Resend).
+  v0.13.4 — Admin UI: Platform → Support → Inbox thread list +
+             reply composer.
+  v0.13.5 — Bell + OS app-badge + realtime live updates.
+  v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
+
+- **v0.13.1** — Support destinations: app-managed forward list.
+
+  Marc's instinct caught a real wart in v0.13.0: the Cloudflare
+  Email Worker had `marcabla1@gmail.com` and `mjbo@aol.com`
+  hardcoded in JavaScript. Changing the team meant editing
+  Worker code. v0.13.1 lifts the list into Supabase and adds a
+  Platform-area admin UI to manage it.
+
+  **Migration 67 — `support_destinations` table:**
+  - `email`, `name`, `active`, `verified_at`, `cf_destination_id`,
+    `added_at`, `added_by`. RLS super_admin-only.
+  - Seeded with `marcabla1@gmail.com` and `mjbo@aol.com` —
+    pre-marked `verified_at = now()` since both were already
+    verified manually in Cloudflare's dashboard during v0.13.0.
+
+  **Two new Edge Functions:**
+  - `get-support-destinations` — called by the Worker on every
+    inbound email. Auth via `SUPPORT_INGEST_SECRET`. Returns
+    `{destinations: [{email, name}]}` filtered to active +
+    verified rows. 30-second `cache-control` header so the
+    Worker can short-circuit if it ever decides to cache.
+  - `manage-support-destinations` — super_admin CRUD. Wraps
+    Cloudflare's Email Routing `/email/routing/addresses` API:
+    `POST` registers a destination + sends the verification
+    email; `DELETE` removes it from both Cloudflare and DB;
+    `POST /sync` reconciles DB rows against Cloudflare's
+    actual destinations list (backfills `cf_destination_id`,
+    flips `verified_at` on rows that have now been verified
+    by the human clicking the link in their inbox).
+
+  **Worker code change** (handed to Marc as part of this commit):
+  the hardcoded `FORWARD_TO` array is gone. The Worker now
+  fetches the destinations list from `get-support-destinations`
+  on every inbound message and forwards to each. ~10 lines of
+  delta.
+
+  **Admin UI — Platform → Support → Team sub-tab:**
+  - Table of destinations with name + email + status badge
+    (Verified / Pending / Inactive).
+  - "+ Add team member" expands a form (name + email) →
+    submits to `manage-support-destinations` → Cloudflare
+    sends verification email → row appears with PENDING
+    status until the person clicks the link.
+  - Per-row Remove with confirm.
+  - "Sync with Cloudflare" button — calls `/sync` to flip
+    newly-verified rows from PENDING to VERIFIED without
+    waiting for next-page-load.
+  - Inbox sub-tab is a placeholder (lands in v0.13.4) — keeps
+    the section structure consistent.
+
+  **Two new Supabase secrets required for full admin UI
+  functionality** (the table + UI work without them; the
+  CRUD calls will fail with a friendly error until configured):
+  - `CLOUDFLARE_EMAIL_ROUTING_TOKEN` — token with
+    `Account.Email Routing.Edit` scope on the relevant account.
+  - `CLOUDFLARE_ACCOUNT_ID` — already exists from the
+    provision-club-domain wiring.
 
 - **v0.13.0** — Phase 14 opens: support inbox inbound pipeline.
 

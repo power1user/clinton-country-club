@@ -94,21 +94,32 @@
 //             Worker + Custom Address rule on `support@` round
 //             out the inbound layer. Nothing visible in the admin
 //             UI yet — that lands in v0.13.3.
-//             v0.13.1 — push fan-out: fn_send_push_on_support_message
+//             v0.13.1 — destination management: migration 67
+//             (support_destinations table, RLS super_admin only,
+//             seeded with the two initial team emails pre-verified).
+//             Two new Edge Functions: get-support-destinations
+//             (Worker fetch) and manage-support-destinations
+//             (super_admin CRUD wrapping Cloudflare's Email
+//             Routing destinations API). Worker code swapped from
+//             hardcoded list to dynamic fetch. New Platform →
+//             Support admin section with Team sub-tab — Inbox
+//             tab placeholder until v0.13.4.
+//             v0.13.2 — push fan-out: fn_send_push_on_support_message
 //             trigger + send-push v9 handleSupportTicket branch
 //             pushes every new inbound message to every super_admin's
 //             registered push subscriptions.
-//             v0.13.2 — outbound: send-support-reply Edge Function
+//             v0.13.3 — outbound: send-support-reply Edge Function
 //             (super_admin auth, Resend with In-Reply-To +
 //             References), appends 'out' direction message rows.
-//             v0.13.3 — admin UI: Platform → Support section,
-//             thread list + unread badges, expanded thread view
-//             with reply composer, mark-as-resolved status.
-//             v0.13.4 — bell + OS app-badge integration via
+//             v0.13.4 — admin UI: Platform → Support → Inbox
+//             tab activated. Thread list + unread badges,
+//             expanded thread view with reply composer,
+//             mark-as-resolved status.
+//             v0.13.5 — bell + OS app-badge integration via
 //             support_unread_count() rolled into useInboxUnread,
 //             realtime subscription for live UI updates without
 //             refresh.
-//             v0.13.5 — attachments via Supabase Storage
+//             v0.13.6 — attachments via Supabase Storage
 //             support-attachments bucket + README refresh +
 //             Phase 14 closeout.
 //   v0.12.x — Phase 13: Operational polish across the admin
@@ -210,7 +221,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.13.0';
+export const VERSION = '0.13.1';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

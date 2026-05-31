@@ -13,6 +13,7 @@ import {
   EventRegistrationsAdmin, EventsAdmin, LessonRequestsAdmin, ClubSettingsAdmin,
   ClubhouseInboxAdmin, NewsAdminFull, HolesAdmin, MemberGuideAdmin, MemberPostsAdmin,
   SuperAdminsAdmin, AllClubsAdmin, FeaturesAdmin, ProvisionLogAdmin, GuestManagementAdmin,
+  SupportAdmin,
   GuestRegistrationsFeed, FacilitiesAdmin,
 } from './admin/sections.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
@@ -244,6 +245,8 @@ const AREAS = [
       { id: 'allclubs',      l: 'All Clubs',      d: 'Manage every club on the platform', icon: IconFlag    },
       // v0.7.7: audit log of every Cloudflare provision attempt.
       { id: 'provisionlog',  l: 'Provision Log',  d: 'Cloudflare DNS automation history', icon: IconList    },
+      // v0.13.1: support inbox + team management (Phase 14).
+      { id: 'support',       l: 'Support',        d: 'Support inbox + team destinations',  icon: IconList    },
     ],
   },
 ];
@@ -295,6 +298,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
       {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
       {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
+      {sec === 'support'        && isSuperAdmin && <SupportAdmin />}
     </>
   );
 }

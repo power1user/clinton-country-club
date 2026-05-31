@@ -5339,3 +5339,231 @@ export function LessonRequestsAdmin({ mode = 'all' } = {}) {
     </div>
   );
 }
+
+// ============================================================
+// SupportAdmin — Phase 14 (v0.13.x) Platform → Support
+//
+// Two sub-tabs:
+//   · Inbox — thread list + reply (lands in v0.13.4)
+//   · Team  — destination management (active in v0.13.1)
+//
+// Super_admin only (rendered inside SectionContent's
+// isSuperAdmin guard, but kept defensive here too — RLS on
+// support_destinations + the manage Edge Function both also
+// check super_admin status).
+// ============================================================
+export function SupportAdmin() {
+  const [tab, setTab] = useState('inbox');
+  return (
+    <div>
+      {/* v0.13.1 — tab strip. Matches the MemberPostsAdmin pattern
+          (Bulletin / Partner tabs). */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, background: G.card, padding: 4, borderRadius: 4, border: `1px solid ${G.border}` }}>
+        {[
+          { id: 'inbox', l: 'Inbox' },
+          { id: 'team',  l: 'Team'  },
+        ].map(t => (
+          <div key={t.id} onClick={() => setTab(t.id)} data-tap style={{ flex: 1, padding: '9px 12px', borderRadius: 3, background: tab === t.id ? G.green : 'transparent', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: tab === t.id ? '#F2EDE0' : G.muted, fontWeight: tab === t.id ? 600 : 400 }}>{t.l}</span>
+          </div>
+        ))}
+      </div>
+      {tab === 'inbox' && <SupportInboxTab />}
+      {tab === 'team'  && <SupportTeamTab  />}
+    </div>
+  );
+}
+
+// ── Inbox tab — placeholder until v0.13.4 lands the thread list ─────
+function SupportInboxTab() {
+  return (
+    <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 18px', textAlign: 'center' }}>
+      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Support Inbox</p>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 4px', lineHeight: 1.5 }}>
+        Threaded view of every email to <em>support@groundslive.com</em>.
+      </p>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.brass, margin: 0 }}>
+        Inbound pipeline is live (v0.13.0). Thread list + inline reply land in v0.13.4.
+      </p>
+    </div>
+  );
+}
+
+// ── Team tab — destination management (Phase 14, v0.13.1) ───────────
+function SupportTeamTab() {
+  const { session } = useAuth();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      // Read directly from the table — RLS already restricts to super_admin.
+      const { data } = await supabase
+        .from('support_destinations')
+        .select('*')
+        .order('added_at', { ascending: true });
+      if (cancelled) return;
+      setRows(data || []);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [version]);
+
+  // Invoke the manage Edge Function. Pass the user's JWT so the
+  // function can verify super_admin role.
+  const invokeManage = async (method, body) => {
+    const token = session?.access_token;
+    if (!token) throw new Error('no session');
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-support-destinations`,
+      {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type':  'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      }
+    );
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    return j;
+  };
+
+  const addDestination = async () => {
+    setErr(null);
+    if (!newEmail.trim() || !newName.trim()) {
+      setErr('Email and name are both required.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await invokeManage('POST', { email: newEmail.trim(), name: newName.trim() });
+      setNewEmail(''); setNewName('');
+      setAdding(false);
+      refresh();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeDestination = async (row) => {
+    if (!confirm(`Remove ${row.name} (${row.email}) from the support team? They'll stop receiving forwarded mail.`)) return;
+    setErr(null); setBusy(true);
+    try {
+      await invokeManage('DELETE', { id: row.id });
+      refresh();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sync = async () => {
+    setErr(null); setBusy(true);
+    try {
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-support-destinations/sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type':  'application/json',
+          },
+        }
+      ).then(r => r.json());
+      refresh();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading support team…</p>;
+
+  return (
+    <div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
+        Who receives forwarded support@groundslive.com mail. Adding a person registers them with Cloudflare and triggers a verification email — they have to click the link in that inbox before forwards start.
+      </p>
+
+      {err && (
+        <div onClick={() => setErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4, padding: '10px 14px', marginBottom: 10, cursor: 'pointer' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}>{err} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
+        </div>
+      )}
+
+      <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden', marginBottom: 12 }}>
+        {rows.length === 0 && (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: 18, textAlign: 'center', margin: 0 }}>
+            No support team members yet. Add at least one to start receiving forwards.
+          </p>
+        )}
+        {rows.map((r, i) => {
+          const status = !r.active ? 'inactive'
+                       : r.verified_at ? 'verified'
+                       : 'pending';
+          const badgeBg  = status === 'verified' ? G.openBg
+                         : status === 'pending'  ? G.brass
+                         : G.muted;
+          const badgeLbl = status.toUpperCase();
+          return (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0 }}>{r.name}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.email}</p>
+              </div>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: badgeBg, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>{badgeLbl}</span>
+              <div onClick={busy ? undefined : () => removeDestination(r)} data-tap style={{ padding: '5px 10px', cursor: busy ? 'wait' : 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <div onClick={() => setAdding(!adding)} data-tap style={{ flex: 1, padding: 13, background: adding ? G.card : G.green, border: `1px solid ${adding ? G.border : G.green}`, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: adding ? G.text : '#F2EDE0', fontWeight: 500 }}>
+            {adding ? 'Cancel' : '+ Add team member'}
+          </span>
+        </div>
+        <div onClick={busy ? undefined : sync} data-tap style={{ padding: '13px 18px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: busy ? 'wait' : 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.brass, fontWeight: 500 }}>{busy ? 'Syncing…' : 'Sync with Cloudflare'}</span>
+        </div>
+      </div>
+
+      {adding && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px 16px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 10px' }}>
+            They'll get a verification email at this address from Cloudflare. Forwarding starts once they click the link.
+          </p>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Name</label>
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Matt Bohlmann" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Email</label>
+            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="matt@example.com" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div onClick={busy ? undefined : addDestination} data-tap style={{ padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Adding…' : 'Add + send verification'}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
