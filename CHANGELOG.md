@@ -129,6 +129,41 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.6** — Admin card typography pass (closes the long-standing Task #42).
+
+  Marc's screenshot showed News list cards on the desktop admin
+  sidebar reading at ~13/11pt primary/secondary — fine on mobile,
+  too small on a 27" monitor. Pass bumps every CRUD/queue/list
+  card the manager reads in the office:
+
+  · **CrudSection rows** — primary `13 → 15`, secondary `11 → 13`,
+    row padding `10/14 → 13/16`, chevron `14 → 16`. Affects News,
+    Push Broadcasts, Sponsor Banners, Hole Sponsors, Menu Items,
+    Pro Shop Items, Lesson Pros, Holes, Member Guide, and every
+    other CrudSection-backed admin list (single source of truth
+    bump covers them all in one edit).
+
+  · **FoodOrdersAdmin queue cards** — member name `14 → 16`,
+    `#` badge `12 → 13`, "Placed" timestamp `11 → 13`, item list
+    `12 → 14`, Total `13 → 15`, card padding `12/14 → 14/16`.
+
+  · **EventRegistrationsAdmin accordion (Comms inbox_rsvps)** —
+    event title `14 → 16`, secondary `11 → 13`, registrant
+    primary `13 → 14`, registrant secondary `11 → 12`, padding
+    bumped to match. Spots Remaining badge keeps its compact
+    chip size — color is the signal.
+
+  · **EventsAdmin lists** — standalone title `13 → 15`, secondary
+    `11 → 13`. Recurring-series header title `13 → 15`, summary
+    `11 → 13`, expanded occurrence row `12 → 14`.
+
+  Status chips and metadata badges keep their intentionally
+  compact `9pt` sizing — those read as colored shapes more than
+  as text. Bumps are measured: ~2pt across the board so cards
+  don't suddenly tower over the desktop layout but every line of
+  reading copy gets noticeably more legible at desktop viewing
+  distance.
+
 - **v0.12.5** — Food order pickup-time picker → manager-toggleable flag.
 
   Marc's feedback: most clubs treat the pickup-time picker as

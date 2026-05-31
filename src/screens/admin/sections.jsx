@@ -817,10 +817,13 @@ export function FoodOrdersAdmin() {
           </span>
         );
         return (
-        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>
-              {r.members?.name || 'Unknown'} {r.members?.membership_number && <span style={{ color: G.muted, fontWeight: 400, fontSize: 12 }}>#{r.members.membership_number}</span>}
+        <div key={r.id} style={{ padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+            {/* v0.12.6 — typography pass: member name 14 → 16, #
+                14 → 13, status chip stays 9 (status chips are
+                intentionally compact, the eye reads them by color). */}
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0 }}>
+              {r.members?.name || 'Unknown'} {r.members?.membership_number && <span style={{ color: G.muted, fontWeight: 400, fontSize: 13 }}>#{r.members.membership_number}</span>}
             </p>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.status?.replace(/_/g, ' ')}</span>
           </div>
@@ -830,18 +833,18 @@ export function FoodOrdersAdmin() {
               <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontStyle: 'italic', color: G.muted }}>"{r.location_note}"</span>
             )}
           </div>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 6px' }}>
             Placed {new Date(r.created_at).toLocaleString()}
           </p>
           {Array.isArray(r.items) && r.items.length > 0 && (
-            <ul style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0', paddingLeft: 18 }}>
+            <ul style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: '6px 0', paddingLeft: 20 }}>
               {r.items.map((it, i) => (
-                <li key={i}>{it.qty || 1}× {it.name || it.item_name || JSON.stringify(it)} {it.price ? `— $${it.price}` : ''}</li>
+                <li key={i} style={{ margin: '2px 0' }}>{it.qty || 1}× {it.name || it.item_name || JSON.stringify(it)} {it.price ? `— $${it.price}` : ''}</li>
               ))}
             </ul>
           )}
           {r.subtotal != null && (
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '4px 0 8px' }}>Total: ${Number(r.subtotal).toFixed(2)}</p>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: '6px 0 10px' }}>Total: ${Number(r.subtotal).toFixed(2)}</p>
           )}
           {/* v0.12.1 — Status select + Reply button on one row. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1025,16 +1028,18 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
                     onClick={() => toggleExpanded(g.eventId)}
                     style={{
                       display: 'flex', alignItems: 'center', width: '100%',
-                      padding: '12px 14px', gap: 10, background: 'transparent',
+                      padding: '14px 16px', gap: 10, background: 'transparent',
                       border: 'none', textAlign: 'left', cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.muted, width: 12, flexShrink: 0, lineHeight: 1, transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 120ms' }}>▶</span>
+                    {/* v0.12.6 — typography pass: event title 14 → 16,
+                        secondary 11 → 13, caret 14 → 16. */}
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 16, color: G.muted, width: 14, flexShrink: 0, lineHeight: 1, transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 120ms' }}>▶</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {g.event?.title || 'Event'}
                       </p>
-                      <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0 0' }}>
                         {eventDate}
                         {eventDate && ' · '}
                         {registeredCount} registered{capacity && capacity > 0 ? ` of ${capacity}` : ''}
@@ -1057,13 +1062,15 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
                   {isOpen && (
                     <div style={{ background: '#F8F4EC', borderTop: `1px solid ${G.border}` }}>
                       {g.registrations.map((r, i) => (
-                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 8px 36px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 10px 40px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {/* v0.12.6 — typography pass: 13 → 14
+                                primary, 11 → 12 secondary. */}
+                            <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {r.members?.name || 'Unknown'}
                               {r.members?.membership_number && <span style={{ color: G.muted, fontWeight: 400 }}> #{r.members.membership_number}</span>}
                             </p>
-                            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '2px 0 0' }}>
                               {new Date(r.registered_at).toLocaleString()}
                               {r.guests_count ? ` · +${r.guests_count} guests` : ''}
                               {r.notes ? ` · ${r.notes}` : ''}
@@ -2664,30 +2671,32 @@ export function EventsAdmin() {
         const expanded = expandedGroups.has(gid);
         return (
           <div key={gid} style={{ marginBottom: 10, background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
-            <div onClick={() => toggleGroup(gid)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', cursor: 'pointer', gap: 8 }}>
-              <span style={{ fontSize: 14 }} aria-hidden>🔁</span>
+            {/* v0.12.6 — typography pass: series title 13 → 15,
+                secondary 11 → 13, occurrence row 12 → 14. */}
+            <div onClick={() => toggleGroup(gid)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', cursor: 'pointer', gap: 10 }}>
+              <span style={{ fontSize: 16 }} aria-hidden>🔁</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {sorted[0]?.title || '(untitled series)'}
                 </p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0' }}>
                   {recurrenceSummary(sorted)}
                 </p>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
             </div>
             {expanded && (
               <div style={{ borderTop: `1px solid ${G.border}` }}>
                 {sorted.map(r => (
-                  <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 8px 36px', borderTop: `1px solid ${G.border}`, cursor: 'pointer', gap: 8, background: G.bg }}>
+                  <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 10px 40px', borderTop: `1px solid ${G.border}`, cursor: 'pointer', gap: 10, background: G.bg }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0 }}>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0 }}>
                         {r.date_label || (r.event_date ? new Date(r.event_date + 'T12:00:00').toLocaleDateString() : '')}
                         {' · '}
                         {formatEventTimeShort(r)}
                       </p>
                     </div>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
                   </div>
                 ))}
               </div>
@@ -2700,14 +2709,16 @@ export function EventsAdmin() {
       {standalones.length > 0 && (
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
           {standalones.map((r, i) => (
-            <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 8 }}>
+            // v0.12.6 — typography pass: title 13 → 15, secondary
+            // 11 → 13, chevron 14 → 16.
+            <div key={r.id} onClick={() => setEditing(r)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title || '(untitled)'}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title || '(untitled)'}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0' }}>
                   {[r.category, r.event_date && new Date(r.event_date + 'T12:00:00').toLocaleDateString(), formatEventTimeShort(r), r.spots != null && `${r.spots} spots`].filter(Boolean).join(' · ')}
                 </p>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
             </div>
           ))}
         </div>

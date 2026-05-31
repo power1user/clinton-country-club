@@ -90,13 +90,20 @@ export default function CrudSection({
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
           {rows.map((row, i) => {
             const sub = secondaryFn ? secondaryFn(row) : null;
+            // v0.12.6 — typography pass. Primary 13 → 15, secondary
+            // 11 → 13, row padding 10/14 → 13/16, chevron 14 → 16.
+            // Affects every CrudSection-backed admin list (News,
+            // Push Broadcasts, Sponsor Banners, Hole Sponsors,
+            // Menu Items, Pro Shop Items, Lesson Pros, Holes,
+            // Member Guide, Sponsor Banners, and more) so the
+            // bump propagates everywhere managers do CRUD work.
             return (
-              <div key={row.id} onClick={() => setEditing(row)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 8 }}>
+              <div key={row.id} onClick={() => setEditing(row)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[primaryField] || '(unnamed)'}</p>
-                  {sub && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row[primaryField] || '(unnamed)'}</p>
+                  {sub && <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</p>}
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
               </div>
             );
           })}
