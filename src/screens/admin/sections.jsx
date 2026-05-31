@@ -17,6 +17,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
+import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSupportModal.jsx';
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
@@ -5400,6 +5401,10 @@ function SupportInboxTab() {
   return <SupportThreadList onOpen={setSelectedThreadId} />;
 }
 
+// v0.13.8 — Category label lookup. SUPPORT_CATEGORIES + CATEGORY_COLORS
+// are imported from ContactSupportModal at the top of this file.
+const CATEGORY_LABEL = Object.fromEntries(SUPPORT_CATEGORIES.map(c => [c.id, c.l]));
+
 // ── Thread list ─────────────────────────────────────────────────────
 function SupportThreadList({ onOpen }) {
   const { session } = useAuth();
@@ -5407,6 +5412,7 @@ function SupportThreadList({ onOpen }) {
   const [reads, setReads] = useState({});      // thread_id → read_at
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('open'); // 'open' / 'all' / 'closed'
+  const [catFilter, setCatFilter] = useState('all'); // 'all' | category id | 'untriaged'
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -5449,11 +5455,15 @@ function SupportThreadList({ onOpen }) {
   }, [session?.user?.id]);
 
   const filtered = threads.filter(t => {
-    if (filter === 'all')    return true;
-    if (filter === 'closed') return t.status === 'closed';
-    // 'open' default — show open + answered (not closed)
-    return t.status !== 'closed';
+    // status filter
+    if (filter === 'closed' && t.status !== 'closed') return false;
+    if (filter === 'open'   && t.status === 'closed') return false;
+    // category filter
+    if (catFilter === 'untriaged' && t.category != null) return false;
+    if (catFilter !== 'all' && catFilter !== 'untriaged' && t.category !== catFilter) return false;
+    return true;
   });
+  const untriagedCount = threads.filter(t => t.category == null && t.status !== 'closed').length;
 
   const unreadCount = threads.filter(t => {
     if (t.status === 'closed') return false;
@@ -5465,21 +5475,52 @@ function SupportThreadList({ onOpen }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0, flex: 1 }}>
+      <div style={{ marginBottom: 12 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 8px' }}>
           {threads.length} thread{threads.length === 1 ? '' : 's'} · {unreadCount} unread
+          {untriagedCount > 0 && <> · <span style={{ color: G.brass, fontWeight: 600, fontStyle: 'normal' }}>{untriagedCount} need triage</span></>}
         </p>
-        {/* Filter pills */}
-        {[
-          { id: 'open',   l: 'Active'  },
-          { id: 'all',    l: 'All'     },
-          { id: 'closed', l: 'Closed'  },
-        ].map(f => (
-          <div key={f.id} onClick={() => setFilter(f.id)} data-tap
-            style={{ padding: '6px 12px', borderRadius: 14, background: filter === f.id ? G.brass : G.card, border: `1px solid ${filter === f.id ? G.brass : G.border}`, cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: filter === f.id ? '#F2E5C0' : G.muted, fontWeight: filter === f.id ? 600 : 400 }}>{f.l}</span>
-          </div>
-        ))}
+        {/* Status filter pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {[
+            { id: 'open',   l: 'Active'  },
+            { id: 'all',    l: 'All'     },
+            { id: 'closed', l: 'Closed'  },
+          ].map(f => (
+            <div key={f.id} onClick={() => setFilter(f.id)} data-tap
+              style={{ padding: '6px 12px', borderRadius: 14, background: filter === f.id ? G.brass : G.card, border: `1px solid ${filter === f.id ? G.brass : G.border}`, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: filter === f.id ? '#F2E5C0' : G.muted, fontWeight: filter === f.id ? 600 : 400 }}>{f.l}</span>
+            </div>
+          ))}
+        </div>
+        {/* Category filter pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { id: 'all',       l: 'All categories' },
+            { id: 'untriaged', l: 'Needs triage'   },
+            ...SUPPORT_CATEGORIES,
+          ].map(c => {
+            const isActive = catFilter === c.id;
+            const accent   = c.id === 'untriaged' ? G.brass
+                           : c.id === 'all'       ? G.greenMid
+                           : CATEGORY_COLORS[c.id];
+            return (
+              <div key={c.id} onClick={() => setCatFilter(c.id)} data-tap
+                style={{
+                  padding: '5px 11px', borderRadius: 14,
+                  background: isActive ? accent : G.card,
+                  border: `1px solid ${isActive ? accent : G.border}`,
+                  cursor: 'pointer',
+                }}>
+                <span style={{
+                  fontFamily: '"Lora",serif', fontSize: 11,
+                  color: isActive ? '#F2E5C0' : G.muted,
+                  fontWeight: isActive ? 600 : 400,
+                }}>{c.l}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -5519,6 +5560,16 @@ function SupportThreadList({ onOpen }) {
                     {t.from_addr}
                   </p>
                 </div>
+                {/* v0.13.8 — category chip (or "needs triage" amber chip) */}
+                {t.category ? (
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: CATEGORY_COLORS[t.category] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>
+                    {(CATEGORY_LABEL[t.category] || t.category).split(' ')[0]}
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>
+                    Triage
+                  </span>
+                )}
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusBg, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>
                   {t.status}
                 </span>
@@ -5632,6 +5683,13 @@ function SupportThreadDetail({ threadId, onBack }) {
     refresh();
   };
 
+  // v0.13.8 — category change. NULL value means "remove triage / not yet decided"
+  const setCategory = async (newCategory) => {
+    if (!thread) return;
+    await supabase.from('support_threads').update({ category: newCategory || null }).eq('id', threadId);
+    refresh();
+  };
+
   if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading thread…</p>;
   if (!thread) return (
     <div>
@@ -5661,6 +5719,16 @@ function SupportThreadDetail({ threadId, onBack }) {
           <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>
             {thread.subject || '(no subject)'}
           </h3>
+          {/* v0.13.8 — category chip if set, otherwise an amber Triage chip */}
+          {thread.category ? (
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: CATEGORY_COLORS[thread.category] || G.muted, padding: '3px 9px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+              {CATEGORY_LABEL[thread.category] || thread.category}
+            </span>
+          ) : (
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '3px 9px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+              Needs triage
+            </span>
+          )}
           <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusBg, padding: '3px 9px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
             {thread.status}
           </span>
@@ -5669,8 +5737,19 @@ function SupportThreadDetail({ threadId, onBack }) {
           From <strong style={{ color: G.text }}>{thread.from_name || thread.from_addr}</strong>
           {thread.from_name ? ` <${thread.from_addr}>` : ''}
         </p>
-        {/* Status controls */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Status + category controls */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+          {/* v0.13.8 — category dropdown */}
+          <select
+            value={thread.category || ''}
+            onChange={e => setCategory(e.target.value)}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', color: G.text, outline: 'none' }}
+          >
+            <option value="">{thread.category ? '— remove category —' : 'Triage to…'}</option>
+            {SUPPORT_CATEGORIES.map(c => (
+              <option key={c.id} value={c.id}>{c.l}</option>
+            ))}
+          </select>
           {thread.status !== 'closed' && (
             <div onClick={() => setStatus('closed')} data-tap style={{ padding: '5px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>Close thread</span>

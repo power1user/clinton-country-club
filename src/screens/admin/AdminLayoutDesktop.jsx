@@ -36,6 +36,7 @@ import { G, applyThemeMode } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import SupportBellChip from '../../components/SupportBellChip.jsx';
+import ContactSupportModal from '../../components/ContactSupportModal.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
@@ -72,6 +73,9 @@ export default function AdminLayoutDesktop({
   // v0.11.5 — palette open state. The palette also opens on Cmd+K
   // globally; the SearchTrigger button is a discoverability hint.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // v0.13.8 — Contact Support modal state, triggered from sidebar
+  // footer + topbar ? icon.
+  const [supportOpen, setSupportOpen] = useState(false);
 
   // v0.11.13 — Escape the iPhone-shaped `.phone-frame` shell on
   // desktop/tablet. The phone-frame is a mobile-PWA preview affordance
@@ -502,6 +506,34 @@ export default function AdminLayoutDesktop({
             <span>{theme?.mode === 'dark' ? 'Switch to light' : 'Switch to dark'}</span>
           </div>
 
+          {/* v0.13.8 — Contact Support link. Opens the modal. Admin
+              users only (super_admin / club_manager / club_admin).
+              Members get the existing v0.10.14 surface on MyClub. */}
+          <div
+            onClick={() => setSupportOpen(true)}
+            data-tap
+            style={{
+              marginTop: 8,
+              padding: '6px 4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontFamily: '"Lora",serif',
+              fontSize: 12,
+              color: '#A8D8B8',
+              opacity: 0.78,
+              userSelect: 'none',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+              <path d="M12 17h.01" />
+            </svg>
+            <span>Need help? Contact Support</span>
+          </div>
+
           {/* v0.11.18 — Version + platform attribution. Sits at the
               very bottom of the sidebar so managers can read it off
               the screen to support during a phone call ("we're on
@@ -553,6 +585,27 @@ export default function AdminLayoutDesktop({
         {/* v0.13.5 — support inbox unread chip. Renders only for
             super_admins with pending tickets; otherwise self-hides. */}
         <SupportBellChip />
+        {/* v0.13.8 — help icon. Opens ContactSupportModal. */}
+        <div
+          onClick={() => setSupportOpen(true)}
+          data-tap
+          title="Contact Support"
+          aria-label="Contact Support"
+          style={{
+            cursor: 'pointer',
+            width: 36, height: 36,
+            borderRadius: '50%',
+            border: '1.5px solid rgba(122,172,136,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8D8B8" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+            <path d="M12 17h.01" />
+          </svg>
+        </div>
         <BellChip />
       </header>
 
@@ -569,6 +622,9 @@ export default function AdminLayoutDesktop({
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
       />
+
+      {/* v0.13.8 — Contact Support modal. Hidden until supportOpen flips true. */}
+      <ContactSupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       {/* ─── Main content ─── */}
       <main style={{

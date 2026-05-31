@@ -164,6 +164,68 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.8** — Categorization + in-app Contact Support modal.
+
+  Two improvements Marc asked for after the first end-to-end test:
+  ticket categorization (so enhancement requests stop disappearing
+  into a pile of help tickets) and an in-app way for admins to
+  reach out — vs hoping they remember the address.
+
+  **Categorization:**
+
+  - **Migration 71** adds `support_threads.category` text column
+    with a CHECK constraint of 5 values: `user_help`, `admin_help`,
+    `bug`, `enhancement`, `other`. NULL = "needs triage" (default
+    for inbound emails — we can't auto-detect from a random email).
+  - **Two hot-path indexes** so filtered views (`active
+    enhancements`, `open bugs`) stay sub-50ms even as the backlog
+    grows: `(category, last_message_at DESC)` for category views
+    and a partial index `WHERE category IS NULL` for the triage
+    queue.
+  - **Thread list UI**: a second row of filter pills below the
+    Active/All/Closed row — `All categories`, `Needs triage`, and
+    one pill per category, each color-coded. Header line shows the
+    untriaged count in brass when > 0 so it visually pulls the
+    eye. Each thread row gets a category chip (or amber "Triage"
+    chip if uncategorized) next to the status pill.
+  - **Thread detail UI**: a `<select>` dropdown next to the
+    Close/Reopen button lets you triage (or re-triage) a thread
+    in one click. The header pill flips from amber "Needs triage"
+    to the category's color.
+  - **Enhancement requests are now first-class backlog** — they
+    stay `status='open'` indefinitely while you knock them out,
+    rather than getting closed as "answered" the way a user-help
+    ticket would.
+
+  **In-app Contact Support:**
+
+  - **`ContactSupportModal` component** opens from two new
+    entry points in the desktop admin: a "Need help? Contact
+    Support" link in the sidebar footer (below the dark-mode
+    toggle), and a help-circle `?` icon in the top bar between
+    the search trigger and the bell chips.
+  - **Form**: category picker (color-chip pills) + Subject +
+    Message. Auto-captures the user's club, current URL, and
+    browser user-agent as a footer on the message body — useful
+    later when you're triaging "X doesn't work on my phone."
+  - **`submit-support-ticket` Edge Function (v1 deployed)**:
+    admin-role auth (super_admin OR club_manager / club_admin
+    at the user's club, matching the v0.13.7 `club_id` fix from
+    the start), resolves sender identity from the user's
+    `members.email` (with `auth.users.email` fallback for
+    super_admins not registered as members), creates the
+    `support_threads` row WITH category set up front (no
+    triage step needed) plus the initial `support_messages`
+    row. The v0.13.2 push trigger fires automatically — you
+    get the notification just like an emailed-in ticket.
+  - **Member scope unchanged**: the existing v0.10.14 Help &
+    Support member-side surface keeps working as before. The
+    in-app modal is admin-only.
+  - **Discoverability copy**: the modal includes "Or email
+    `support@groundslive.com` directly" as a fallback for power
+    users who prefer email; the sidebar footer link spells out
+    the contact path in plain English.
+
 - **v0.13.7** — Hotfix: support reply 401 "super_admin required".
 
   Marc's first live test of Phase 14 sent an email to
