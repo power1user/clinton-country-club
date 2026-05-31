@@ -164,6 +164,49 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.9** — Fix: custom facilities never got a `club_status` row.
+
+  Marc added Tennis Court (custom) at Clinton CC, marked it active
+  in Facilities Admin, and noticed it never appeared on the member
+  home screen as a status pill.
+
+  **Root cause.** Since v0.9.15, member-facing surfaces read from
+  `club_status` and join to `club_facilities` via `facility_id`.
+  The original 5 default facilities came pre-paired with
+  `club_status` rows by migration 53. But **`FacilitiesAdmin`'s
+  "+ Add facility" flow only inserts into `club_facilities`** — it
+  never creates the matching `club_status` row. Result: a custom
+  facility exists in the catalog but is invisible to
+  `useClubStatus()`, `DailyStatusAdmin`, `FacilityHoursAdmin`, and
+  the home screen pills. The toggles in Facilities Admin appeared
+  functional (the catalog row's `active` flag flipped fine) but
+  triggered no observable change anywhere else.
+
+  **Migration 72** lands a two-part fix:
+
+  1. **`fn_create_status_for_facility()` trigger** on
+     `club_facilities AFTER INSERT` auto-creates a matching
+     `club_status` row with `state='open'` defaults, mirroring the
+     `facility_key`, `display_name`, and `sort_order` from the
+     catalog entry. `ON CONFLICT (club_id, category) DO UPDATE`
+     so existing rows get their `facility_id` backfilled if it was
+     missing — handles edge cases without crashing.
+  2. **Backfill** for every orphaned facility already in the wild
+     (Tennis Court at Clinton CC, plus the inactive customs
+     Driving Range / Golf Simulator / Pickleball Court — gives
+     them status rows that'll just sit dormant until activated).
+
+  After this migration:
+  - Tennis Court appears on Clinton's home screen as a 6th pill
+    immediately (realtime sub picks up the new row).
+  - Future custom facilities at any club work end-to-end from the
+    "+ Add" click — no manual SQL, no follow-up step.
+  - The inactive customs stay hidden from members (Home filters
+    by `active !== false`) but already have rows ready for the
+    moment a manager flips their toggle.
+
+  No client code change required. Pure server hotfix.
+
 - **v0.13.8** — Categorization + in-app Contact Support modal.
 
   Two improvements Marc asked for after the first end-to-end test:
