@@ -37,6 +37,7 @@ import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
 import SupportBellChip from '../../components/SupportBellChip.jsx';
 import ContactSupportModal from '../../components/ContactSupportModal.jsx';
+import AdminAIChatModal from '../../components/AdminAIChatModal.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
@@ -76,6 +77,10 @@ export default function AdminLayoutDesktop({
   // v0.13.8 — Contact Support modal state, triggered from sidebar
   // footer + topbar ? icon.
   const [supportOpen, setSupportOpen] = useState(false);
+  // v0.14.2 — Admin AI chat modal state, triggered from new topbar
+  // chat-bubble icon. Separate from Contact Support so the human
+  // escape hatch is always available alongside the AI.
+  const [aiOpen, setAiOpen] = useState(false);
 
   // v0.11.13 — Escape the iPhone-shaped `.phone-frame` shell on
   // desktop/tablet. The phone-frame is a mobile-PWA preview affordance
@@ -585,6 +590,28 @@ export default function AdminLayoutDesktop({
         {/* v0.13.5 — support inbox unread chip. Renders only for
             super_admins with pending tickets; otherwise self-hides. */}
         <SupportBellChip />
+        {/* v0.14.2 — GroundsLive Admin AI chat. Brass-accented chat
+            bubble icon to distinguish from the support ? icon next
+            to it. Click opens AdminAIChatModal. */}
+        <div
+          onClick={() => setAiOpen(true)}
+          data-tap
+          title="Ask GroundsLive AI"
+          aria-label="Ask GroundsLive AI"
+          style={{
+            cursor: 'pointer',
+            width: 36, height: 36,
+            borderRadius: '50%',
+            border: `1.5px solid rgba(212,175,108,0.5)`,
+            background: 'rgba(212,175,108,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#D4AF6C" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          </svg>
+        </div>
         {/* v0.13.8 — help icon. Opens ContactSupportModal. */}
         <div
           onClick={() => setSupportOpen(true)}
@@ -625,6 +652,9 @@ export default function AdminLayoutDesktop({
 
       {/* v0.13.8 — Contact Support modal. Hidden until supportOpen flips true. */}
       <ContactSupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
+
+      {/* v0.14.2 — Admin AI chat modal. Hidden until aiOpen flips true. */}
+      <AdminAIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
 
       {/* ─── Main content ─── */}
       <main style={{

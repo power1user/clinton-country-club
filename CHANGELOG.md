@@ -164,6 +164,72 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.2** — Admin AI chat UI in the admin topbar.
+
+  Marc finally gets to actually talk to GroundsLive Admin AI. New
+  brass-accented chat-bubble icon in the admin topbar (between the
+  Support bell and the existing `?` icon) opens
+  **`AdminAIChatModal`** — a multi-turn chat surface against the
+  `admin-ai-chat` Edge Function deployed in v0.14.1.
+
+  **`AdminAIChatModal` features:**
+  - **720px wide, 85vh tall** modal with a "GroundsLive Admin AI"
+    header and subtitle ("Ask anything about managing The Grounds").
+  - **Multi-turn conversation** with client-side `conversation_id`
+    (UUID generated once per modal mount) sent on every request so
+    `ai_usage_log` rows group cleanly. Closing + reopening starts a
+    fresh conversation.
+  - **Inline markdown renderer** (~60 lines, no npm dep) handles
+    headings, bold, italic, inline code, fenced code blocks,
+    ordered/unordered lists, blockquotes, and HTTP links. HTML
+    escaping first — links open in a new tab with
+    \`rel="noreferrer noopener"\`.
+  - **Empty state** shows 4 starter chip suggestions ("How do I add
+    a recurring event?", "Where do I set facility hours?", "How do I
+    reply to a food order?", "How do I add a custom facility like
+    Pickleball?") — clicking one fires it as the first message.
+  - **User messages** right-aligned in green bubbles; **AI replies**
+    left-aligned in card bubbles with markdown rendering.
+  - **Cost shown to super_admin only** as a tiny italic line under
+    each AI reply ("¢0.07 · haiku-4.5"). Managers + club_admins
+    don't see it — admin AI is platform-billed and not their
+    concern.
+  - **"Thinking…" state** in a left-aligned bubble while the
+    request is in flight.
+  - **Error handling** renders errors in a red-tinted bar (covers
+    503 no-key, 502 Anthropic error, 401 auth, network).
+  - **Composer** at the bottom: textarea + send button. Enter to
+    send, Shift+Enter for newline. Auto-grows up to 4 rows. Send
+    button disabled when empty or busy.
+  - **Esc to close** the modal. Auto-focus the textarea on open.
+  - **Disclaimer** strip at the bottom of the composer:
+    "AI may be wrong about details. For account-level changes use
+    the **?** icon to contact a human."
+
+  **Topbar integration** (\`AdminLayoutDesktop.jsx\`):
+  - New chat-bubble icon (brass-tinted) inserted between the
+    Support bell chip and the existing \`?\` icon.
+  - Both surfaces preserved: \`?\` continues to open
+    \`ContactSupportModal\` (the human escape hatch), the new icon
+    opens \`AdminAIChatModal\`. Marc can route a confusing
+    question to a human at any point.
+
+  **What it costs in practice:**
+  At Haiku 4.5 pricing with the v0.14.1 prompt cache engaged, a
+  typical 3–5 turn conversation runs ~¢1–2 per session. Marc's
+  expected platform volume (~50 admin questions/day) puts admin AI
+  in the \$9/month range — well inside what The Grounds absorbs as
+  part of supporting managers.
+
+  **What's next:**
+  - v0.14.3 — Super_admin usage dashboard (per-club spend, top
+    question categories, cache-hit rate, total platform cost).
+  - v0.14.4 — Admin enable/disable toggle in Club Settings (in
+    case a manager wants to hide the AI for their staff during a
+    learning curve).
+  - v0.14.5+ — Member AI: floating bubble on member surfaces,
+    gated by \`clubs.member_ai_enabled\`.
+
 - **v0.14.1** — Admin manual content + cached system prompt.
 
   Drafted a comprehensive admin manual from the codebase
