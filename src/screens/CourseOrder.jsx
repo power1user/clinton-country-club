@@ -4,6 +4,7 @@ import { useNav, priceToNumber } from '../hooks/useNav.jsx';
 import { BackHeader, SectionHead } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useBrand } from '../hooks/useBrand.jsx';
+import { useFlag } from '../hooks/useFlag.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import { useAnalytics } from '../hooks/useAnalytics.js';
 import PendingGuard from '../components/PendingGuard.jsx';
@@ -50,6 +51,12 @@ export default function CourseOrder() {
   const { club, member, canMemberWrite } = useAuth();
   const brand = useBrand();
   const { trackEvent } = useAnalytics();
+  // v0.12.5 — pickup-time picker is now manager-opt-in. Default off
+  // (the catalog default) — when off, the picker section disappears
+  // and orders submit with requested_pickup_time = null (kitchen
+  // queue treats null as ASAP, same as if the member tapped the
+  // ASAP chip explicitly).
+  const pickupTimeOn = useFlag('food_pickup_time');
   const [orderType, setOrderType] = useState('to_go');
   const [hole, setHole] = useState(null);
   const [pickupTime, setPickupTime] = useState(''); // ISO string when set; '' = ASAP
@@ -228,8 +235,11 @@ export default function CourseOrder() {
         )}
 
         {/* Pickup / arrival time — optional for both types. Blank =
-            "fire whenever it bubbles up the queue." */}
-        {cart.length > 0 && (
+            "fire whenever it bubbles up the queue."
+            v0.12.5 — gated behind the food_pickup_time flag. Off by
+            default; manager opts in from Features → Dining when the
+            club wants the call-ahead window. */}
+        {cart.length > 0 && pickupTimeOn && (
           <div style={{ marginBottom: 20 }}>
             <SectionHead label={orderType === 'eat_in' ? 'When would you like to be seated?' : 'When would you like to pick up?'} />
             <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 10px' }}>

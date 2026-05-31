@@ -129,6 +129,20 @@ export const FEATURES = {
     default_enabled: true,
     category:        'Dining',
   },
+  // v0.12.5 — opt-in pickup-time picker at checkout. Default OFF —
+  // most clubs prefer "kitchen fires it whenever it bubbles up the
+  // queue" and the picker just adds a clarification step. Clubs
+  // running a tighter pickup operation (call-ahead window, beverage-
+  // cart sequencing, member-club-grill busy times) can flip this
+  // on from Features and the picker re-appears on the order screen.
+  food_pickup_time: {
+    key:             'food_pickup_time',
+    label:           'Food Order Pickup Time',
+    description:     "Show the \"When would you like to pick up?\" / \"When would you like to be seated?\" time picker at checkout. Off = orders are ASAP only (kitchen fires whenever the ticket bubbles up).",
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'Dining',
+  },
 
   // ─── Community ─────────────────────────────────────────────────────
   bulletin_board: {

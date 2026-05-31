@@ -129,6 +129,27 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.5** — Food order pickup-time picker → manager-toggleable flag.
+
+  Marc's feedback: most clubs treat the pickup-time picker as
+  noise — orders just fire whenever the ticket bubbles up. New
+  flag `food_pickup_time` in the Features catalog under Dining,
+  **default off**. When off, the "When would you like to pick
+  up?" / "When would you like to be seated?" picker section is
+  hidden on the order screen; orders submit with
+  `requested_pickup_time = null`, which the kitchen queue
+  already renders as "ASAP" (the v0.10.18 to-go/eat-in pivot
+  added the null fallback). Clubs running a tighter pickup
+  operation (call-ahead window, beverage-cart sequencing) flip
+  it on from Admin → Club Settings → Features.
+
+  No migration needed. The flag-resolution chain
+  (tier-lock → platform-lock → club override → catalog default)
+  means any club without an explicit `feature_flags.food_pickup_time`
+  override falls back to the catalog default of false. Every
+  active club gets the picker hidden on next refresh; opt-in is
+  one toggle for any club that wants it back.
+
 - **v0.12.4** — Phase 13 closeout (README refresh + phase index update).
 
   README refreshed at the v0.12.x minor: intro paragraph updated to
