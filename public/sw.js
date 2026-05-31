@@ -9,6 +9,25 @@ self.addEventListener('push', (event) => {
   try { payload = event.data ? event.data.json() : {}; } catch (_) {}
 
   const title = payload.title || 'New message';
+  // v0.11.37 — Pick a tag from the most specific available identifier
+  // in the payload's data bag. Pre-v0.11.37 only checked threadId,
+  // which left broadcasts with `tag: undefined`. The spec says
+  // `renotify: true` REQUIRES a `tag` — without one, showNotification
+  // throws a TypeError and silently drops the push. That was the
+  // exact reason Marc's admin broadcasts never displayed even though
+  // the push pipeline returned `{sent: N, failed: 0}`.
+  //
+  // Order of preference:
+  //   · threadId    → dedupe within a single chat thread
+  //   · broadcastId → dedupe within a single admin broadcast
+  //   · kind        → coarse bucket per category (broadcast / order /
+  //                    clubhouse / dm) — only used if neither id is
+  //                    present
+  //   · 'general'   → catch-all so we never end up undefined
+  const tag = payload.data?.threadId
+    || payload.data?.broadcastId
+    || payload.data?.kind
+    || 'general';
   const options = {
     body: payload.body || '',
     // v0.8.6: use the branded Grounds icon for push notifications
@@ -17,7 +36,7 @@ self.addEventListener('push', (event) => {
     icon: payload.icon || '/grounds-icon.png',
     badge: payload.badge || '/grounds-icon.png',
     data: payload.data || {},
-    tag: payload.data?.threadId || undefined,   // dedupe pushes for the same thread
+    tag,
     renotify: true,
   };
   event.waitUntil(self.registration.showNotification(title, options));

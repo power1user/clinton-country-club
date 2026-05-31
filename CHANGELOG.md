@@ -103,6 +103,41 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+- **v0.11.37** — Fix: service worker silently dropped broadcast pushes.
+
+  The final piece of the v0.11.34 urgent-push saga. Even after the
+  Edge Function correctly delivered broadcasts to the push services
+  (`{sent: N, failed: 0}`), Marc's phone showed nothing while food
+  orders pushed fine.
+
+  Root cause in `/public/sw.js`:
+  ```js
+  tag: payload.data?.threadId || undefined,
+  renotify: true,
+  ```
+
+  The Web Push spec says `renotify: true` REQUIRES `tag` to be set.
+  Setting `renotify: true` with `tag: undefined` causes
+  `showNotification()` to throw a TypeError — and the resulting
+  promise rejection in `event.waitUntil(...)` silently drops the
+  notification without surfacing the error.
+
+  Thread messages (food orders, clubhouse, DMs) always have a
+  `threadId` so `tag` was always defined — they worked. Broadcasts
+  carry `data.broadcastId` + `data.kind` but no `threadId` — so they
+  hit the undefined path and showed nothing.
+
+  Fix: `tag` now falls back through several candidate identifiers:
+  `threadId → broadcastId → kind → 'general'`. Never undefined,
+  spec contract honored, push always displays.
+
+  **Important — service worker update requires page reload.**
+  Service workers don't hot-replace; the new sw.js takes effect on
+  next page load + reload. On Android Chrome, close the PWA, reopen
+  it, then send a test broadcast. On a stuck cache, force-update via
+  Chrome's `chrome://serviceworker-internals` page or uninstall +
+  reinstall the PWA.
+
 - **v0.11.36** — Grounds platform mark + admin identity in sidebar.
 
   Two visual additions to the desktop admin sidebar:
