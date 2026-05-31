@@ -48,11 +48,12 @@ async function checkSuperAdmin(authHeader: string): Promise<{ ok: boolean; user_
   });
   const { data: u } = await sb.auth.getUser();
   if (!u?.user) return { ok: false, error: "invalid token" };
+  // v0.13.7 hotfix — The Grounds names the tenant column `club_id`.
   const { data: roles } = await sb
     .from("user_roles")
-    .select("role, tenant_id")
+    .select("role, club_id")
     .eq("user_id", u.user.id);
-  const isSuper = (roles || []).some((r: any) => r.role === "super_admin" && r.tenant_id === null);
+  const isSuper = (roles || []).some((r: any) => r.role === "super_admin" && r.club_id === null);
   if (!isSuper) return { ok: false, error: "super_admin required" };
   return { ok: true, user_id: u.user.id };
 }

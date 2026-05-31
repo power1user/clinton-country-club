@@ -164,6 +164,38 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.7** — Hotfix: support reply 401 "super_admin required".
+
+  Marc's first live test of Phase 14 sent an email to
+  `support@groundslive.com`, watched the row land in the admin
+  thread view (the inbound pipeline works end-to-end ✅), typed a
+  reply, hit Send → got `"super_admin required"`.
+
+  **Root cause.** Both `send-support-reply` and
+  `manage-support-destinations` Edge Functions baked in the
+  supabase-rbac skill's *generic* column name `tenant_id` for the
+  super_admin check:
+  ```ts
+  .select("role, tenant_id")
+  ... && r.tenant_id === null
+  ```
+  The Grounds' actual `user_roles` schema names it **`club_id`**.
+  PostgREST silently returned rows without the requested column;
+  the `r.tenant_id === null` check passed trivially (undefined ===
+  null is false), so no row ever matched and every super_admin was
+  rejected.
+
+  **Fix.** Both Edge Functions redeployed with `club_id` instead of
+  `tenant_id`. Reply send works; destination-management admin UI
+  (Platform → Support → Team) also unblocked.
+
+  **Lesson** (captured separately in the `supabase-rbac` skill):
+  when adapting the skill's templates to a real project, the
+  tenant column name has to be search-and-replaced everywhere the
+  template uses `tenant_id`. The skill calls this out in the
+  decision section but didn't strongly enough flag it as a
+  silent-failure mode.
+
 - **v0.13.6** — Attachments + Phase 14 closeout.
 
   **Attachments — full inbound + admin download:**
