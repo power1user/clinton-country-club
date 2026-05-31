@@ -5407,6 +5407,7 @@ function SupportThreadList({ onOpen }) {
   const [reads, setReads] = useState({});      // thread_id → read_at
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('open'); // 'open' / 'all' / 'closed'
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -5430,6 +5431,21 @@ function SupportThreadList({ onOpen }) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
+  }, [session?.user?.id, version]);
+
+  // v0.13.5 — realtime subscription on support_threads + support_messages
+  // so the list reflects new tickets / state changes without a manual
+  // refresh. Triggers a re-fetch via the version counter rather than
+  // mutating in place — keeps the reload logic in one place.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const ch = supabase
+      .channel(`support_list:${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_threads' }, () => setVersion(v => v + 1))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages' }, () => setVersion(v => v + 1))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_reads', filter: `user_id=eq.${session.user.id}` }, () => setVersion(v => v + 1))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [session?.user?.id]);
 
   const filtered = threads.filter(t => {
@@ -5553,6 +5569,18 @@ function SupportThreadDetail({ threadId, onBack }) {
     })();
     return () => { cancelled = true; };
   }, [threadId, version, session?.user?.id]);
+
+  // v0.13.5 — realtime: if a new message lands on this thread while
+  // open (the recipient replied right back), bump version to re-fetch.
+  useEffect(() => {
+    if (!threadId) return;
+    const ch = supabase
+      .channel(`support_thread:${threadId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages', filter: `thread_id=eq.${threadId}` }, () => refresh())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_threads', filter: `id=eq.${threadId}` }, () => refresh())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [threadId]);
 
   const sendReply = async () => {
     setErr(null);

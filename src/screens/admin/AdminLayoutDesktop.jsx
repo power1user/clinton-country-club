@@ -35,6 +35,7 @@ import { useEffect, useState } from 'react';
 import { G, applyThemeMode } from '../../theme.js';
 import { useNav } from '../../hooks/useNav.jsx';
 import BellChip from '../../components/BellChip.jsx';
+import SupportBellChip from '../../components/SupportBellChip.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
@@ -549,6 +550,9 @@ export default function AdminLayoutDesktop({
         {/* v0.11.5 — global search trigger. Cmd+K opens the palette
             globally too; this button is the discoverability hint. */}
         <SearchTrigger onClick={() => setPaletteOpen(true)} />
+        {/* v0.13.5 — support inbox unread chip. Renders only for
+            super_admins with pending tickets; otherwise self-hides. */}
+        <SupportBellChip />
         <BellChip />
       </header>
 

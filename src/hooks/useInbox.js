@@ -104,20 +104,53 @@ export function useInboxUnread() {
   // that have the API but haven't been granted notification permission
   // (badge requires a granted push permission on iOS 16.4+).
   //
-  // Visible payoff is on installed Android PWAs (Chrome / Edge / Brave
-  // on Android, plus desktop Chrome / Edge): the launcher icon gets a
-  // small unread count badge, same UX members get from native messaging
-  // apps. Idempotent — calling with the same count is cheap.
+  // v0.13.5: super_admins ALSO get their support_unread folded into
+  // the OS badge total. The bell chip itself stays member-side (the
+  // separate SupportBellChip in the admin top bar carries the support
+  // number visually) — but at the OS level there's only one badge per
+  // app, so we combine the totals here.
+  const supportUnread = useSupportUnreadForBadge();
+  const totalForBadge = unread + supportUnread;
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
-    if (unread > 0) {
-      navigator.setAppBadge(unread).catch(() => { /* permission not granted / unsupported context */ });
+    if (totalForBadge > 0) {
+      navigator.setAppBadge(totalForBadge).catch(() => { /* permission not granted / unsupported context */ });
     } else {
       navigator.clearAppBadge?.().catch(() => { /* same */ });
     }
-  }, [unread]);
+  }, [totalForBadge]);
 
   return unread;
+}
+
+// Local helper — avoids a circular import between useInbox and
+// useSupportUnread. Mirrors the support_unread_count() RPC + realtime
+// subscription, but only for super_admins. Returns 0 for everyone else
+// so the badge math is a clean addition.
+function useSupportUnreadForBadge() {
+  const { session, isSuperAdmin } = useAuth();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!isConfigured || !session?.user?.id || !isSuperAdmin) {
+      setCount(0);
+      return;
+    }
+    let cancelled = false;
+    const recount = async () => {
+      const { data, error } = await supabase.rpc('support_unread_count');
+      if (cancelled || error) return;
+      setCount(typeof data === 'number' ? data : Number(data) || 0);
+    };
+    recount();
+    const channel = supabase
+      .channel(`support_badge:${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages' }, () => recount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_reads', filter: `user_id=eq.${session.user.id}` }, () => recount())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_threads' }, () => recount())
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [session?.user?.id, isSuperAdmin]);
+  return count;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

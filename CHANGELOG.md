@@ -164,6 +164,42 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.5** — Support unread: bell + OS app-badge + realtime everywhere.
+
+  Four pieces of "the badge is alive" wire-up shipped together:
+
+  · **New hook `useSupportUnread`** — calls
+    `support_unread_count()` RPC (from migration 66), subscribes
+    to realtime on `support_messages` + `support_reads` +
+    `support_threads` so the count updates without polling.
+    Gracefully returns 0 for any non-super_admin caller (RLS
+    hides every relevant row anyway).
+
+  · **New `SupportBellChip` component** — brass-tinted envelope
+    icon with red unread count, sits next to the existing
+    green `BellChip` in the desktop admin top bar. Only renders
+    for super_admins with `count > 0` — keeps the bar clean
+    when there's nothing to do. Click → navigates to
+    Platform → Support (same URL the push deep-link uses).
+
+  · **OS app-badge sync extended** — `useInboxUnread` now folds
+    the support count into the `navigator.setAppBadge(total)`
+    call for super_admins. There's only one badge per
+    installed-PWA icon on the OS, so we combine member-side
+    inbox unread + support unread into a single total. The
+    member-side `BellChip` count stays unchanged (still shows
+    just the inbox total) — the OS badge is the only surface
+    that combines them.
+
+  · **Realtime in the SupportInboxTab itself** — both the
+    thread list and the open thread detail subscribe to
+    `support_messages` / `support_threads` postgres_changes.
+    When a fresh ticket comes in while the inbox is open, the
+    list reflects it without a manual refresh. When the
+    recipient hits Reply right after your reply lands, the
+    new inbound message appears in the open thread view
+    within ~1 second.
+
 - **v0.13.4** — Admin UI: Platform → Support → Inbox thread view.
 
   The visible payoff for the whole inbound + outbound stack
