@@ -625,11 +625,21 @@ function ComposeNotificationModal({ club, authorId, onClose, onSaved }) {
 // to see everything.
 // ============================================================
 export function FoodOrdersAdmin() {
-  const { club, hasPerm } = useAuth();
+  const { club, hasPerm, session } = useAuth();
   const canEdit = hasPerm('can_edit_orders');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  // v0.12.1 — Kitchen reply state. Per-order maps keyed by order id so
+  // multiple cards can have open composers / pending sends without
+  // clobbering each other. Replies post into the order's existing
+  // auto-thread (the one the database trigger spins up on order
+  // insert); the existing fn_send_push_on_message trigger then fires
+  // the push notification to the member. No new schema needed.
+  const [replyOpen, setReplyOpen] = useState({});      // id → bool
+  const [replyText, setReplyText] = useState({});      // id → string
+  const [replyBusy, setReplyBusy] = useState({});      // id → bool
+  const [replyStatus, setReplyStatus] = useState({});  // id → 'sent'|'error'|'no-thread'|null
 
   useEffect(() => {
     if (!club) return;
@@ -683,6 +693,55 @@ export function FoodOrdersAdmin() {
         // still happened. Push is the secondary signal; the order
         // queue is the source of truth.
       } catch (_) { /* tolerate failure — status update is what matters */ }
+    }
+  };
+
+  // v0.12.1 — Kitchen reply handler. Posts a message into the order's
+  // existing auto-thread (context_table='food_orders', context_id=order.id).
+  // Sender is the current staff user — the in-app inbox shows the staff
+  // name + the existing v0.10.9 push pipeline includes sender_label so
+  // the member's lock screen reads "Chef Sarah · Your order…" rather
+  // than a generic clubhouse notification.
+  const sendReply = async (orderId) => {
+    const text = (replyText[orderId] || '').trim();
+    if (!text) return;
+    setReplyBusy(p => ({ ...p, [orderId]: true }));
+    setReplyStatus(p => ({ ...p, [orderId]: null }));
+    try {
+      const { data: thread } = await supabase
+        .from('threads')
+        .select('id')
+        .eq('context_table', 'food_orders')
+        .eq('context_id', orderId)
+        .maybeSingle();
+      if (!thread?.id) {
+        // Defensive: if for some reason the per-order thread wasn't
+        // created (legacy data, trigger disabled, etc.), surface a
+        // visible no-op rather than silently dropping the message.
+        setReplyStatus(p => ({ ...p, [orderId]: 'no-thread' }));
+        return;
+      }
+      const { error } = await supabase.from('messages').insert({
+        thread_id: thread.id,
+        sender_user_id: session?.user?.id,
+        body: text,
+      });
+      if (error) throw error;
+      setReplyText(p => ({ ...p, [orderId]: '' }));
+      setReplyOpen(p => ({ ...p, [orderId]: false }));
+      setReplyStatus(p => ({ ...p, [orderId]: 'sent' }));
+      // Auto-clear the "sent" pill after a few seconds so the card
+      // returns to its idle state.
+      setTimeout(() => {
+        setReplyStatus(p => {
+          if (p[orderId] !== 'sent') return p;
+          const n = { ...p }; delete n[orderId]; return n;
+        });
+      }, 2500);
+    } catch (_) {
+      setReplyStatus(p => ({ ...p, [orderId]: 'error' }));
+    } finally {
+      setReplyBusy(p => ({ ...p, [orderId]: false }));
     }
   };
 
@@ -784,14 +843,80 @@ export function FoodOrdersAdmin() {
           {r.subtotal != null && (
             <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: '4px 0 8px' }}>Total: ${Number(r.subtotal).toFixed(2)}</p>
           )}
-          <select
-            value={r.status}
-            onChange={e => setStatus(r, e.target.value)}
-            disabled={!canEdit}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
-          >
-            {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
-          </select>
+          {/* v0.12.1 — Status select + Reply button on one row. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <select
+              value={r.status}
+              onChange={e => setStatus(r, e.target.value)}
+              disabled={!canEdit}
+              style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+            >
+              {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
+            </select>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setReplyOpen(p => ({ ...p, [r.id]: !p[r.id] }))}
+                style={{
+                  padding: '6px 12px', border: `1px solid ${G.border}`, borderRadius: 3,
+                  fontFamily: '"Lora",serif', fontSize: 12, background: replyOpen[r.id] ? G.brass : G.bg,
+                  color: replyOpen[r.id] ? '#F2E5C0' : G.text, cursor: 'pointer', fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                {replyOpen[r.id] ? 'Cancel' : 'Reply'}
+              </button>
+            )}
+            {replyStatus[r.id] === 'sent' && (
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontStyle: 'italic', color: G.green }}>Message sent ✓</span>
+            )}
+            {replyStatus[r.id] === 'error' && (
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontStyle: 'italic', color: G.clsDot }}>Could not send — try again.</span>
+            )}
+            {replyStatus[r.id] === 'no-thread' && (
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, fontStyle: 'italic', color: G.clsDot }}>No reply thread for this order.</span>
+            )}
+          </div>
+          {/* v0.12.1 — Inline reply composer. Member gets a push +
+              inbox entry via the existing send-push pipeline. */}
+          {replyOpen[r.id] && (
+            <div style={{ marginTop: 10, padding: 10, background: '#F8F4EC', border: `1px solid ${G.border}`, borderRadius: 4 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px', fontStyle: 'italic' }}>
+                Reply to {r.members?.name || 'this member'}. They'll get a push notification and see it in their inbox.
+              </p>
+              <textarea
+                value={replyText[r.id] || ''}
+                onChange={e => setReplyText(p => ({ ...p, [r.id]: e.target.value }))}
+                placeholder="Type your message…"
+                rows={2}
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '8px 10px',
+                  border: `1px solid ${G.border}`, borderRadius: 3,
+                  fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
+                  background: '#FFFDF7', resize: 'vertical', minHeight: 50, lineHeight: 1.4,
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => sendReply(r.id)}
+                  disabled={replyBusy[r.id] || !(replyText[r.id] || '').trim()}
+                  style={{
+                    padding: '6px 16px', border: 'none', borderRadius: 3,
+                    fontFamily: '"Lora",serif', fontSize: 12, fontWeight: 500,
+                    background: ((replyText[r.id] || '').trim() && !replyBusy[r.id]) ? G.green : G.muted,
+                    color: '#F2E5C0',
+                    cursor: ((replyText[r.id] || '').trim() && !replyBusy[r.id]) ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {replyBusy[r.id] ? 'Sending…' : 'Send'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         );
       })}

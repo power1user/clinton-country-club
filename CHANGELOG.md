@@ -129,6 +129,30 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.1** — Kitchen reply on Food Orders queue.
+
+  Each active order card now has a **Reply** button next to the
+  status select. Open it inline → textarea + Send → the kitchen's
+  message lands in the member's inbox + fires a push notification
+  with the staff sender label ("Chef Sarah · …"), reusing the
+  send-push pipeline from v0.10.9 and the per-order thread the
+  database creates on order insert.
+
+  Why it matters: the round-trip used to be "kitchen flips status
+  to ready_for_pickup → member gets a canned 'your order is ready'
+  push." Anything beyond that (out of an ingredient, swap the side,
+  push back pickup 10 min) required calling the member or hoping
+  they checked back. Now the kitchen replies in-place from the same
+  card they're already touching for status. The composer auto-
+  clears + collapses on send and shows "Message sent ✓" for 2.5s
+  so the operator knows the message went out without losing their
+  place in the queue.
+
+  No schema change. The reply posts into the existing
+  `threads` row (`context_table='food_orders'`, `context_id=order.id`)
+  with `sender_user_id = current staff auth.uid()`, so the existing
+  `fn_send_push_on_message` trigger fires the push automatically.
+
 - **v0.12.0** — Phase 13 opens: Food Orders → Dining + Event RSVPs accordion.
 
   Two restructures land together because they both reshape the
