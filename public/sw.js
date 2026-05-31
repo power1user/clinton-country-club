@@ -45,12 +45,23 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';
+  const kind = event.notification.data?.kind;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Focus an existing tab if one is open, otherwise open a new one
+      // Focus an existing tab if one is open, otherwise open a new one.
+      // v0.13.2 — postMessage now carries `kind` + `url` so the page
+      // can route correctly. Support pushes (kind='support') deep-link
+      // to the Platform → Support admin section; thread pushes
+      // (kind='order' / 'clubhouse' / 'dm') open the in-app inbox
+      // thread view as before.
       for (const c of clients) {
         if (c.url.includes(self.location.origin) && 'focus' in c) {
-          c.postMessage({ type: 'open-thread', threadId: event.notification.data?.threadId });
+          c.postMessage({
+            type: 'open-thread',
+            kind,
+            threadId: event.notification.data?.threadId,
+            url: targetUrl,
+          });
           return c.focus();
         }
       }

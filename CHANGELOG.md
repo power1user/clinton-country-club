@@ -164,6 +164,43 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.2** — Push fan-out for support tickets.
+
+  Every inbound support email now fires a Web Push to every
+  super_admin's installed PWA. Tap the notification → opens the
+  Platform → Support thread view (deep-linked URL once v0.13.4
+  lands the UI; renders the v0.13.1 placeholder until then).
+
+  **Migration 68** — `fn_send_push_on_support_message()` trigger
+  on `support_messages` AFTER INSERT, gated to `direction='in'`
+  only so the super_admin's own outbound replies don't push back
+  at them. Same pg_net.http_post → send-push pattern as
+  `fn_send_push_on_message` / `fn_send_push_on_broadcast`.
+
+  **send-push v9 deployed** (deploy version 14):
+  - New `handleSupportTicket` branch dispatched on
+    `payload.table === 'support_messages'`.
+  - Resolves recipients by querying `user_roles WHERE
+    role='super_admin' AND tenant_id IS NULL` — every super
+    admin on the platform receives the push.
+  - Title: `Support · <from_name or from_addr>`.
+  - Body: `<subject> — <first 120 chars of body_text>`.
+  - `data.url = /admin/?area=platform&section=support&thread=<id>`
+    so cold-load opens the right admin surface.
+  - `data.kind = 'support'` lets the SW route correctly when a
+    PWA tab is already open.
+  - 12-hour TTL — support is time-sensitive but doesn't need the
+    24-hour urgent-broadcast queue.
+
+  **Service worker update** — `notificationclick` handler now
+  postMessages `{kind, url}` alongside `threadId` so the React
+  page can branch on `kind === 'support'` and navigate to the
+  admin URL instead of trying to open a member-side inbox thread.
+
+  ⚠ **Service worker update requires PWA reload** to take effect
+  — SWs don't hot-replace. Close + reopen the PWA on iOS/Android,
+  or hard-refresh on desktop.
+
 - **v0.13.1** — Support destinations: app-managed forward list.
 
   Marc's instinct caught a real wart in v0.13.0: the Cloudflare
