@@ -83,8 +83,10 @@ const DEFAULT_WORKSPACES = [
   {
     id: 'default_daily',
     name: 'Daily Ops',
-    expanded: 'inbox',
-    lastSection: { areaId: 'inbox', sectionId: 'inbox_food' },
+    // v0.12.0 — Daily Ops now lands on Dining → Food Orders (food
+    // moved out of Communications into Dining for Phase 13).
+    expanded: 'dining',
+    lastSection: { areaId: 'dining', sectionId: 'inbox_food' },
     dashboardLayout: {
       order: [
         'open_work',

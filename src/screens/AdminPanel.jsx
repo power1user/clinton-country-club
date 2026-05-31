@@ -78,7 +78,11 @@ const AREAS = [
     d: 'Inbound: orders, lessons, inquiries, guests, messages, RSVPs',
     icon: IconBell,
     sections: [
-      { id: 'inbox_food',       permKey: 'can_view_orders',          l: 'Food Orders',         d: 'Open orders queue',                       icon: IconList },
+      // v0.12.0 (Phase 13): 'inbox_food' moved → Dining area. Food
+      // orders are an operational dining workflow, not an inbound
+      // communications surface. The section ID stays `inbox_food`
+      // for backward compatibility with useCommsUnread, workspaces,
+      // dashboard tiles, and any saved layouts that reference it.
       { id: 'inbox_lessons',    permKey: 'can_manage_lessons',       l: 'Lesson Requests',     d: 'Lesson + inquiry requests',               icon: IconList },
       { id: 'inbox_proshop',    permKey: 'can_manage_lessons',       l: 'Pro Shop Inquiries',  d: 'General pro shop questions',              icon: IconBag },
       { id: 'inbox_guests',     permKey: 'can_manage_members',       l: 'Guest Registrations', d: 'Live feed as guests register',            icon: IconPeople },
@@ -151,13 +155,20 @@ const AREAS = [
   {
     id: 'dining',
     l: 'Dining',
-    // v0.9.7: 'Food Orders' removed — now the inbox_food sub-queue
-    // under Communications (single source of truth for active orders).
-    d: 'Menu + items',
+    // v0.12.0 (Phase 13): Food Orders returned here from the
+    // Communications inbox, where it had lived since v0.9.4. Rationale:
+    // the kitchen's morning sweep happens in a single dining-shaped
+    // workflow (menu prep + open orders + ticket fulfillment), not by
+    // bouncing between Communications and Dining. The section ID
+    // stays `inbox_food` for backward compatibility with
+    // useCommsUnread, workspace snapshots, the OpenWorkTile dashboard
+    // tile, and any saved admin layouts.
+    d: 'Orders + menu + items',
     icon: IconUtensils,
     sections: [
-      { id: 'menucats',  permKey: 'can_manage_menu', l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags', icon: IconList },
-      { id: 'menuitems', permKey: 'can_manage_menu', l: 'Menu Items',      d: 'Add, edit, hide individual dishes',        icon: IconUtensils },
+      { id: 'inbox_food', permKey: 'can_view_orders',  l: 'Food Orders',     d: 'Open orders queue (live)',                  icon: IconList },
+      { id: 'menucats',   permKey: 'can_manage_menu',  l: 'Menu Categories', d: 'Lunch, Dinner, Bar — sort + active flags',  icon: IconList },
+      { id: 'menuitems',  permKey: 'can_manage_menu',  l: 'Menu Items',      d: 'Add, edit, hide individual dishes',         icon: IconUtensils },
     ],
   },
   {

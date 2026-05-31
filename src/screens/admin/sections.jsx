@@ -812,6 +812,12 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
   const canEdit = hasPerm('can_manage_events');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  // v0.12.0 — accordion state for flat mode. Collapsed by default;
+  // click an event row to expand the registrant list inline. Kept
+  // local to this component (not persisted) — Comms triage is a
+  // glance-and-go view, so reset-on-mount is the right default.
+  const [expanded, setExpanded] = useState({});
+  const toggleExpanded = (eventId) => setExpanded(p => ({ ...p, [eventId]: !p[eventId] }));
 
   useEffect(() => {
     if (!club) return;
@@ -819,7 +825,7 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
     const load = async () => {
       const { data } = await supabase
         .from('event_registrations')
-        .select('id, status, guests_count, notes, registered_at, member_id, event_id, members(name, membership_number), events(title, event_date)')
+        .select('id, status, guests_count, notes, registered_at, member_id, event_id, members(name, membership_number), events(title, event_date, spots)')
         .eq('club_id', club.id)
         .order('registered_at', { ascending: false });
       if (cancelled) return;
@@ -838,13 +844,38 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
     await supabase.from('event_registrations').update({ status }).eq('id', id);
   };
 
-  // ── Flat timeline (Comms inbox mode) ─────────────────────────────
+  // ── Accordion grouped by event (Comms inbox mode) ────────────────
+  // v0.12.0 — was a flat reverse-chronological timeline. Restructured
+  // so each event is one row in a collapsed list with title,
+  // event_date, registered count, and spots remaining when capacity
+  // is set. Click a row to expand inline and see the registrant
+  // list (status pills + status dropdown for editors). Events are
+  // sorted by most-recent registration activity descending so the
+  // events with new RSVPs surface at the top of the triage queue.
   if (mode === 'flat') {
     const STATUS_COLORS = { registered: G.openBg, waitlist: G.limBg, cancelled: G.clsBg };
+    // Group rows (already in registered_at DESC order from the
+    // query) by event_id. Order of insertion into the Map is the
+    // order of first appearance — i.e. event-with-newest-activity
+    // first — so we don't need an extra sort.
+    const grouped = new Map();
+    rows.forEach(r => {
+      if (!grouped.has(r.event_id)) {
+        grouped.set(r.event_id, {
+          event: r.events,
+          eventId: r.event_id,
+          registrations: [],
+          latestAt: r.registered_at,
+        });
+      }
+      grouped.get(r.event_id).registrations.push(r);
+    });
+    const eventGroups = Array.from(grouped.values());
+
     return (
       <div>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-          Recent registrations and waitlist changes, newest first. Live updates.
+          {rows.length} registration{rows.length === 1 ? '' : 's'} across {eventGroups.length} event{eventGroups.length === 1 ? '' : 's'}. Click an event to expand.
         </p>
         {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
         {!loading && rows.length === 0 && (
@@ -852,30 +883,83 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
             <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No registrations yet.</p>
           </div>
         )}
-        {!loading && rows.length > 0 && (
+        {!loading && eventGroups.length > 0 && (
           <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
-            {rows.map((r, i) => (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {r.members?.name || 'Unknown'} <span style={{ color: G.muted, fontWeight: 400 }}>· {r.events?.title || 'Event'}</span>
-                  </p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
-                    {new Date(r.registered_at).toLocaleString()}
-                    {r.guests_count ? ` · +${r.guests_count} guests` : ''}
-                  </p>
+            {eventGroups.map((g, gi) => {
+              const isOpen = !!expanded[g.eventId];
+              const registeredCount = g.registrations.filter(r => r.status === 'registered').reduce((s, r) => s + 1 + (r.guests_count || 0), 0);
+              const waitlistCount = g.registrations.filter(r => r.status === 'waitlist').length;
+              const capacity = g.event?.spots;
+              const spotsRemaining = (capacity && capacity > 0) ? Math.max(0, capacity - registeredCount) : null;
+              const eventDate = g.event?.event_date ? new Date(g.event.event_date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+              return (
+                <div key={g.eventId} style={{ borderTop: gi === 0 ? 'none' : `1px solid ${G.border}` }}>
+                  {/* ── Event header row (clickable to expand) ─── */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(g.eventId)}
+                    style={{
+                      display: 'flex', alignItems: 'center', width: '100%',
+                      padding: '12px 14px', gap: 10, background: 'transparent',
+                      border: 'none', textAlign: 'left', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.muted, width: 12, flexShrink: 0, lineHeight: 1, transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 120ms' }}>▶</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {g.event?.title || 'Event'}
+                      </p>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                        {eventDate}
+                        {eventDate && ' · '}
+                        {registeredCount} registered{capacity && capacity > 0 ? ` of ${capacity}` : ''}
+                        {waitlistCount > 0 && ` · ${waitlistCount} waitlist`}
+                      </p>
+                    </div>
+                    {spotsRemaining != null && (
+                      <span style={{
+                        fontFamily: '"Lora",serif', fontSize: 10, color: '#F2E5C0',
+                        background: spotsRemaining === 0 ? G.clsBg : (spotsRemaining <= 3 ? G.limBg : G.openBg),
+                        padding: '3px 8px', borderRadius: 2, textTransform: 'uppercase',
+                        letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {spotsRemaining === 0 ? 'Full' : `${spotsRemaining} left`}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* ── Registrant list (inline expanded) ─────── */}
+                  {isOpen && (
+                    <div style={{ background: '#F8F4EC', borderTop: `1px solid ${G.border}` }}>
+                      {g.registrations.map((r, i) => (
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 8px 36px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {r.members?.name || 'Unknown'}
+                              {r.members?.membership_number && <span style={{ color: G.muted, fontWeight: 400 }}> #{r.members.membership_number}</span>}
+                            </p>
+                            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>
+                              {new Date(r.registered_at).toLocaleString()}
+                              {r.guests_count ? ` · +${r.guests_count} guests` : ''}
+                              {r.notes ? ` · ${r.notes}` : ''}
+                            </p>
+                          </div>
+                          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>{r.status}</span>
+                          <select
+                            value={r.status}
+                            onChange={e => setStatus(r.id, e.target.value)}
+                            disabled={!canEdit}
+                            style={{ padding: '3px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#FFFDF7', opacity: canEdit ? 1 : 0.6 }}
+                          >
+                            {['registered', 'waitlist', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>{r.status}</span>
-                <select
-                  value={r.status}
-                  onChange={e => setStatus(r.id, e.target.value)}
-                  disabled={!canEdit}
-                  style={{ padding: '3px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
-                >
-                  {['registered', 'waitlist', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

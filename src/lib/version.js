@@ -69,6 +69,29 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.12.x — Phase 13: Operational polish across the admin
+//             surfaces members & staff actually live in. v0.12.0
+//             opens with two restructures: (1) Food Orders moves
+//             out of Communications into a new Dining area (it
+//             always belonged with the menu — keeping the day-of
+//             kitchen view next to the menu CRUDs cuts a tab
+//             switch out of every shift), and (2) the Event RSVPs
+//             Comms sub-queue gets restructured from a flat
+//             reverse-chrono timeline into a collapsed-by-default
+//             inline accordion grouped by event with live
+//             registered count + spots remaining badge (Full /
+//             N left), so the triage view answers "which events
+//             need attention" at a glance. Sidebar badge logic is
+//             generalized so any area's sections can carry unread
+//             counts, not just Comms. Daily Ops default workspace
+//             updated to land on Dining → Food Orders. Section ID
+//             `inbox_food` is preserved across the move so
+//             workspaces, dashboard tiles, useCommsUnread, and
+//             saved layouts continue to work.
+//             Pending v0.12.x patches: Kitchen reply on food
+//             orders queue; bulk + swipe notification dismissal
+//             (per-member dismissed state, never hard-deletes);
+//             event recurrence with interval+weekday support.
 //   v0.11.x — Phase 12: Responsive Admin (v0.11.0–12) + Phase 12 v2:
 //             Hybrid analytics + Admin Dashboard (v0.11.13–31).
 //             The member app stays mobile-PWA-first forever; the
@@ -127,7 +150,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.11.37';
+export const VERSION = '0.12.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

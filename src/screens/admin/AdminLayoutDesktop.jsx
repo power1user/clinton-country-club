@@ -310,10 +310,17 @@ export default function AdminLayoutDesktop({
             const isAreaCollapsed = openArea !== a.id;
             const visibleSections = a.sections.filter(sectionVisible);
             if (visibleSections.length === 0) return null;
-            const isCommsArea = a.id === 'inbox';
-            const areaUnread = isCommsArea
-              ? Object.values(commsUnread?.counts || {}).reduce((s, n) => s + (n || 0), 0)
-              : 0;
+            // v0.12.0 — Generalized unread aggregation. Any area's
+            // sections can carry a per-(section_id) count in
+            // commsUnread.counts; the area card aggregates whatever
+            // its visible sections contribute. This is what lets the
+            // Food Orders badge follow `inbox_food` over to the
+            // Dining area card after the Phase 13 reorg, without
+            // hardcoding "the Comms area is special."
+            const areaUnread = visibleSections.reduce(
+              (s, sec) => s + (commsUnread?.counts?.[sec.id] || 0),
+              0,
+            );
             return (
               <div key={a.id} style={{ marginBottom: 4 }}>
                 {/* Area header — accordion toggle */}
@@ -355,7 +362,11 @@ export default function AdminLayoutDesktop({
                 {/* Sections */}
                 {!isAreaCollapsed && visibleSections.map(s => {
                   const isActive = s.id === sec;
-                  const subUnread = isCommsArea ? (commsUnread?.counts?.[s.id] || 0) : 0;
+                  // v0.12.0 — Per-section badge is now derived from
+                  // commsUnread.counts directly, regardless of which
+                  // area the section lives under. Sections without a
+                  // tracked count silently render 0.
+                  const subUnread = commsUnread?.counts?.[s.id] || 0;
                   return (
                     <div
                       key={s.id}

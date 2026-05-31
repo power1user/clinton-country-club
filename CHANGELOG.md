@@ -103,6 +103,78 @@ Shipping plan (12 patches under one minor bump):
   v0.11.11 — Tablet polish (collapsible sidebar, density)
   v0.11.12 — Phase 12 wrap (README inventory + phase closeout)
 
+---
+
+## v0.12.x — Phase 13: Operational polish across admin surfaces
+
+Phase 13 is the next-wave operational pass once the desktop admin
+shell is solid (Phase 12 v2) and the urgent push pipeline is
+finally healed (the v0.11.34–37 saga). It tightens five things
+managers + members actually touch every day: (1) Food Orders
+re-homes from Communications to a new Dining area next to the
+menu CRUDs; (2) the Kitchen can reply to the order placer
+inline; (3) Event RSVPs get triage-friendly with a collapsed-
+by-default accordion grouped by event; (4) notifications can be
+dismissed in bulk + via swipe (per-member dismissed state — we
+never hard-delete from the DB so audit history stays intact);
+(5) event recurrence gains "every N weeks on weekday Y" support
+so weekly leagues and biweekly board meetings stop needing
+manual per-instance entry.
+
+Shipping plan:
+v0.12.0 — Food Orders → Dining + Event RSVPs accordion + generic
+         sidebar badge logic (this commit)
+v0.12.1 — Kitchen reply on food orders queue
+v0.12.2 — Bulk + swipe notification dismissal (per-member state)
+v0.12.3 — Event recurrence: interval + weekday support
+v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
+
+- **v0.12.0** — Phase 13 opens: Food Orders → Dining + Event RSVPs accordion.
+
+  Two restructures land together because they both reshape the
+  admin nav around what the day-of operator actually needs:
+
+  · **Food Orders moves to Dining.** `inbox_food` was a
+    Communications sub-queue since v0.9.4 — the right home when
+    it was the only realtime order-of-business view we had. But
+    once Comms grew to seven sub-queues, the day-of kitchen view
+    was buried two clicks away from the menu CRUDs it actually
+    lives next to. A new `dining` area now groups Food Orders +
+    Menu Categories + Menu Items, with Food Orders as the
+    landing section. Section ID stays `inbox_food` so
+    workspaces, dashboard tiles, useCommsUnread counts, and
+    saved per-(user, club) layouts continue to resolve.
+
+  · **Event RSVPs accordion (Comms inbox_rsvps).** Was a flat
+    reverse-chronological list of every registration ever made.
+    Restructured into a collapsed-by-default inline accordion
+    grouped by event. Each event row shows title, event date,
+    registered count (counting guests against capacity), and a
+    Spots Remaining badge — "Full" (red) when capacity is hit,
+    "N left" (amber) when ≤3 spots open, "N left" (green)
+    otherwise. Click an event to expand and see the registrant
+    list with the same status pill + status dropdown as before.
+    Sort is by most-recent registration descending so the events
+    with new RSVPs surface first.
+
+  Supporting changes:
+
+  · **Generic sidebar badge logic.** `AdminLayoutDesktop` was
+    Comms-special-cased: only the `inbox` area summed its
+    sections' unread counts. Now every area sums whatever
+    sections' counts exist in `commsUnread.counts`, so Dining's
+    Food Orders count surfaces in the Dining area badge with no
+    further config.
+
+  · **Daily Ops workspace updated.** The seeded `default_daily`
+    workspace now expands `dining` and lands on `inbox_food`
+    instead of `inbox`. Existing per-(user, club)
+    `admin_preferences` overrides are untouched — only the
+    seed default is changed.
+
+  No migration. The `event_registrations` query gains
+  `events.spots` for the capacity badge.
+
 - **v0.11.37** — Fix: service worker silently dropped broadcast pushes.
 
   The final piece of the v0.11.34 urgent-push saga. Even after the
