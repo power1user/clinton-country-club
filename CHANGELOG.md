@@ -129,6 +129,24 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.4** — Phase 13 closeout (README refresh + phase index update).
+
+  README refreshed at the v0.12.x minor: intro paragraph updated to
+  the v0.12.4 / Phase 13 vintage; new **🍳 Operational Polish
+  (Phase 13)** feature-inventory section above Phase 12 v2 covers
+  Food Orders → Dining, generic sidebar badge logic, Daily Ops
+  workspace shift, the Event RSVPs accordion, the Kitchen reply
+  composer, the swipe + bulk-select notification dismissal +
+  Undo snackbar, and the weekly interval recurrence picker. Area
+  ordering list updated so Communications no longer claims Food
+  Orders and Dining lists Food Orders as its landing section.
+  `src/lib/version.js` phase history block expanded to a
+  per-patch summary now that all five Phase 13 patches have
+  shipped.
+
+  No member-visible code change; this commit is documentation +
+  the version bump that pins the phase as closed.
+
 - **v0.12.3** — Event recurrence: weekly interval (biweekly + every-N-weeks).
 
   Weekly recurring events get a new **Every [N] week(s) on

@@ -70,28 +70,46 @@
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
 //   v0.12.x — Phase 13: Operational polish across the admin
-//             surfaces members & staff actually live in. v0.12.0
-//             opens with two restructures: (1) Food Orders moves
-//             out of Communications into a new Dining area (it
-//             always belonged with the menu — keeping the day-of
-//             kitchen view next to the menu CRUDs cuts a tab
-//             switch out of every shift), and (2) the Event RSVPs
-//             Comms sub-queue gets restructured from a flat
-//             reverse-chrono timeline into a collapsed-by-default
-//             inline accordion grouped by event with live
-//             registered count + spots remaining badge (Full /
-//             N left), so the triage view answers "which events
-//             need attention" at a glance. Sidebar badge logic is
+//             surfaces members & staff actually live in.
+//             v0.12.0 opened with two restructures: (1) Food
+//             Orders moved out of Communications into a new
+//             Dining area (next to the menu CRUDs the kitchen
+//             owns — cuts a tab switch out of every shift), and
+//             (2) the Event RSVPs Comms sub-queue restructured
+//             from a flat reverse-chrono timeline into a
+//             collapsed-by-default inline accordion grouped by
+//             event with live registered count + spots remaining
+//             badge (Full / N left). Sidebar badge logic
 //             generalized so any area's sections can carry unread
 //             counts, not just Comms. Daily Ops default workspace
-//             updated to land on Dining → Food Orders. Section ID
-//             `inbox_food` is preserved across the move so
+//             lands on Dining → Food Orders. Section ID
+//             `inbox_food` preserved across the move so
 //             workspaces, dashboard tiles, useCommsUnread, and
-//             saved layouts continue to work.
-//             Pending v0.12.x patches: Kitchen reply on food
-//             orders queue; bulk + swipe notification dismissal
-//             (per-member dismissed state, never hard-deletes);
-//             event recurrence with interval+weekday support.
+//             saved layouts continue to resolve.
+//             v0.12.1 — Kitchen reply on Food Orders queue:
+//             inline composer per order card; member gets push +
+//             inbox via the existing send-push pipeline; no
+//             schema change (posts into the per-order auto-
+//             thread).
+//             v0.12.2 — Notification dismissal: swipe-to-dismiss
+//             (8px direction lock, 90px commit threshold, click
+//             suppression on swipe) + bulk-select mode with
+//             sticky bottom action bar; Undo snackbar on every
+//             dismiss path (5s). Per "from view only" rule —
+//             never hard-deletes; just toggles hidden_at on
+//             notification_reads / thread_participants. New
+//             unhide* + bulk hide* helpers. No migration —
+//             hidden_at columns existed from v0.6.x.
+//             v0.12.3 — Event recurrence: weekly interval. New
+//             "Every [N] week(s) on [weekday]" picker; N=1
+//             (back-compat) through N=12 (capped). Pattern
+//             description line above the occurrence-count
+//             preview. No schema change — N is a
+//             generateOccurrences() parameter at create time.
+//             v0.12.4 — Phase 13 closeout: README refresh
+//             (Phase 13 section, intro/version line updated,
+//             Area ordering reflects the Food Orders move) +
+//             this phase index entry.
 //   v0.11.x — Phase 12: Responsive Admin (v0.11.0–12) + Phase 12 v2:
 //             Hybrid analytics + Admin Dashboard (v0.11.13–31).
 //             The member app stays mobile-PWA-first forever; the
@@ -150,7 +168,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.12.3';
+export const VERSION = '0.12.4';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

@@ -11,17 +11,23 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.11.31` (Phase 12 v2 — Hybrid analytics + Admin Dashboard, complete)
+**Current version:** `v0.12.4` (Phase 13 — Operational polish across admin surfaces, complete)
 
-> This README is refreshed on every **minor** release (0.x bump). Phase 12
-> opens at v0.11.0 (responsive admin lift) and runs through v0.11.31. The
-> v0.11.21–31 sub-phase ("Phase 12 v2") adds the hybrid analytics layer
-> and the per-workspace flexible Admin Dashboard. The member app stays
-> mobile-first PWA forever; the **admin section** renders in two layout
-> shells — `AdminLayoutMobile` (current 3-level drill-down, &lt;768px)
-> and `AdminLayoutDesktop` (persistent sidebar + topbar + main, ≥768px) —
-> sharing the same section components. Desktop lands on the dashboard
-> by default. For anything between releases, see [`CHANGELOG.md`](./CHANGELOG.md).
+> This README is refreshed on every **minor** release (0.x bump). Phase 13
+> opens at v0.12.0 and runs through v0.12.4: Food Orders re-homes from
+> Communications to a new Dining area; the Event RSVPs Comms sub-queue
+> restructures into a collapsed-by-default inline accordion grouped by
+> event with capacity badges; kitchen staff can reply to order placers
+> inline; notifications gain swipe-to-dismiss + bulk-select with an
+> Undo snackbar (per-member dismissal, never hard-deletes); weekly
+> event recurrence gains an N-week interval for biweekly leagues and
+> every-N-weeks tournaments. The member app stays mobile-first PWA
+> forever; the **admin section** renders in two layout shells —
+> `AdminLayoutMobile` (current 3-level drill-down, &lt;768px) and
+> `AdminLayoutDesktop` (persistent sidebar + topbar + main, ≥768px) —
+> sharing the same section components. Desktop lands on the
+> dashboard by default. For anything between releases, see
+> [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -202,6 +208,81 @@ logo + 3 brand colors + hero photo + tagline.
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
 
+### 🍳 Operational Polish (Phase 13)
+- **Food Orders → Dining area.** `inbox_food` was a Communications
+  sub-queue since v0.9.4 — the right home when it was the only
+  realtime order-of-business view. Now Dining groups Food Orders +
+  Menu Categories + Menu Items so the day-of kitchen view sits next
+  to the menu CRUDs the kitchen owns. Section ID kept as
+  `inbox_food` so workspaces, dashboard tiles, useCommsUnread
+  counts, and saved per-(user, club) layouts continue to resolve.
+- **Generic sidebar badge logic.** `AdminLayoutDesktop` was
+  Comms-special-cased: only `inbox` summed its sections' unread
+  counts. Now every area sums whatever sections' counts exist in
+  `commsUnread.counts` so the Dining area badge picks up Food
+  Orders unread automatically.
+- **Daily Ops workspace updated.** Seeded `default_daily` workspace
+  expands `dining` and lands on `inbox_food`. Per-(user, club)
+  overrides untouched.
+- **Event RSVPs accordion.** The Comms `inbox_rsvps` sub-queue,
+  previously a flat reverse-chrono list of every registration, is
+  now a **collapsed-by-default inline accordion grouped by event**.
+  Each row: title, event date, registered count vs capacity, and a
+  Spots Remaining badge (red **Full** / amber **N left** at ≤3 /
+  green **N left**). Click an event to expand inline → registrant
+  list with the same status pill + status dropdown. Events sorted
+  by most-recent registration activity so events with new RSVPs
+  surface first.
+- **Kitchen reply on Food Orders queue** (v0.12.1). Each active
+  order card gets a **Reply** button next to the status select.
+  Open it inline → textarea + Send → the kitchen's message lands
+  in the member's inbox + fires a push notification with the staff
+  sender label (e.g. "Chef Sarah · …"), reusing the send-push
+  pipeline from v0.10.9. No schema change — the reply posts into
+  the order's existing auto-thread (`threads` with
+  `context_table='food_orders'`, `context_id=order.id`) with
+  `sender_user_id = current staff auth.uid()`, so the existing
+  `fn_send_push_on_message` trigger fires the push automatically.
+  Visible "Message sent ✓" pill for 2.5s; defensive error states
+  for send-failed and no-thread.
+- **Notification dismissal: swipe + bulk-select + Undo** (v0.12.2).
+  Two new dismissal affordances on top of the existing X + confirm
+  modal:
+  · **Swipe a row left to dismiss.** Translates over a red
+    "Dismiss" rail; releasing past the 90px threshold commits,
+    short of it springs back. Direction locked after 8px of motion
+    so vertical scroll isn't misread; click suppression on swipe
+    so a near-threshold spring-back doesn't also open the item.
+  · **Select / bulk-dismiss mode.** Inbox sub-header `Select`
+    toggle turns row taps into selection toggles (checkbox
+    replaces the unread dot, no layout jitter). Sticky bottom bar:
+    `N selected · Cancel · Dismiss N`. One call runs `hideThreads`
+    + `hideNotifications` in parallel.
+  Every dismiss path — swipe, bulk, even the existing X + confirm
+  — surfaces an **Undo snackbar** for 5 seconds. `UNDO` restores
+  via new `unhideThread` / `unhideNotification` helpers (set
+  `hidden_at = null`). Per "from view only" rule: never hard-
+  deletes — just toggles `hidden_at` on `notification_reads` /
+  `thread_participants`. Admin's broadcast list still shows every
+  notification ever sent; the existing
+  `fn_clear_hidden_on_new_message` trigger still resurfaces
+  dismissed threads on the next message. No migration — `hidden_at`
+  columns existed from v0.6.x.
+- **Event recurrence: weekly interval** (v0.12.3). Weekly recurring
+  events get a new **Every [N] week(s) on [weekday]** picker.
+  N=1 = the back-compat default ("every week on Thursday"); N=2 =
+  biweekly leagues / board meetings; N=3-12 covers monthly-by-
+  weekday-of-week tournaments where the existing
+  `monthly_first/_nth` rules would misalign with the actual series
+  cadence. Pattern description line ("Pattern: every 2 weeks on
+  Tuesday.") spells out the cadence before the occurrence-count
+  preview so the manager can verify before committing the
+  multi-row insert. Capped at `MAX_WEEKLY_INTERVAL = 12 weeks`;
+  the v0.9.12 `MAX_OCCURRENCES = 52` hard cap still applies. No
+  schema change — N is a `generateOccurrences()` parameter at
+  create time; materialized rows look identical to single-weekly
+  events.
+
 ### 📊 Hybrid Analytics + Admin Dashboard (Phase 12 v2)
 - **Hybrid GA4 + Supabase analytics layer.** Every member-app event
   fires to BOTH GA4 (member-app property, strategic layer — ML
@@ -373,12 +454,12 @@ logo + 3 brand colors + hero photo + tagline.
   in 2 taps from cold-load
 
 #### Area ordering
-1. **Communications** *(new in v0.9.4 — inbound triage)* — Food Orders · Lesson Requests · Pro Shop Inquiries · Guest Registrations · Clubhouse Messages · Event RSVPs. Each sub-queue is permission-gated and shows a numeric **unread badge** on the area card and its own header. Realtime. (Demo Requests deferred until landing page exists.)
+1. **Communications** *(new in v0.9.4 — inbound triage)* — Lesson Requests · Pro Shop Inquiries · Guest Registrations · Clubhouse Messages · Event RSVPs (accordion view, v0.12.0). Food Orders moved to Dining in v0.12.0. Each sub-queue is permission-gated and shows a numeric **unread badge** on the area card and its own header. Realtime. (Demo Requests deferred until landing page exists.)
 2. **Broadcasts** *(renamed from "Communications" in v0.9.4)* — News · Push Broadcasts · Sponsor Banners · Hole Sponsors
-3. **Events** — Events (full CRUD). RSVPs moved to Comms sub-queue.
+3. **Events** — Events (full CRUD, incl. N-week interval recurrence in v0.12.3). RSVPs moved to Comms sub-queue.
 4. **Golf Course** — Daily Status · Pace · Daily Pins · Hole Details. Hours config + Date Overrides moved to Club Settings.
 5. **Pro Shop** — Pro Shop Items · Lesson Pros. Lesson Queue moved to Comms.
-6. **Dining** — Menu Categories · Menu Items. Food Orders moved to Comms.
+6. **Dining** — **Food Orders** *(landing section, kitchen reply inline, v0.12.0–12.1)* · Menu Categories · Menu Items.
 7. **People** — Directory (find anyone) · Manage Members · Moderate Posts · **Badges** *(new in v0.10.0)* · Guest Settings & QR · Manage Staff
 8. **Club Settings** *(renamed from "Club Setup" in v0.9.0)* — Branding & Contact · Feature Toggles · Facility Hours · Date Overrides · Member Guide
 9. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
