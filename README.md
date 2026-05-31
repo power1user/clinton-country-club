@@ -11,19 +11,20 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.12.4` (Phase 13 — Operational polish across admin surfaces, complete)
+**Current version:** `v0.13.6` (Phase 14 — Platform Support Inbox, complete)
 
-> This README is refreshed on every **minor** release (0.x bump). Phase 13
-> opens at v0.12.0 and runs through v0.12.4: Food Orders re-homes from
-> Communications to a new Dining area; the Event RSVPs Comms sub-queue
-> restructures into a collapsed-by-default inline accordion grouped by
-> event with capacity badges; kitchen staff can reply to order placers
-> inline; notifications gain swipe-to-dismiss + bulk-select with an
-> Undo snackbar (per-member dismissal, never hard-deletes); weekly
-> event recurrence gains an N-week interval for biweekly leagues and
-> every-N-weeks tournaments. The member app stays mobile-first PWA
-> forever; the **admin section** renders in two layout shells —
-> `AdminLayoutMobile` (current 3-level drill-down, &lt;768px) and
+> This README is refreshed on every **minor** release (0.x bump). Phase 14
+> opens at v0.13.0 and runs through v0.13.6 — a super_admin-only support
+> inbox that lands `support@groundslive.com` mail in three places at once:
+> the platform team's existing personal inboxes (Cloudflare Email Routing
+> forward to a list managed in-app), a persistent in-app inbox under
+> Platform → Support with full thread view + inline reply via Resend, and
+> Web Push to every super_admin's installed PWA with OS app-badge sync.
+> Replies thread correctly on Gmail/Outlook (proper In-Reply-To +
+> References headers); attachments stored in a private Supabase Storage
+> bucket with signed-URL downloads from the admin UI. The member app stays
+> mobile-first PWA forever; the **admin section** renders in two layout
+> shells — `AdminLayoutMobile` (current 3-level drill-down, &lt;768px) and
 > `AdminLayoutDesktop` (persistent sidebar + topbar + main, ≥768px) —
 > sharing the same section components. Desktop lands on the
 > dashboard by default. For anything between releases, see
@@ -207,6 +208,55 @@ logo + 3 brand colors + hero photo + tagline.
   referring member; CSV export of guests OR full visit history
 - Per-club opt-in for guest food ordering (`guests_can_order_food`)
 - `is_active_guest(club_id)` SECURITY DEFINER helper used in RLS
+
+### 📨 Platform Support Inbox (Phase 14)
+- **Email-in pipeline.** `support@groundslive.com` is fronted by
+  Cloudflare Email Routing → a Cloudflare Email Worker that does two
+  things in parallel: (1) forwards to a list of platform team members
+  managed in the app (no Worker code edits when a person joins/leaves),
+  and (2) POSTs the raw RFC-822 message to a Supabase Edge Function
+  `receive-support-email` which parses via `postal-mime`, dedups on
+  Message-ID, threads via In-Reply-To, and inserts the message.
+- **Email-out pipeline.** Reply composer in the admin UI hits
+  `send-support-reply` Edge Function which sends via Resend appearing as
+  `support@groundslive.com` with proper `In-Reply-To` + `References` +
+  `Message-ID` headers — Gmail / Outlook / Apple Mail thread the reply
+  correctly on the recipient side. Outbound row inserted into
+  `support_messages` with `direction='out'`; trigger auto-flips thread
+  `status` to `'answered'`.
+- **App-managed forward list.** Platform → Support → **Team** sub-tab.
+  Lists destination addresses with Verified / Pending / Inactive status
+  badges. `+ Add team member` calls Cloudflare's Email Routing
+  destinations API (super_admin auth) which sends a verification email
+  to the new address. `Sync with Cloudflare` reconciles DB with
+  Cloudflare's actual destination list (backfills `cf_destination_id`,
+  flips `verified_at` on newly-verified rows).
+- **Admin thread inbox.** Platform → Support → **Inbox** sub-tab. Thread
+  list filterable by Active / All / Closed, per-`(thread, super_admin)`
+  unread dot driven by `support_reads.read_at` vs
+  `support_threads.last_message_at`, chat-bubble thread detail (inbound
+  left card-bg, outbound right green), inline reply composer that calls
+  `send-support-reply`, Close/Reopen status controls.
+- **Web Push + OS app-badge sync.** Every inbound message fires push
+  notifications to every super_admin's installed PWA via
+  `fn_send_push_on_support_message` trigger + `send-push` v9
+  `handleSupportTicket` branch. The bell chip in the admin top bar
+  picks up a brass-tinted "support" counterpart (`SupportBellChip`)
+  that surfaces only when there's unread + the viewer is super_admin.
+  `useInboxUnread` folds support count into `navigator.setAppBadge`
+  total so the launcher icon on Android Chrome / Edge / installed
+  desktop PWAs shows ONE combined unread number.
+- **Realtime everywhere.** Supabase realtime channels on
+  `support_threads` + `support_messages` + `support_reads` keep the
+  thread list and open thread detail fresh without a refresh — new
+  ticket arrives mid-session, badge tick and list row appear within
+  ~1 second.
+- **Attachments via Supabase Storage.** Inbound emails with
+  attachments get the binary contents extracted, uploaded to a private
+  `support-attachments` bucket (10 MB cap per file), and recorded in
+  the `support_attachments` table linked to the message. Admin UI
+  renders an attachment chip per file with size; click → 60-second
+  signed URL → browser handles download / inline view by MIME.
 
 ### 🍳 Operational Polish (Phase 13)
 - **Food Orders → Dining area.** `inbox_food` was a Communications
@@ -462,7 +512,7 @@ logo + 3 brand colors + hero photo + tagline.
 6. **Dining** — **Food Orders** *(landing section, kitchen reply inline, v0.12.0–12.1)* · Menu Categories · Menu Items.
 7. **People** — Directory (find anyone) · Manage Members · Moderate Posts · **Badges** *(new in v0.10.0)* · Guest Settings & QR · Manage Staff
 8. **Club Settings** *(renamed from "Club Setup" in v0.9.0)* — Branding & Contact · Feature Toggles · Facility Hours · Date Overrides · Member Guide
-9. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log
+9. **Platform** (super_admin only) — Super Admins · All Clubs cross-club editor + new-club onboarding · Provisioning log · **Support** *(new in v0.13.0, Inbox + Team tabs)*
 
 ---
 

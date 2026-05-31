@@ -1,35 +1,13 @@
-// receive-support-email v1 — inbound side of the support inbox.
+// receive-support-email v2 — inbound side of the support inbox.
 //
-// Called by the Cloudflare Email Worker on every inbound message to
-// support@groundslive.com. The Worker also forwards the message to
-// the two destination Gmail/AOL inboxes (Marc + the second platform
-// person) so on-the-go replies via mobile Gmail still work — this
-// function exists to populate the in-app inbox AND fire the push
-// notification so super_admins see the unread badge on their PWA.
+// v2 (v0.13.6): extracts attachments from postal-mime output, uploads
+// each to the support-attachments Supabase Storage bucket, inserts
+// support_attachments rows linking the file to the message.
 //
-// AUTH: shared-secret in Authorization header (NOT the service-role
-// key — the Worker doesn't need that much power). The secret lives in
-// SUPPORT_INGEST_SECRET on this function's secrets + the Worker's env.
-//
-// REQUEST SHAPE (from the Worker):
-//   POST /receive-support-email
-//   Authorization: Bearer <SUPPORT_INGEST_SECRET>
-//   Content-Type: application/json
-//   { raw: "<RFC-822 email string>", from: "sender@x", to: "support@groundslive.com" }
-//
-// FLOW:
-//   1. Auth check
-//   2. Parse the raw RFC-822 with postal-mime
-//   3. Idempotency: if Message-ID already exists, return 200 (dedup)
-//   4. Thread resolution: in_reply_to lookup → existing thread, else create new
-//   5. Match from_addr to a known member (best-effort)
-//   6. Insert support_messages row (trigger updates thread.last_message_at)
-//   7. Return {ok, thread_id, message_id, deduped}
-//
-// Push fan-out to super_admins is handled by the v0.13.1 trigger on
-// support_messages INSERT — NOT in this function.
+// Everything else (auth, dedup, threading, member match) unchanged
+// from v1.
 
-// @ts-ignore Deno-only import
+// @ts-ignore Deno-only
 import PostalMime from "npm:postal-mime@2.4.3";
 // @ts-ignore
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
@@ -39,6 +17,9 @@ const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const INGEST_SECRET = Deno.env.get("SUPPORT_INGEST_SECRET")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+const ATTACHMENTS_BUCKET = "support-attachments";
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -46,12 +27,17 @@ function json(payload: unknown, status = 200) {
   });
 }
 
+function sanitizeFilename(name: string): string {
+  return (name || "attachment")
+    .replace(/[/\\?%*:|"<>]+/g, "_")
+    .slice(0, 200);
+}
+
 Deno.serve(async (req: Request) => {
-  // □ diag mode — no DB writes, just env introspection.
   const url = new URL(req.url);
   if (url.searchParams.get("diag") === "1") {
     return json({
-      version: 1,
+      version: 2,
       has_url: !!SUPABASE_URL,
       has_service_key: !!SERVICE_KEY,
       has_ingest_secret: !!INGEST_SECRET,
@@ -60,13 +46,11 @@ Deno.serve(async (req: Request) => {
 
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  // □ Auth: shared secret.
   const auth = req.headers.get("authorization") || "";
   if (!INGEST_SECRET || auth !== `Bearer ${INGEST_SECRET}`) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 
-  // □ Body
   let body: { raw?: string; from?: string; to?: string };
   try { body = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
   const raw = body.raw;
@@ -74,11 +58,9 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "missing raw" }, 400);
   }
 
-  // □ Parse RFC-822 with postal-mime.
   let email: any;
-  try {
-    email = await PostalMime.parse(raw);
-  } catch (e: any) {
+  try { email = await PostalMime.parse(raw); }
+  catch (e: any) {
     console.error("[receive-support-email] parse failed:", e?.message || e);
     return json({ ok: false, error: "parse failed", detail: String(e?.message || e) }, 422);
   }
@@ -93,15 +75,13 @@ Deno.serve(async (req: Request) => {
   const ccAddrs    = (email.cc || []).map((a: any) => a.address).filter(Boolean);
   const bodyText   = email.text || null;
   const bodyHtml   = email.html || null;
-  const hasAttach  = Array.isArray(email.attachments) && email.attachments.length > 0;
+  const attachments: any[] = Array.isArray(email.attachments) ? email.attachments : [];
+  const hasAttach  = attachments.length > 0;
   const receivedAt = email.date ? new Date(email.date).toISOString() : new Date().toISOString();
   const rawSize    = raw.length;
 
-  if (!fromAddr) {
-    return json({ ok: false, error: "no from address" }, 422);
-  }
+  if (!fromAddr) return json({ ok: false, error: "no from address" }, 422);
 
-  // □ Idempotency. If Message-ID already ingested, return existing row.
   if (messageId) {
     const { data: existing } = await supabase
       .from("support_messages")
@@ -113,9 +93,6 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // □ Thread resolution.
-  //  - If In-Reply-To matches a message we already have, attach to that thread.
-  //  - Else create a new thread.
   let threadId: string | null = null;
   if (inReplyTo) {
     const { data: parent } = await supabase
@@ -126,7 +103,6 @@ Deno.serve(async (req: Request) => {
     if (parent?.thread_id) threadId = parent.thread_id;
   }
 
-  // Best-effort member match: from_addr against members.email.
   let fromMemberId: string | null = null;
   let fromClubId: string | null = null;
   {
@@ -146,16 +122,11 @@ Deno.serve(async (req: Request) => {
     const { data: thread, error: tErr } = await supabase
       .from("support_threads")
       .insert({
-        subject,
-        from_addr: fromAddr,
-        from_name: fromName,
-        from_member_id: fromMemberId,
-        from_club_id: fromClubId,
-        status: "open",
-        last_message_at: receivedAt,
+        subject, from_addr: fromAddr, from_name: fromName,
+        from_member_id: fromMemberId, from_club_id: fromClubId,
+        status: "open", last_message_at: receivedAt,
       })
-      .select("id")
-      .single();
+      .select("id").single();
     if (tErr || !thread) {
       console.error("[receive-support-email] thread insert failed:", tErr);
       return json({ ok: false, error: "thread insert failed", detail: tErr?.message }, 500);
@@ -163,31 +134,56 @@ Deno.serve(async (req: Request) => {
     threadId = thread.id;
   }
 
-  // □ Insert message.
   const { data: msg, error: mErr } = await supabase
     .from("support_messages")
     .insert({
-      thread_id: threadId,
-      direction: "in",
-      message_id: messageId,
-      in_reply_to: inReplyTo,
-      references_ids: refs,
-      from_addr: fromAddr,
-      from_name: fromName,
-      to_addrs: toAddrs,
-      cc_addrs: ccAddrs,
-      subject,
-      body_text: bodyText,
-      body_html: bodyHtml,
-      raw_size_bytes: rawSize,
-      has_attachments: hasAttach,
+      thread_id: threadId, direction: "in",
+      message_id: messageId, in_reply_to: inReplyTo, references_ids: refs,
+      from_addr: fromAddr, from_name: fromName,
+      to_addrs: toAddrs, cc_addrs: ccAddrs,
+      subject, body_text: bodyText, body_html: bodyHtml,
+      raw_size_bytes: rawSize, has_attachments: hasAttach,
       received_at: receivedAt,
     })
-    .select("id")
-    .single();
+    .select("id").single();
   if (mErr) {
     console.error("[receive-support-email] message insert failed:", mErr);
     return json({ ok: false, error: "message insert failed", detail: mErr.message }, 500);
+  }
+
+  // v0.13.6: upload attachments + insert support_attachments rows.
+  const uploaded: any[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
+    const content = att.content;
+    if (!content) continue;
+    const bytes = content instanceof Uint8Array ? content : new TextEncoder().encode(String(content));
+    if (bytes.length === 0) continue;
+    if (bytes.length > MAX_ATTACHMENT_BYTES) {
+      console.warn(`[receive-support-email] attachment too large, skipping: ${bytes.length} bytes`);
+      continue;
+    }
+    const filename = sanitizeFilename(att.filename || att.contentType || `attachment_${i + 1}`);
+    const storagePath = `${threadId}/${msg.id}/${crypto.randomUUID()}-${filename}`;
+    const { error: upErr } = await supabase.storage
+      .from(ATTACHMENTS_BUCKET)
+      .upload(storagePath, bytes, { contentType: att.mimeType || "application/octet-stream", upsert: false });
+    if (upErr) {
+      console.error("[receive-support-email] storage upload failed:", upErr.message);
+      continue;
+    }
+    const { error: insErr } = await supabase.from("support_attachments").insert({
+      message_id: msg.id,
+      filename,
+      mime_type: att.mimeType || null,
+      size_bytes: bytes.length,
+      storage_path: storagePath,
+    });
+    if (insErr) {
+      console.error("[receive-support-email] attachment row insert failed:", insErr.message);
+      continue;
+    }
+    uploaded.push({ filename, size_bytes: bytes.length });
   }
 
   return json({
@@ -196,5 +192,6 @@ Deno.serve(async (req: Request) => {
     message_id: msg!.id,
     deduped: false,
     matched_member: !!fromMemberId,
+    attachments_uploaded: uploaded.length,
   });
 });

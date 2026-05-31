@@ -5537,6 +5537,7 @@ function SupportThreadDetail({ threadId, onBack }) {
   const { session } = useAuth();
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [attachmentsByMessage, setAttachmentsByMessage] = useState({});  // v0.13.6
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -5558,6 +5559,23 @@ function SupportThreadDetail({ threadId, onBack }) {
       if (cancelled) return;
       setThread(t);
       setMessages(ms || []);
+      // v0.13.6 — fetch attachments for every message in the thread
+      // in one query, then bucket by message_id for the renderer.
+      const msgIds = (ms || []).map(m => m.id);
+      if (msgIds.length > 0) {
+        const { data: atts } = await supabase
+          .from('support_attachments')
+          .select('id, message_id, filename, mime_type, size_bytes, storage_path')
+          .in('message_id', msgIds);
+        if (!cancelled) {
+          const byMsg = {};
+          (atts || []).forEach(a => {
+            if (!byMsg[a.message_id]) byMsg[a.message_id] = [];
+            byMsg[a.message_id].push(a);
+          });
+          setAttachmentsByMessage(byMsg);
+        }
+      }
       setLoading(false);
       // Mark thread as read by this super_admin (upsert support_reads)
       if (t && session?.user?.id) {
@@ -5695,6 +5713,15 @@ function SupportThreadDetail({ threadId, onBack }) {
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: 'inherit', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {m.body_text || '(no plain-text body — HTML only)'}
                 </p>
+                {/* v0.13.6 — attachment chips. Each click → signed
+                    URL download (60-second TTL via Supabase Storage). */}
+                {(attachmentsByMessage[m.id] || []).length > 0 && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {(attachmentsByMessage[m.id] || []).map(att => (
+                      <AttachmentChip key={att.id} att={att} isOutBubble={isOut} />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -5733,6 +5760,63 @@ function SupportThreadDetail({ threadId, onBack }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── v0.13.6 — Attachment chip ──────────────────────────────────────
+// Compact chip with paperclip + filename + size. Click → fetches a
+// 60-second signed URL from Supabase Storage and opens it in a new
+// tab (browser handles download / inline view by MIME type).
+function AttachmentChip({ att, isOutBubble }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const download = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const { data, error } = await supabase.storage
+        .from('support-attachments')
+        .createSignedUrl(att.storage_path, 60);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener');
+      }
+    } catch (e) {
+      setErr(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sizeKb = att.size_bytes != null ? Math.max(1, Math.round(att.size_bytes / 1024)) : null;
+  const labelColor = isOutBubble ? '#F2E5C0' : G.brass;
+  const bgColor = isOutBubble ? 'rgba(242,229,192,0.12)' : 'rgba(155,122,30,0.08)';
+  const borderColor = isOutBubble ? 'rgba(242,229,192,0.35)' : 'rgba(155,122,30,0.4)';
+
+  return (
+    <div onClick={busy ? undefined : download} data-tap
+      title={`Download ${att.filename}`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '7px 10px',
+        background: bgColor,
+        border: `1px solid ${borderColor}`,
+        borderRadius: 3,
+        cursor: busy ? 'wait' : 'pointer',
+      }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={labelColor} strokeWidth="2">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+      </svg>
+      <span style={{ flex: 1, fontFamily: '"Lora",serif', fontSize: 12, color: labelColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {att.filename}
+      </span>
+      {sizeKb != null && (
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: labelColor, opacity: 0.7, flexShrink: 0 }}>
+          {sizeKb < 1024 ? `${sizeKb} KB` : `${(sizeKb / 1024).toFixed(1)} MB`}
+        </span>
+      )}
+      {err && <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot }}>{err}</span>}
     </div>
   );
 }

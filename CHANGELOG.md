@@ -164,6 +164,53 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.6** — Attachments + Phase 14 closeout.
+
+  **Attachments — full inbound + admin download:**
+
+  - **Migration 70** creates a private `support-attachments`
+    Supabase Storage bucket (no public read) + a
+    `support_attachments` table linking files to `support_messages`
+    by `message_id`. Storage RLS allows SELECT on the bucket only
+    for `is_super_admin()`; service role bypasses for ingest.
+  - **`receive-support-email` v2 deployed.** Now extracts the
+    `attachments[]` array from `postal-mime` output, sanitizes the
+    filename, uploads the binary content to
+    `support-attachments/<thread_id>/<message_id>/<uuid>-<filename>`,
+    and inserts a row in `support_attachments`. 10 MB cap per file;
+    larger get logged and skipped (no message-insert failure).
+  - **Admin UI: attachment chips.** Each message bubble now renders
+    a compact chip per attachment with paperclip icon + filename +
+    size (KB/MB). Click → `supabase.storage.createSignedUrl(path, 60)`
+    → opens in a new tab. Browser handles inline-view vs download by
+    MIME type. Chips style themselves brass-on-cream on inbound
+    bubbles, gold-on-green on outbound bubbles for visual continuity.
+
+  **Phase 14 closeout:**
+
+  - **README refresh** — intro line bumped to v0.13.6, intro
+    paragraph describes the full Phase 14 architecture, new
+    **📨 Platform Support Inbox (Phase 14)** section in the
+    feature inventory above Phase 13, Platform area listing
+    updated to include Support.
+  - **`src/lib/version.js`** — Phase index expanded per-patch
+    summary now that all 7 Phase 14 patches have shipped.
+
+  ## What lands on Marc's side end-to-end
+
+  An email to `support@groundslive.com` from anywhere on the
+  internet → Cloudflare Email Routing → support-inbox Worker →
+  forwards to `marcabla1@gmail.com` + `mjbo@aol.com` AND POSTs raw
+  to `receive-support-email` Edge Function → parses + dedups +
+  threads + inserts → `fn_send_push_on_support_message` trigger
+  fires → `send-push` v9 fans out to every super_admin's PWA →
+  brass envelope chip appears in admin top bar + red unread badge
+  on the launcher icon (installed PWA). Tap notification → admin
+  opens to that thread → reply composer types reply →
+  `send-support-reply` sends via Resend → recipient sees reply in
+  their Gmail threaded under the original. Attachments stored
+  privately; admin downloads via signed URL.
+
 - **v0.13.5** — Support unread: bell + OS app-badge + realtime everywhere.
 
   Four pieces of "the badge is alive" wire-up shipped together:
