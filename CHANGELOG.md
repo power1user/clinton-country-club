@@ -129,6 +129,103 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+---
+
+## v0.13.x — Phase 14: Platform Support Inbox
+
+A super_admin-only ticketing surface for club managers and staff
+across every club to email `support@groundslive.com` from anywhere
+and have it land in three places at once:
+
+  1. The platform team's existing personal inboxes (forwarded by
+     Cloudflare Email Routing — keeps on-the-go reply via mobile
+     Gmail/AOL working exactly like today)
+  2. A persistent in-app inbox under Platform → Support (audit
+     trail, threading by Message-ID, status flags, member
+     attribution)
+  3. Web Push to every super_admin's installed PWA with OS-level
+     app-badge sync so the unread count surfaces on the launcher
+     icon the way native email apps do
+
+Outbound replies sent from the admin UI go via Resend appearing as
+`support@groundslive.com` with correct In-Reply-To / References
+headers, so Gmail threads them properly on the recipient's side.
+
+Shipping plan (six patches under one minor bump):
+
+  v0.13.0 — Inbound pipeline (migration 66 + receive Edge Function +
+             Cloudflare Email Worker). Nothing visible in admin yet.
+  v0.13.1 — Push fan-out (send-push v9 + DB trigger).
+  v0.13.2 — Outbound reply pipeline (send-support-reply + Resend).
+  v0.13.3 — Admin UI (Platform → Support section).
+  v0.13.4 — Bell + OS app-badge + realtime live updates.
+  v0.13.5 — Attachments via Supabase Storage + Phase 14 closeout.
+
+- **v0.13.0** — Phase 14 opens: support inbox inbound pipeline.
+
+  Lands the foundation without surfacing anything in the admin
+  UI yet. After this patch + the Cloudflare Email Worker setup,
+  every email to `support@groundslive.com` populates a row in
+  `support_messages` while continuing to forward to the platform
+  team's personal inboxes.
+
+  **Migration 66 — three tables:**
+  - `support_threads` — one row per conversation, grouped by the
+    RFC-822 Message-ID chain. Columns include `subject`,
+    `from_addr`, `from_name`, `from_member_id` (nullable best-
+    effort match against `members.email`), `from_club_id`,
+    `status` (open / answered / closed with auto-transition), and
+    `last_message_at`. Indexed on `last_message_at DESC` for the
+    thread list hot path and on `(status, last_message_at DESC)`
+    for filtered views.
+  - `support_messages` — one row per inbound or outbound email.
+    Columns capture both RFC-822 envelope (`message_id`,
+    `in_reply_to`, `references_ids`, `from_addr`, `to_addrs[]`,
+    `cc_addrs[]`, `subject`) and body (`body_text`, `body_html`,
+    `raw_size_bytes`, `has_attachments`). `UNIQUE INDEX
+    (message_id) WHERE message_id IS NOT NULL` makes ingest
+    idempotent — same Message-ID can't insert twice, so Worker
+    retries are safe.
+  - `support_reads` — per-`(thread, super_admin)` read state.
+    Mirrors the `notification_reads` pattern from v0.6.x so two
+    super_admins each track their own unread count without
+    stepping on each other.
+
+  All three are RLS super_admin-only (`is_super_admin()` helper
+  from the v0.10.x phase). Edge Function uses service-role to
+  bypass for ingest + future push trigger.
+
+  **`fn_touch_support_thread()` trigger** on
+  `support_messages INSERT` updates `support_threads
+  .last_message_at` and auto-flips `status` (inbound to a
+  closed/answered thread reopens it; an outbound message to an
+  open thread marks it answered). One write does both.
+
+  **`support_unread_count()` helper** — `SECURITY INVOKER`
+  function that returns the count of threads with messages newer
+  than the caller's `support_reads.read_at`. The admin bell badge
+  + OS app-badge will call this in v0.13.4.
+
+  **Edge Function `receive-support-email`** (deployed v1) —
+  Called by the Cloudflare Email Worker on every inbound message.
+  Auth via a shared `SUPPORT_INGEST_SECRET` header (not the
+  service-role key; the Worker doesn't need that much power).
+  Parses RFC-822 with `postal-mime`, dedups on Message-ID,
+  resolves the thread via In-Reply-To lookup or creates a new
+  one, best-effort matches `from_addr` against `members.email`
+  to populate `from_member_id` / `from_club_id`, then inserts
+  the message row. `?diag=1` returns env state for verification.
+
+  **Pending in this patch — manual Cloudflare side:** enable
+  Email Routing on `groundslive.com`, verify
+  `marcabla1@gmail.com` + `mjbo@aol.com` as destinations, deploy
+  the Email Worker, and add a Custom Address rule routing
+  `support@` to the Worker. Worker code + dashboard walkthrough
+  handed to Marc with this commit.
+
+  No client code change — this is server + admin scaffold only.
+  The build is bumped + the CHANGELOG + version index updated.
+
 - **v0.12.8** — Typography pass round 2 (every admin queue card).
 
   v0.12.6 only touched four patterns (CrudSection, FoodOrdersAdmin,

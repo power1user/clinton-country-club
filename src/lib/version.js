@@ -69,6 +69,48 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.13.x — Phase 14: Platform Support Inbox. A super_admin-only
+//             ticketing surface for club managers / staff to email
+//             support@groundslive.com from anywhere and have it
+//             land in BOTH the platform team's personal inboxes
+//             (forwarded by Cloudflare Email Routing) AND a
+//             persistent in-app inbox under Platform → Support
+//             (audit trail, threading, status). Replies sent from
+//             the admin go out via Resend appearing as
+//             support@groundslive.com with correct In-Reply-To /
+//             References headers so Gmail threads them properly
+//             on the recipient side. Web Push fires to every
+//             super_admin's PWA on new inbound; OS app-badge
+//             count syncs via navigator.setAppBadge so installed
+//             PWAs surface the unread number on the launcher
+//             icon the way native email apps do.
+//             v0.13.0 — inbound pipeline: migration 66
+//             (support_threads + support_messages + support_reads
+//             tables, RLS super_admin only, last-message-touch
+//             trigger, support_unread_count() helper),
+//             receive-support-email Edge Function (postal-mime
+//             parsing, Message-ID dedup, In-Reply-To threading,
+//             best-effort members.email match). Cloudflare Email
+//             Worker + Custom Address rule on `support@` round
+//             out the inbound layer. Nothing visible in the admin
+//             UI yet — that lands in v0.13.3.
+//             v0.13.1 — push fan-out: fn_send_push_on_support_message
+//             trigger + send-push v9 handleSupportTicket branch
+//             pushes every new inbound message to every super_admin's
+//             registered push subscriptions.
+//             v0.13.2 — outbound: send-support-reply Edge Function
+//             (super_admin auth, Resend with In-Reply-To +
+//             References), appends 'out' direction message rows.
+//             v0.13.3 — admin UI: Platform → Support section,
+//             thread list + unread badges, expanded thread view
+//             with reply composer, mark-as-resolved status.
+//             v0.13.4 — bell + OS app-badge integration via
+//             support_unread_count() rolled into useInboxUnread,
+//             realtime subscription for live UI updates without
+//             refresh.
+//             v0.13.5 — attachments via Supabase Storage
+//             support-attachments bucket + README refresh +
+//             Phase 14 closeout.
 //   v0.12.x — Phase 13: Operational polish across the admin
 //             surfaces members & staff actually live in.
 //             v0.12.0 opened with two restructures: (1) Food
@@ -168,7 +210,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.12.8';
+export const VERSION = '0.13.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
