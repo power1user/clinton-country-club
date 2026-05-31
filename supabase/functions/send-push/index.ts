@@ -1,45 +1,49 @@
-// send-push v6 — fan-out Web Push with sender identity (v0.10.9).
+// send-push v8 — fan-out Web Push for thread messages AND admin
+// broadcasts. Pre-v8 history:
+//   · v6 (v0.10.9) — sender identity in the title
+//   · v7 (v0.11.34, URGENT) — added notification_messages broadcast
+//                              branch alongside the messages branch.
 //
-// Wired via a public.fn_send_push_on_message() trigger on messages INSERT
-// (see migration 49 — we don't use Supabase's Dashboard Webhook UI since
-// that state isn't checked in and was lost once already).
+// v8 change (v0.12.7) — order-thread recipient resolution.
 //
-// v6 change (v0.10.9): notification titles now identify WHO the message
-// is from. Previously every push read "<Club> · Message" regardless of
-// sender — uninformative on the lock screen. New behavior:
+// Marc's bug report (kitchen reply not pushing) traced to this:
 //
-//   · thread.kind = 'order'      → "Your order update" (system-driven;
-//                                    body has the body preview, which
-//                                    is typically the status note)
-//   · thread.kind = 'clubhouse'  → sender's name if they're a club
-//                                    member, otherwise "Clubhouse"
-//                                    (staff messages from a user_id
-//                                    that doesn't have a members row
-//                                    fall back to the friendly default)
-//   · thread.kind = 'dm' (or any
-//     other "member-to-member"
-//     thread)                    → sender's name from members.name
-//                                    (looked up by sender_user_id +
-//                                    thread.club_id). Falls back to
-//                                    "New message" if lookup fails.
+//   The v7 thread flow fetched `thread_participants` and filtered out
+//   the sender, then pushed to whoever remained. For ORDER threads,
+//   the `fn_order_thread_create` trigger only adds the order's MEMBER
+//   as a participant — no staff side. That gave us three sub-cases:
 //
-// Body preview unchanged: first 140 chars of the message body.
+//     1) Staff (non-member auth.uid) replies → participants=[member],
+//        sender=staff, filter keeps the member → push fires. ✅
 //
-// Diagnostic improvements over v5: kept as-is.
-//   · GET ?diag=1 returns env state without sending a push.
-//   · Per-subscription errors surface in the response payload.
-//   · VAPID setup wrapped in try/catch so missing secrets return
-//     structured 500s instead of crashing the worker.
+//     2) Member (or a multi-hat user whose staff auth.uid == member
+//        auth.uid) replies as staff → participants=[member], sender=
+//        member, filter excludes the only entry → 0 recipients → no
+//        push. ❌ (this was Marc's self-test failure)
 //
-// Required Supabase Edge Function secrets:
-//   VAPID_PUBLIC_KEY   — same value that ships to the client as VITE_VAPID_PUBLIC_KEY
-//   VAPID_PRIVATE_KEY  — keep secret
-//   VAPID_SUBJECT      — mailto:... or https://... (must be a URL)
-//   SUPABASE_URL       — auto-set by the platform
-//   SUPABASE_SERVICE_ROLE_KEY — auto-set; bypasses RLS so we can read
-//                               push_subscriptions + members.name even
-//                               when the sending member's RLS would
-//                               normally hide other clubs' rows.
+//     3) The v0.10.18 canned "Your order is ready" message used
+//        sender_user_id = thread.created_by (the member) → same
+//        empty-recipient outcome → status-ready notifications had
+//        actually been silently broken since v0.10.18. ❌
+//
+//   Semantically, an order thread has ONE recipient: the member who
+//   placed the order. "Don't push to the sender" is the right rule
+//   for member-to-member DMs and clubhouse threads where multiple
+//   real people participate. It's the WRONG rule for order threads
+//   where the conversation is conceptually 1:1 between "the kitchen
+//   as a unit" and "the order's member".
+//
+//   Fix: for `thread.kind === 'order'`, derive the recipient as the
+//   order's member (via thread.created_by — which fn_order_thread_create
+//   sets to the member's user_id) and SKIP the sender filter. The
+//   message still won't push if the member has no push_subscription
+//   row, but the empty-recipients silent failure goes away. Cases 1,
+//   2, and 3 all become "push to the order's member, always."
+//
+//   Other thread kinds (clubhouse, dm, etc.) keep the v7 logic
+//   unchanged.
+//
+// Diagnostic surface (?diag=1) flips the response `version` to 8.
 
 // @ts-ignore — Deno-only import
 import webpush from "npm:web-push@3.6.7";
@@ -50,8 +54,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-// VAPID setup wrapped so a malformed/missing key doesn't crash the
-// worker at module load. Surfaces the actual error in JSON instead.
 let vapidOk = false;
 let vapidErr: string | null = null;
 let vapidDiag: Record<string, unknown> = {};
@@ -82,58 +84,46 @@ try {
   console.error("[send-push] VAPID setup failed:", vapidErr, vapidDiag);
 }
 
-Deno.serve(async (req: Request) => {
-  const url = new URL(req.url);
+async function fanOut(subs: any[], payloadStr: string, ttlSeconds: number) {
+  const opts = { TTL: ttlSeconds };
+  const results = await Promise.allSettled(
+    subs.map(async (s: any) => {
+      try {
+        await webpush.sendNotification({
+          endpoint: s.endpoint,
+          keys: { p256dh: s.p256dh, auth: s.auth },
+        }, payloadStr, opts);
+        return { id: s.id, ok: true };
+      } catch (err: any) {
+        if (err?.statusCode === 404 || err?.statusCode === 410) {
+          await supabase.from("push_subscriptions").delete().eq("id", s.id);
+        }
+        console.error("[send-push] sendNotification failed:", { id: s.id, status: err?.statusCode, msg: err?.message });
+        return { id: s.id, ok: false, status: err?.statusCode, error: String(err?.message || err) };
+      }
+    })
+  );
+  const sent   = results.filter((r: any) => r.status === "fulfilled" && r.value.ok).length;
+  const failed = results.length - sent;
+  const errors = results
+    .map((r: any) => r.status === "fulfilled" ? r.value : { ok: false, error: String(r.reason) })
+    .filter((r: any) => !r.ok);
+  return { sent, failed, total: results.length, errors };
+}
 
-  // ?diag=1 — read-only env introspection (no DB query, no push send).
-  // Useful for verifying secrets are wired up without a real message.
-  if (url.searchParams.get("diag") === "1") {
-    return new Response(JSON.stringify({
-      version: 6,
-      vapidOk,
-      vapidErr,
-      vapidDiag,
-      hasSupabaseUrl: !!SUPABASE_URL,
-      hasServiceKey: !!SERVICE_KEY,
-    }, null, 2), {
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  if (!vapidOk) {
-    return new Response(JSON.stringify({ ok: false, error: vapidErr, vapidDiag }, null, 2), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  let payload: any;
-  try { payload = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
-
-  const msg = payload.record;
+async function handleThreadMessage(msg: any) {
   if (!msg?.thread_id || !msg?.body) {
     return new Response(JSON.stringify({ ok: false, error: "missing fields", got: msg ? Object.keys(msg) : null }), { status: 400, headers: { "content-type": "application/json" } });
   }
-
+  // v8: pull thread.created_by so the order branch can resolve the
+  // order's member without a second lookup.
   const { data: thread } = await supabase
     .from("threads")
-    .select("id, kind, subject, club_id, clubs(name)")
+    .select("id, kind, subject, club_id, created_by, clubs(name)")
     .eq("id", msg.thread_id)
     .single();
-
   if (!thread) return new Response(JSON.stringify({ ok: false, error: "thread not found", thread_id: msg.thread_id }), { status: 404, headers: { "content-type": "application/json" } });
 
-  // v0.10.9 — resolve the SENDER's name from members so the title can
-  // identify who the message is from. Scoped by thread.club_id so a
-  // user_id that happens to have member rows in multiple clubs
-  // resolves to the right name here. Returns null when the sender
-  // isn't a member of this club (e.g. staff messaging from a
-  // user_roles entry without a members row, super_admin pushing a
-  // message, etc.).
   let senderName: string | null = null;
   if (msg.sender_user_id && (thread as any).club_id) {
     const { data: senderRow } = await supabase
@@ -145,91 +135,152 @@ Deno.serve(async (req: Request) => {
     senderName = senderRow?.name || null;
   }
 
-  const { data: participants } = await supabase
-    .from("thread_participants")
-    .select("user_id")
-    .eq("thread_id", msg.thread_id);
-
-  const recipientUserIds = (participants || [])
-    .map((p: any) => p.user_id)
-    .filter((uid: string) => uid && uid !== msg.sender_user_id);
+  // v8: order-thread recipient resolution. The order's member is the
+  // sole recipient — always push to them, never apply the
+  // sender-exclusion filter. For all other thread kinds, fall through
+  // to the participant-list + sender-filter path from v7.
+  let recipientUserIds: string[] = [];
+  if (thread.kind === "order") {
+    if ((thread as any).created_by) {
+      recipientUserIds = [(thread as any).created_by];
+    }
+  } else {
+    const { data: participants } = await supabase
+      .from("thread_participants")
+      .select("user_id")
+      .eq("thread_id", msg.thread_id);
+    recipientUserIds = (participants || [])
+      .map((p: any) => p.user_id)
+      .filter((uid: string) => uid && uid !== msg.sender_user_id);
+  }
 
   if (recipientUserIds.length === 0) {
     return new Response(JSON.stringify({ sent: 0, reason: "no recipients" }), { headers: { "content-type": "application/json" } });
   }
-
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("id, user_id, endpoint, p256dh, auth")
     .in("user_id", recipientUserIds);
-
   if (!subs || subs.length === 0) {
     return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions" }), { headers: { "content-type": "application/json" } });
   }
-
-  // v0.10.9 — title now identifies the sender. See top-of-file comment
-  // for the full mapping.
   const clubName = (thread as any).clubs?.name || "Your club";
   let title: string;
   switch (thread.kind) {
     case "order":
-      title = "Your order update";
+      // Order replies: sender's name when we have it (kitchen staff
+      // who's also a member of this club resolves to their name),
+      // otherwise the generic "Your order update" so the lock screen
+      // still reads cleanly for system messages + non-member staff.
+      title = senderName || "Your order update";
       break;
     case "clubhouse":
-      // Staff replies usually come from a user_id without a member row
-      // in this club — fall back to "Clubhouse" so the lock screen
-      // still tells the member who's messaging. Member-side messages
-      // to clubhouse (rare via this trigger but possible) get the
-      // member's name.
       title = senderName || "Clubhouse";
       break;
     default:
-      // dm + thread_reply + any other member-to-member kind.
       title = senderName || "New message";
       break;
   }
-
-  // Optional club-name prefix for clubhouse + order so members managing
-  // multiple-club memberships can tell where the update came from.
-  // (Per-member DMs stay clean — just the sender's name.)
   if (thread.kind === "order" || thread.kind === "clubhouse") {
     title = `${clubName} · ${title}`;
   }
-
   const bodyPreview = (msg.body || "").slice(0, 140);
-
   const notification = {
     title,
     body: bodyPreview,
     data: { threadId: thread.id, kind: thread.kind, url: "/" },
   };
   const payloadStr = JSON.stringify(notification);
+  const result = await fanOut(subs, payloadStr, 4 * 60 * 60);
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+}
 
-  const results = await Promise.allSettled(
-    subs.map(async (s: any) => {
-      try {
-        await webpush.sendNotification({
-          endpoint: s.endpoint,
-          keys: { p256dh: s.p256dh, auth: s.auth },
-        }, payloadStr);
-        return { id: s.id, ok: true };
-      } catch (err: any) {
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
-          await supabase.from("push_subscriptions").delete().eq("id", s.id);
-        }
-        console.error("[send-push] sendNotification failed:", { id: s.id, status: err?.statusCode, msg: err?.message });
-        return { id: s.id, ok: false, status: err?.statusCode, error: String(err?.message || err) };
-      }
-    })
-  );
+async function handleBroadcast(msg: any) {
+  if (!msg?.club_id || !msg?.title) {
+    return new Response(JSON.stringify({ ok: false, error: "missing fields", got: msg ? Object.keys(msg) : null }), { status: 400, headers: { "content-type": "application/json" } });
+  }
+  if (!msg.published_at) {
+    return new Response(JSON.stringify({ sent: 0, reason: "unpublished draft" }), { headers: { "content-type": "application/json" } });
+  }
 
-  const sent   = results.filter((r: any) => r.status === "fulfilled" && r.value.ok).length;
-  const failed = results.length - sent;
-  const errors = results
-    .map((r: any) => r.status === "fulfilled" ? r.value : { ok: false, error: String(r.reason) })
-    .filter((r: any) => !r.ok);
+  const { data: clubRow } = await supabase
+    .from("clubs")
+    .select("name")
+    .eq("id", msg.club_id)
+    .maybeSingle();
+  const clubName = clubRow?.name || "Your club";
 
-  return new Response(JSON.stringify({ sent, failed, total: results.length, errors }), {
-    headers: { "content-type": "application/json" },
-  });
+  const { data: members } = await supabase
+    .from("members")
+    .select("user_id")
+    .eq("club_id", msg.club_id)
+    .not("user_id", "is", null);
+  const recipientUserIds = (members || [])
+    .map((m: any) => m.user_id)
+    .filter(Boolean);
+  if (recipientUserIds.length === 0) {
+    return new Response(JSON.stringify({ sent: 0, reason: "no members" }), { headers: { "content-type": "application/json" } });
+  }
+
+  const { data: subs } = await supabase
+    .from("push_subscriptions")
+    .select("id, user_id, endpoint, p256dh, auth")
+    .in("user_id", recipientUserIds);
+  if (!subs || subs.length === 0) {
+    return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions" }), { headers: { "content-type": "application/json" } });
+  }
+
+  const urgency = (msg.urgency || "normal").toLowerCase();
+  const urgentPrefix = urgency === "urgent" ? "🔔 URGENT · " : "";
+  const title = `${urgentPrefix}${clubName} · ${msg.title}`;
+  const bodyPreview = (msg.body || "").slice(0, 140);
+
+  const ttl = urgency === "urgent" ? 24 * 60 * 60 : urgency === "high" ? 12 * 60 * 60 : 4 * 60 * 60;
+
+  const notification = {
+    title,
+    body: bodyPreview,
+    data: {
+      kind: "broadcast",
+      urgency,
+      broadcastId: msg.id,
+      url: "/inbox",
+    },
+  };
+  const payloadStr = JSON.stringify(notification);
+  const result = await fanOut(subs, payloadStr, ttl);
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+}
+
+Deno.serve(async (req: Request) => {
+  const url = new URL(req.url);
+
+  if (url.searchParams.get("diag") === "1") {
+    return new Response(JSON.stringify({
+      version: 8,
+      vapidOk,
+      vapidErr,
+      vapidDiag,
+      hasSupabaseUrl: !!SUPABASE_URL,
+      hasServiceKey: !!SERVICE_KEY,
+    }, null, 2), { headers: { "content-type": "application/json" } });
+  }
+
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+  if (!vapidOk) {
+    return new Response(JSON.stringify({ ok: false, error: vapidErr, vapidDiag }, null, 2), { status: 500, headers: { "content-type": "application/json" } });
+  }
+
+  let payload: any;
+  try { payload = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
+
+  const table = payload.table;
+  const msg = payload.record;
+
+  if (table === "notification_messages") {
+    return await handleBroadcast(msg);
+  }
+  return await handleThreadMessage(msg);
 });

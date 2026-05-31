@@ -672,21 +672,36 @@ export function FoodOrdersAdmin() {
   // auto-thread so the existing send-push function fires a push
   // notification. Both to_go and eat_in send a notification —
   // members walking off the course want to know either way.
+  //
+  // v0.12.7 — fixed silent push failure. The previous version set
+  // `sender_user_id: thread.created_by` (the member's user_id),
+  // which combined with send-push v7's "exclude sender from
+  // recipients" filter to mean the canned "Your order is ready"
+  // message had NEVER actually pushed since v0.10.18 — the message
+  // landed in the inbox but nothing fired to the lock screen.
+  // Sibling fix in send-push v8 changes order-thread recipient
+  // resolution to always push to the order's member; this
+  // client-side change additionally marks the row as a system
+  // message (`sender_user_id: null, is_system: true`) so the
+  // thread render styles it consistently with the other
+  // status-flip messages ("Order placed", "Order delivered",
+  // "Order cancelled", "The kitchen is preparing").
   const setStatus = async (row, status) => {
     await supabase.from('food_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', row.id);
     if (status === 'ready_for_pickup') {
       try {
         const { data: thread } = await supabase
           .from('threads')
-          .select('id, created_by')
+          .select('id')
           .eq('context_table', 'food_orders')
           .eq('context_id', row.id)
           .maybeSingle();
         if (thread?.id) {
           await supabase.from('messages').insert({
             thread_id: thread.id,
-            sender_user_id: thread.created_by,
+            sender_user_id: null,
             body: 'Your order is ready at the clubhouse.',
+            is_system: true,
           });
         }
         // If no thread is found we silently no-op — the status flip
@@ -699,9 +714,18 @@ export function FoodOrdersAdmin() {
   // v0.12.1 — Kitchen reply handler. Posts a message into the order's
   // existing auto-thread (context_table='food_orders', context_id=order.id).
   // Sender is the current staff user — the in-app inbox shows the staff
-  // name + the existing v0.10.9 push pipeline includes sender_label so
-  // the member's lock screen reads "Chef Sarah · Your order…" rather
-  // than a generic clubhouse notification.
+  // name + the v8 push pipeline (v0.12.7) resolves order-thread
+  // recipients as "always the order's member" so the member's lock
+  // screen reads "<Club> · Chef Sarah" (or "Your order update" when
+  // the staff has no member row in this club).
+  //
+  // v0.12.7 history: until send-push v8 deployed, the reply landed in
+  // the member's inbox but no push fired because the v7 flow excluded
+  // the sender from recipients and `fn_order_thread_create` had only
+  // added the order's MEMBER as a participant — so for the (common)
+  // multi-hat case where staff auth.uid == member auth.uid, the only
+  // participant got filtered out and recipient list was empty. v8
+  // bypasses the participant lookup for order threads entirely.
   const sendReply = async (orderId) => {
     const text = (replyText[orderId] || '').trim();
     if (!text) return;

@@ -129,6 +129,69 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.7** — Fix: kitchen reply (and "Your order is ready") didn't push.
+
+  Marc's report: "the replies from the kitchen are not sending
+  notifications. the message goes, but no notification." Diagnosis
+  unwound to a layered bug across three vintages of the code:
+
+  **What was happening.** send-push v7's thread-message flow
+  loaded `thread_participants` for the message's thread, filtered
+  out the sender's user_id, and pushed to whoever remained. For
+  ORDER threads, the auto-create trigger `fn_order_thread_create`
+  only adds the order's MEMBER as a participant — no staff side.
+  That made three real cases all collapse to "0 recipients":
+
+  · **Staff = member auth.uid (multi-hat).** Marc is super_admin
+    + a member of Clinton CC at the same auth.uid. His staff
+    reply: sender = his_uid, participants = [his_uid], filter
+    excludes the only entry → 0 recipients → no push.
+
+  · **Non-member staff replies in a real club.** participants =
+    [member], sender = staff_uid; filter keeps the member → push
+    fires. ✅ (This branch actually worked. v0.12.7 doesn't change
+    it — but the v8 logic still makes it more robust.)
+
+  · **v0.10.18 "Your order is ready" canned message.** Inserted
+    with `sender_user_id = thread.created_by` (the member's
+    user_id) → participants = [member], filter excludes member
+    → 0 recipients → no push. **This had been silently broken
+    since v0.10.18 shipped** — the message landed in the inbox
+    but never fired to the lock screen.
+
+  **Fix (two parts):**
+
+  · **send-push v8 deployed.** For `thread.kind === 'order'`,
+    derive the sole recipient as the order's MEMBER (via
+    `thread.created_by` — which the create trigger sets to the
+    member's user_id) and SKIP the sender filter. Other thread
+    kinds (clubhouse, dm) keep the v7 participant-list +
+    sender-filter logic unchanged. The order title was also
+    upgraded so it can pick up the staff sender's name when
+    that staff happens to be a member of this club ("<Club> ·
+    Chef Sarah" instead of the generic "<Club> · Your order
+    update").
+
+  · **Canned message marked as system.** `setStatus` flipping
+    an order to `ready_for_pickup` now inserts the "Your order
+    is ready at the clubhouse." row with `sender_user_id: null`
+    and `is_system: true` — matching the other status-flip
+    system messages ("Order placed", "Order delivered", "Order
+    cancelled", "The kitchen is preparing"). With v8 deployed,
+    this fires a push too.
+
+  **Why the bug never surfaced earlier.** Order-thread pushes
+  are the lowest-volume push surface (most members don't sit on
+  the order screen waiting for a "ready" ping — they walk to
+  the clubhouse on their own timing), so the silent failure
+  could persist for a year without a member writing in about a
+  missing notification. The v0.12.1 kitchen reply put the
+  failure on a more visible surface — Marc noticed within a
+  day of shipping.
+
+  No schema change. send-push deploy version 11 (code v8) is
+  live in the Edge Function for the Country Club project.
+
 - **v0.12.6** — Admin card typography pass (closes the long-standing Task #42).
 
   Marc's screenshot showed News list cards on the desktop admin
