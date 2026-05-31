@@ -164,6 +164,45 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.4** — Admin UI: Platform → Support → Inbox thread view.
+
+  The visible payoff for the whole inbound + outbound stack
+  shipped over v0.13.0 → v0.13.3. The Inbox sub-tab now renders:
+
+  **Thread list:**
+  - Sender name + email + subject + timestamp + status badge
+  - Per-(thread, super_admin) unread dot driven by
+    `support_reads.read_at` < `support_threads.last_message_at`
+  - Filter pills: **Active** (default — open + answered) /
+    **All** / **Closed**
+  - Sorted by most recent activity
+
+  **Thread detail (selected):**
+  - Header with subject, sender, status pill, Back link
+  - Status controls: Close thread / Reopen thread
+  - Chronological message list with chat-bubble styling — inbound
+    on the left (card-color bg), outbound on the right (Grounds
+    green) so the conversation reads as a real thread
+  - Each bubble shows sender + timestamp + body_text with
+    `white-space: pre-wrap` so plain-text formatting (line breaks)
+    survives
+  - Reply composer at the bottom — textarea + Send button.
+    Send calls `send-support-reply` from v0.13.3, refreshes the
+    message list on success.
+
+  **Read tracking** — opening a thread auto-upserts
+  `support_reads` with `read_at = now()` for the viewing
+  super_admin. Switching back to the list shows the dot cleared.
+  The trigger from v0.13.0 already auto-flips status to
+  `answered` when a reply lands, so the visible state stays
+  honest without extra logic.
+
+  **Deep-link from push** — the v0.13.2 SW push uses
+  `data.url = /admin/?area=platform&section=support&thread=<id>`.
+  The Inbox tab reads `?thread=<id>` from `window.location.search`
+  on mount and opens the matching detail view directly. Tap a
+  push on your phone → unlock → admin opens to the right thread.
+
 - **v0.13.3** — Outbound reply pipeline (server only).
 
   New Edge Function `send-support-reply` (deployed v1). Super_admin

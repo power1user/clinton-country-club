@@ -5374,17 +5374,337 @@ export function SupportAdmin() {
   );
 }
 
-// ── Inbox tab — placeholder until v0.13.4 lands the thread list ─────
+// ── Inbox tab — v0.13.4 ─────────────────────────────────────────────
+// Two states: thread list (default) and thread detail (selected).
+// Deep-link via ?thread=<id> in the URL (push notifications use this).
 function SupportInboxTab() {
+  const [selectedThreadId, setSelectedThreadId] = useState(null);
+
+  // Honor ?thread=<id> on mount so push notifications deep-link
+  // to the right thread.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('thread');
+    if (t) setSelectedThreadId(t);
+  }, []);
+
+  if (selectedThreadId) {
+    return (
+      <SupportThreadDetail
+        threadId={selectedThreadId}
+        onBack={() => setSelectedThreadId(null)}
+      />
+    );
+  }
+  return <SupportThreadList onOpen={setSelectedThreadId} />;
+}
+
+// ── Thread list ─────────────────────────────────────────────────────
+function SupportThreadList({ onOpen }) {
+  const { session } = useAuth();
+  const [threads, setThreads] = useState([]);
+  const [reads, setReads] = useState({});      // thread_id → read_at
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('open'); // 'open' / 'all' / 'closed'
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data: tRows } = await supabase
+        .from('support_threads')
+        .select('*')
+        .order('last_message_at', { ascending: false })
+        .limit(200);
+      // Per-(thread, this super_admin) read state
+      const { data: rRows } = await supabase
+        .from('support_reads')
+        .select('thread_id, read_at')
+        .eq('user_id', session?.user?.id);
+      if (cancelled) return;
+      setThreads(tRows || []);
+      const map = {};
+      (rRows || []).forEach(r => { map[r.thread_id] = r.read_at; });
+      setReads(map);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  const filtered = threads.filter(t => {
+    if (filter === 'all')    return true;
+    if (filter === 'closed') return t.status === 'closed';
+    // 'open' default — show open + answered (not closed)
+    return t.status !== 'closed';
+  });
+
+  const unreadCount = threads.filter(t => {
+    if (t.status === 'closed') return false;
+    const r = reads[t.id];
+    return !r || new Date(r) < new Date(t.last_message_at);
+  }).length;
+
+  if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading support inbox…</p>;
+
   return (
-    <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 18px', textAlign: 'center' }}>
-      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>Support Inbox</p>
-      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 4px', lineHeight: 1.5 }}>
-        Threaded view of every email to <em>support@groundslive.com</em>.
-      </p>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.brass, margin: 0 }}>
-        Inbound pipeline is live (v0.13.0). Thread list + inline reply land in v0.13.4.
-      </p>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0, flex: 1 }}>
+          {threads.length} thread{threads.length === 1 ? '' : 's'} · {unreadCount} unread
+        </p>
+        {/* Filter pills */}
+        {[
+          { id: 'open',   l: 'Active'  },
+          { id: 'all',    l: 'All'     },
+          { id: 'closed', l: 'Closed'  },
+        ].map(f => (
+          <div key={f.id} onClick={() => setFilter(f.id)} data-tap
+            style={{ padding: '6px 12px', borderRadius: 14, background: filter === f.id ? G.brass : G.card, border: `1px solid ${filter === f.id ? G.brass : G.border}`, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: filter === f.id ? '#F2E5C0' : G.muted, fontWeight: filter === f.id ? 600 : 400 }}>{f.l}</span>
+          </div>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>
+            {threads.length === 0
+              ? 'No support emails received yet.'
+              : `No threads in this filter.`}
+          </p>
+        </div>
+      ) : (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {filtered.map((t, i) => {
+            const r = reads[t.id];
+            const isUnread = !r || new Date(r) < new Date(t.last_message_at);
+            const statusBg = t.status === 'open'     ? G.openBg
+                           : t.status === 'answered' ? G.brass
+                           :                            G.muted;
+            return (
+              <div key={t.id} onClick={() => onOpen(t.id)} data-tap
+                style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer', background: isUnread ? G.bg : 'transparent' }}>
+                {/* Unread dot */}
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: isUnread ? G.brass : 'transparent', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: isUnread ? 700 : 500, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {t.from_name || t.from_addr}
+                    </p>
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flexShrink: 0 }}>
+                      {relativeTime(t.last_message_at)}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.subject || '(no subject)'}
+                  </p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.from_addr}
+                  </p>
+                </div>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusBg, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, flexShrink: 0 }}>
+                  {t.status}
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Thread detail ───────────────────────────────────────────────────
+function SupportThreadDetail({ threadId, onBack }) {
+  const { session } = useAuth();
+  const [thread, setThread] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState(null);
+  const [version, setVersion] = useState(0);
+  const refresh = () => setVersion(v => v + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const [{ data: t }, { data: ms }] = await Promise.all([
+        supabase.from('support_threads').select('*').eq('id', threadId).maybeSingle(),
+        supabase.from('support_messages')
+          .select('*')
+          .eq('thread_id', threadId)
+          .order('received_at', { ascending: true }),
+      ]);
+      if (cancelled) return;
+      setThread(t);
+      setMessages(ms || []);
+      setLoading(false);
+      // Mark thread as read by this super_admin (upsert support_reads)
+      if (t && session?.user?.id) {
+        await supabase.from('support_reads').upsert(
+          { thread_id: threadId, user_id: session.user.id, read_at: new Date().toISOString() },
+          { onConflict: 'thread_id,user_id' }
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [threadId, version, session?.user?.id]);
+
+  const sendReply = async () => {
+    setErr(null);
+    const text = reply.trim();
+    if (!text) return;
+    setSending(true);
+    try {
+      const token = session?.access_token;
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-support-reply`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: threadId, body_text: text }),
+        }
+      );
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      setReply('');
+      refresh();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const setStatus = async (newStatus) => {
+    if (!thread) return;
+    await supabase.from('support_threads').update({ status: newStatus }).eq('id', threadId);
+    refresh();
+  };
+
+  if (loading) return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading thread…</p>;
+  if (!thread) return (
+    <div>
+      <div onClick={onBack} data-tap style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 0', marginBottom: 14, cursor: 'pointer' }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M19 12H5M5 12l7-7M5 12l7 7" /></svg>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass }}>Back to inbox</span>
+      </div>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.clsDot }}>Thread not found.</p>
+    </div>
+  );
+
+  const statusBg = thread.status === 'open'     ? G.openBg
+                 : thread.status === 'answered' ? G.brass
+                 :                                 G.muted;
+
+  return (
+    <div>
+      {/* Back link */}
+      <div onClick={onBack} data-tap style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 0', marginBottom: 14, cursor: 'pointer' }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M19 12H5M5 12l7-7M5 12l7 7" /></svg>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass }}>Back to inbox</span>
+      </div>
+
+      {/* Thread header */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, fontWeight: 700, color: G.text, margin: 0, flex: 1 }}>
+            {thread.subject || '(no subject)'}
+          </h3>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusBg, padding: '3px 9px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+            {thread.status}
+          </span>
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 4px' }}>
+          From <strong style={{ color: G.text }}>{thread.from_name || thread.from_addr}</strong>
+          {thread.from_name ? ` <${thread.from_addr}>` : ''}
+        </p>
+        {/* Status controls */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {thread.status !== 'closed' && (
+            <div onClick={() => setStatus('closed')} data-tap style={{ padding: '5px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>Close thread</span>
+            </div>
+          )}
+          {thread.status === 'closed' && (
+            <div onClick={() => setStatus('open')} data-tap style={{ padding: '5px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass }}>Reopen thread</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ marginBottom: 14 }}>
+        {messages.map(m => {
+          const isOut = m.direction === 'out';
+          return (
+            <div key={m.id} style={{
+              display: 'flex',
+              justifyContent: isOut ? 'flex-end' : 'flex-start',
+              marginBottom: 10,
+            }}>
+              <div style={{
+                maxWidth: '85%',
+                padding: '12px 14px',
+                background: isOut ? G.green : G.card,
+                color: isOut ? '#F2EDE0' : G.text,
+                border: `1px solid ${isOut ? G.green : G.border}`,
+                borderRadius: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 12, fontWeight: 700, color: isOut ? '#F2E5C0' : G.text }}>
+                    {isOut ? 'Support' : (m.from_name || m.from_addr)}
+                  </span>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: isOut ? 'rgba(242,229,192,0.7)' : G.muted }}>
+                    {new Date(m.received_at).toLocaleString()}
+                  </span>
+                </div>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: 'inherit', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {m.body_text || '(no plain-text body — HTML only)'}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Reply composer */}
+      {thread.status !== 'closed' && (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 14 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontStyle: 'italic', margin: '0 0 8px' }}>
+            Reply will be sent as <strong style={{ color: G.text }}>support@groundslive.com</strong> with proper threading headers — Gmail / Outlook keep this in the same thread on their side.
+          </p>
+          <textarea
+            value={reply}
+            onChange={e => setReply(e.target.value)}
+            placeholder="Type your reply…"
+            rows={4}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', lineHeight: 1.5, resize: 'vertical', outline: 'none' }}
+          />
+          {err && (
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsDot, margin: '8px 0 0' }}>{err}</p>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <div onClick={sending || !reply.trim() ? undefined : sendReply} data-tap
+              style={{
+                padding: '9px 20px',
+                background: (sending || !reply.trim()) ? G.muted : G.green,
+                borderRadius: 3,
+                cursor: (sending || !reply.trim()) ? 'not-allowed' : 'pointer',
+                opacity: (sending || !reply.trim()) ? 0.6 : 1,
+              }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: '#F2EDE0', fontWeight: 500 }}>
+                {sending ? 'Sending…' : 'Send reply'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
