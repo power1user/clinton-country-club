@@ -501,35 +501,38 @@ export function NotificationsAdmin() {
 
   return (
     <div>
+      {/* v0.12.8 — typography pass round 2. Push Broadcasts history:
+          title 14 → 16, body 12 → 14, timestamp 10 → 12, count
+          12 → 13, compose button 12 → 13. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0, flex: 1 }}>
           {rows.length} message{rows.length === 1 ? '' : 's'}{!canEdit && ' · view only'}
         </p>
         {canEdit && (
-          <div onClick={() => setComposing(true)} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Compose</span>
+          <div onClick={() => setComposing(true)} data-tap style={{ padding: '9px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>+ Compose</span>
           </div>
         )}
       </div>
 
-      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
       {!loading && rows.length === 0 && (
-        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No notifications sent yet.</p>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '18px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>No notifications sent yet.</p>
         </div>
       )}
       {!loading && rows.length > 0 && (
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
           {rows.map((r, i) => (
-            <div key={r.id} style={{ padding: '12px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}` }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+            <div key={r.id} style={{ padding: '14px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}` }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5 }}>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: urgencyColor(r.urgency), padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.urgency}</span>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0 }}>
                   {r.published_at ? `Sent ${new Date(r.published_at).toLocaleString()}` : 'Draft'}
                 </p>
               </div>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>{r.title}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, lineHeight: 1.4 }}>{r.body}</p>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 3px' }}>{r.title}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, lineHeight: 1.5 }}>{r.body}</p>
             </div>
           ))}
         </div>
@@ -3522,55 +3525,58 @@ export function MemberPostsAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      {/* v0.12.8 — typography pass round 2. Moderate Posts: title
+          14 → 16, category/author 11 → 13, body 12 → 14, action
+          links 11 → 13, date chip 10 → 12, tab labels 12 → 13. */}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         Member-generated posts. Hide a bulletin post to keep it out of the member feed while leaving it on record; delete to remove entirely. {!canEdit && 'View only — ask your manager for can_manage_members to moderate.'}
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, background: G.card, padding: 4, borderRadius: 4, border: `1px solid ${G.border}` }}>
         {[{ id: 'bulletin', l: `Bulletin (${bulletin.length})` }, { id: 'partner', l: `Partner posts (${partner.length})` }].map(t => (
-          <div key={t.id} onClick={() => setTab(t.id)} data-tap style={{ flex: 1, padding: '8px 12px', borderRadius: 3, background: tab === t.id ? G.green : 'transparent', cursor: 'pointer', textAlign: 'center' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: tab === t.id ? '#F2EDE0' : G.muted, fontWeight: tab === t.id ? 600 : 400 }}>{t.l}</span>
+          <div key={t.id} onClick={() => setTab(t.id)} data-tap style={{ flex: 1, padding: '9px 12px', borderRadius: 3, background: tab === t.id ? G.green : 'transparent', cursor: 'pointer', textAlign: 'center' }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: tab === t.id ? '#F2EDE0' : G.muted, fontWeight: tab === t.id ? 600 : 400 }}>{t.l}</span>
           </div>
         ))}
       </div>
 
-      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
 
       {!loading && tab === 'bulletin' && bulletin.length === 0 && (
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: 16, textAlign: 'center', background: G.card, borderRadius: 4 }}>No bulletin posts yet.</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: 18, textAlign: 'center', background: G.card, borderRadius: 4 }}>No bulletin posts yet.</p>
       )}
       {!loading && tab === 'bulletin' && bulletin.map(r => (
-        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, opacity: r.hidden ? 0.5 : 1 }}>
+        <div key={r.id} style={{ padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10, opacity: r.hidden ? 0.5 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.hidden && <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, fontStyle: 'italic', marginLeft: 8 }}>(hidden)</span>}</p>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.hidden && <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, fontStyle: 'italic', marginLeft: 8 }}>(hidden)</span>}</p>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
           </div>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0' }}>{r.category} · {r.members?.name || 'Member'}</p>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0 8px', lineHeight: 1.5 }}>{r.body}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0' }}>{r.category} · {r.members?.name || 'Member'}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: '7px 0 9px', lineHeight: 1.5 }}>{r.body}</p>
           {canEdit && (
-            <div style={{ display: 'flex', gap: 12 }}>
-              <span onClick={() => toggleHidden(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.hidden ? 'Unhide' : 'Hide'}</span>
-              <span onClick={() => removeBulletin(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <span onClick={() => toggleHidden(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.hidden ? 'Unhide' : 'Hide'}</span>
+              <span onClick={() => removeBulletin(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
             </div>
           )}
         </div>
       ))}
 
       {!loading && tab === 'partner' && partner.length === 0 && (
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: 16, textAlign: 'center', background: G.card, borderRadius: 4 }}>No partner posts yet.</p>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: 18, textAlign: 'center', background: G.card, borderRadius: 4 }}>No partner posts yet.</p>
       )}
       {!loading && tab === 'partner' && partner.map(r => (
-        <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, opacity: r.is_open === false ? 0.5 : 1 }}>
+        <div key={r.id} style={{ padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10, opacity: r.is_open === false ? 0.5 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.is_open === false && <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, fontStyle: 'italic', marginLeft: 8 }}>(closed)</span>}</p>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0 }}>{r.title}{r.is_open === false && <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontStyle: 'italic', marginLeft: 8 }}>(closed)</span>}</p>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted }}>{new Date(r.created_at).toLocaleDateString()}</span>
           </div>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0' }}>{r.category || 'Foursome'} · {r.members?.name || 'Member'}{r.hcp != null && ` · Hcp ${r.hcp}`}</p>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '6px 0 8px', lineHeight: 1.5 }}>{r.body}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0' }}>{r.category || 'Foursome'} · {r.members?.name || 'Member'}{r.hcp != null && ` · Hcp ${r.hcp}`}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: '7px 0 9px', lineHeight: 1.5 }}>{r.body}</p>
           {canEdit && (
-            <div style={{ display: 'flex', gap: 12 }}>
-              <span onClick={() => togglePartnerOpen(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.is_open === false ? 'Reopen' : 'Mark closed'}</span>
-              <span onClick={() => removePartner(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <span onClick={() => togglePartnerOpen(r)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{r.is_open === false ? 'Reopen' : 'Mark closed'}</span>
+              <span onClick={() => removePartner(r.id)} data-tap style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.clsDot, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete</span>
             </div>
           )}
         </div>
@@ -3649,38 +3655,41 @@ export function ClubhouseInboxAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      {/* v0.12.8 — typography pass round 2. Clubhouse inbox: topic
+          header 14 → 16, thread count 11 → 13, starter primary
+          13 → 15, preview 11 → 13, timestamp 10 → 12. */}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         Member-initiated conversations routed to the clubhouse, grouped by topic. {canReply ? 'Tap a thread to reply.' : 'You can read but not reply — ask your manager for write permission.'}
       </p>
 
-      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</p>}
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</p>}
       {!loading && threads.length === 0 && (
-        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No member messages yet.</p>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '18px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>No member messages yet.</p>
         </div>
       )}
 
       {Object.entries(grouped).map(([topic, list]) => (
-        <div key={topic} style={{ marginBottom: 14 }}>
-          <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>{topic}</h4>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px' }}>{list.length} thread{list.length === 1 ? '' : 's'}</p>
+        <div key={topic} style={{ marginBottom: 16 }}>
+          <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 6px' }}>{topic}</h4>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 6px' }}>{list.length} thread{list.length === 1 ? '' : 's'}</p>
           <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
             {list.map((t, i) => {
               const starterName = t.starter?.members?.name || 'Member';
               const starterNum = t.starter?.members?.membership_number;
               const preview = t.preview?.is_system ? `(${t.preview.body})` : (t.preview?.body || 'No messages yet');
               return (
-                <div key={t.id} onClick={() => push('thread', { threadId: t.id })} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8, cursor: 'pointer' }}>
+                <div key={t.id} onClick={() => push('thread', { threadId: t.id })} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {starterName}{starterNum ? ` · #${starterNum}` : ''}
                       </p>
-                      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{relativeTime(t.last_message_at)}</span>
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, flexShrink: 0 }}>{relativeTime(t.last_message_at)}</span>
                     </div>
-                    <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</p>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</p>
                   </div>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
                 </div>
               );
             })}
@@ -3770,7 +3779,12 @@ export function SuperAdminsAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      {/* v0.12.8 — typography pass round 2. Super Admins list:
+          row primary 13 → 15, secondary 11 → 13, Remove link
+          11 → 13, promote button 13 (kept), member-pool primary
+          13 → 15, member-pool secondary 11 → 13, Promote link
+          11 → 13. */}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         Super admins have full platform access. They can promote/demote other super admins, manage every club, and bypass all permission checks. {admins.length === 1 ? 'You are the only super admin — promote at least one other before demoting yourself.' : ''}
       </p>
 
@@ -3778,41 +3792,41 @@ export function SuperAdminsAdmin() {
         {admins.map((a, i) => {
           const isSelf = a.user_id === session?.user?.id;
           return (
-            <div key={a.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 8 }}>
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, margin: 0, fontWeight: 500 }}>
                   {a.display_name || '(unnamed)'}{isSelf && ' · You'}
                 </p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>Added {new Date(a.created_at).toLocaleDateString()}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0' }}>Added {new Date(a.created_at).toLocaleDateString()}</p>
               </div>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Super</span>
-              <div onClick={() => demote(a)} data-tap style={{ padding: '4px 8px', cursor: 'pointer' }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove</span>
+              <div onClick={() => demote(a)} data-tap style={{ padding: '5px 10px', cursor: 'pointer' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Remove</span>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div onClick={() => setAdding(!adding)} data-tap style={{ padding: 12, background: adding ? G.card : G.green, border: `1px solid ${adding ? G.border : G.green}`, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
-        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: adding ? G.text : '#F2EDE0', fontWeight: 500 }}>{adding ? 'Cancel' : '+ Promote a member to Super Admin'}</span>
+      <div onClick={() => setAdding(!adding)} data-tap style={{ padding: 13, background: adding ? G.card : G.green, border: `1px solid ${adding ? G.border : G.green}`, borderRadius: 3, textAlign: 'center', cursor: 'pointer' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: adding ? G.text : '#F2EDE0', fontWeight: 500 }}>{adding ? 'Cancel' : '+ Promote a member to Super Admin'}</span>
       </div>
 
       {adding && (
         <div style={{ marginTop: 12 }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 8px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 9px' }}>
             Pick a Clinton CC member with an account to promote. They'll gain platform-wide super_admin access immediately.
           </p>
           {memberPool.length === 0 && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, padding: 12, textAlign: 'center', background: G.card, borderRadius: 4 }}>No eligible members. They need a signed-in account first.</p>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, padding: 14, textAlign: 'center', background: G.card, borderRadius: 4 }}>No eligible members. They need a signed-in account first.</p>
           )}
           {memberPool.map(m => (
-            <div key={m.id} onClick={() => promote(m)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, cursor: 'pointer' }}>
+            <div key={m.id} onClick={() => promote(m)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 7, cursor: 'pointer' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500 }}>{m.name}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0 }}>#{m.membership_number} · {m.email || 'no email'}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, margin: 0, fontWeight: 500 }}>{m.name}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0' }}>#{m.membership_number} · {m.email || 'no email'}</p>
               </div>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Promote →</span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>Promote →</span>
             </div>
           ))}
         </div>
@@ -3884,12 +3898,16 @@ export function AllClubsAdmin() {
   if (selected && fullClub) {
     return (
       <div>
+        {/* v0.12.8 — typography pass round 2. All Clubs (super_admin):
+            back link 12 → 13, subtitle 11 → 13, list count 12 → 13,
+            new club button 12 → 13, row primary 14 → 16, row
+            secondary 11 → 13, chevron 14 → 16. */}
         <div onClick={() => setSelected(null)} data-tap style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 0', marginBottom: 14, cursor: 'pointer' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M19 12H5M5 12l7-7M5 12l7 7" /></svg>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass }}>All Clubs</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.brass} strokeWidth="2"><path d="M19 12H5M5 12l7-7M5 12l7 7" /></svg>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass }}>All Clubs</span>
         </div>
         <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 20, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{fullClub.name}</h3>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 16px' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 16px' }}>
           {fullClub.slug}.groundslive.com · {fullClub.city || '?'}, {fullClub.state || '?'}
         </p>
         <ClubSettingsForm
@@ -3917,37 +3935,37 @@ export function AllClubsAdmin() {
   // ── List view
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         Every club on the platform. Tap a row to edit branding + contact info. Add a new club to onboard.
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, flex: 1 }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0, flex: 1 }}>
           {clubs.length} {clubs.length === 1 ? 'club' : 'clubs'}
         </p>
-        <div onClick={() => setCreating(true)} data-tap style={{ padding: '8px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ New Club</span>
+        <div onClick={() => setCreating(true)} data-tap style={{ padding: '9px 14px', background: G.green, borderRadius: 3, cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>+ New Club</span>
         </div>
       </div>
 
       <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden' }}>
         {clubs.map((c, i) => (
-          <div key={c.id} onClick={() => setSelected(c)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
+          <div key={c.id} onClick={() => setSelected(c)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 12, cursor: 'pointer' }}>
             {/* Color swatch from primary_color */}
-            <div style={{ width: 36, height: 36, borderRadius: 4, background: c.primary_color || '#1B3A2D', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 4, background: c.primary_color || '#1B3A2D', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {c.logo_url ? (
                 <img src={c.logo_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               ) : (
-                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: '#F2E5C0' }}>{(c.name || '?').charAt(0)}</span>
+                <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: '#F2E5C0' }}>{(c.name || '?').charAt(0)}</span>
               )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.slug}.groundslive.com{c.city ? ` · ${c.city}${c.state ? `, ${c.state}` : ''}` : ''}
               </p>
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
           </div>
         ))}
       </div>
@@ -4762,17 +4780,21 @@ function GuestList({ club }) {
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Guests</h4>
+      {/* v0.12.8 — typography pass round 2. Guests list: heading
+          14 → 16, filters 12 → 13, count 11 → 13, row primary
+          13 → 15, row secondary 11 → 13, Row key 11 → 13, Row
+          value 12 → 14 (see Row component below). */}
+      <h4 style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 8px' }}>Guests</h4>
 
-      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px', marginBottom: 10 }}>
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Search by name or email…"
-          style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
         />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }}>
             <option value="all">All visit types</option>
             <option value="member_guest">Member guests</option>
             <option value="public_play">Public play</option>
@@ -4782,34 +4804,34 @@ function GuestList({ club }) {
           {/* v0.8.8: filter by referring member. Options are derived
               from members who've actually brought guests (no point
               listing every member). */}
-          <select value={refFilter} onChange={e => setRefFilter(e.target.value)} style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }}>
+          <select value={refFilter} onChange={e => setRefFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }}>
             <option value="all">All referrers</option>
             <option value="none">No referring member (clubhouse / public)</option>
             {referringMembers.map(([id, nm]) => (
               <option key={id} value={id}>Guest of {nm}</option>
             ))}
           </select>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC' }} />
-          <div onClick={exportCsv} data-tap style={{ padding: '6px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }} />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }} />
+          <div onClick={exportCsv} data-tap style={{ padding: '7px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
           </div>
           {/* v0.8.8: separate "Visit history" export — one row per
               visit so repeat-guest patterns are visible. Hits the DB
               fresh on click so it doesn't get capped at the 500-row
               guest list limit. */}
-          <div onClick={exportVisitHistoryCsv} data-tap style={{ padding: '6px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 500 }}>Export visit history</span>
+          <div onClick={exportVisitHistoryCsv} data-tap style={{ padding: '7px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500 }}>Export visit history</span>
           </div>
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '10px 0 0' }}>
           {loading ? 'Loading…' : `${filtered.length} of ${rows.length} guest${rows.length === 1 ? '' : 's'}`}
         </p>
       </div>
 
       {!loading && filtered.length === 0 && (
-        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 16, textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: 18, textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>
             {rows.length === 0 ? 'No guests have registered yet.' : 'No guests match those filters.'}
           </p>
         </div>
@@ -4819,13 +4841,13 @@ function GuestList({ club }) {
         const isOpen = expanded === r.id;
         const statusColor = r.status === 'active' ? G.openBg : r.status === 'pending' ? G.brass : G.clsBg;
         return (
-          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 6, overflow: 'hidden' }}>
-            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '10px 12px', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 500, color: G.text, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</p>
+          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 7, overflow: 'hidden' }}>
+            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '13px 16px', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 15, fontWeight: 500, color: G.text, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</p>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: statusColor, padding: '2px 7px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>{r.status}</span>
               </div>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {r.email} · {r.visit_type.replace(/_/g, ' ')} · {r.visit_date}
                 {r.members?.name && <> · guest of {r.members.name}</>}
               </p>
@@ -4852,10 +4874,12 @@ function GuestList({ club }) {
 }
 
 function Row({ k, v }) {
+  // v0.12.8 — Row primitive used by guest-detail rows + similar
+  // key/value detail panels. Key 11 → 13, value 12 → 14.
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
-      <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flexShrink: 0 }}>{k}</span>
-      <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, textAlign: 'right', maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, flexShrink: 0 }}>{k}</span>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, textAlign: 'right', maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
     </div>
   );
 }
@@ -4962,20 +4986,26 @@ export function ProvisionLogAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      {/* v0.12.8 — typography pass round 2. Provision log: intro
+          12 → 13, subdomain-health title 13 → 15, secondary 11 → 13,
+          health-result name 13 → 15, hostname 10 → 12, button label
+          12 → 13, re-provision button 11 → 12, filter label 11 → 13,
+          count 11 → 13, attempt primary 14 → 16, attempt secondary
+          11 → 13, timestamp 10 → 12. */}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         Audit log of every Cloudflare Pages Custom Domain provision attempt. Written server-side by the provision-club-domain Edge Function — immutable. Tap any row to see the raw Cloudflare API response.
       </p>
 
       {/* v0.10.12 — Manual health check across every club. Catches
           orphan clubs whose subdomain was never provisioned (DB row
           exists, DNS NXDOMAIN) before members hit the broken host. */}
-      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '13px 16px', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: healthResults ? 12 : 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>
+            <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: 0 }}>
               Subdomain health
             </p>
-            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '3px 0 0' }}>
               Pings every club's hostname. Flags unreachable subdomains + clubs whose DNS isn't proxied through Cloudflare.
             </p>
           </div>
@@ -4989,8 +5019,8 @@ export function ProvisionLogAdmin() {
               background: healthRunning ? G.muted : G.green,
               color: '#F2EDE0',
               border: 'none', borderRadius: 4,
-              padding: '8px 14px', cursor: healthRunning ? 'wait' : 'pointer',
-              fontFamily: '"Playfair Display",serif', fontSize: 12, fontWeight: 600,
+              padding: '9px 14px', cursor: healthRunning ? 'wait' : 'pointer',
+              fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 600,
             }}
           >
             {healthRunning ? 'Checking…' : 'Run health check'}
@@ -4998,13 +5028,13 @@ export function ProvisionLogAdmin() {
         </div>
 
         {healthErr && (
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsBg, margin: '8px 0 0' }}>{healthErr}</p>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.clsBg, margin: '8px 0 0' }}>{healthErr}</p>
         )}
 
         {healthResults && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {healthResults.length === 0 && (
-              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No clubs configured.</p>
+              <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>No clubs configured.</p>
             )}
             {healthResults.map(r => {
               const healthy = r.reachable && r.cloudflare;
@@ -5015,7 +5045,7 @@ export function ProvisionLogAdmin() {
               return (
                 <div key={r.slug} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 11px',
+                  padding: '11px 13px',
                   background: G.bg, borderRadius: 3,
                   border: `1px solid ${G.border}`,
                 }}>
@@ -5026,10 +5056,10 @@ export function ProvisionLogAdmin() {
                     flexShrink: 0,
                   }}>{badgeText}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text, margin: 0 }}>
+                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 15, fontWeight: 700, color: G.text, margin: 0 }}>
                       {r.club_name || r.slug}
                     </p>
-                    <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {r.hostname}
                       {r.status != null && ` · ${r.status}`}
                       {r.latency_ms != null && ` · ${r.latency_ms}ms`}
@@ -5049,9 +5079,9 @@ export function ProvisionLogAdmin() {
                         color: G.brass,
                         border: `1px solid ${G.brass}`,
                         borderRadius: 3,
-                        padding: '5px 11px',
+                        padding: '6px 12px',
                         cursor: reprovisioning === r.slug ? 'wait' : 'pointer',
-                        fontFamily: '"Lora",serif', fontSize: 11, fontWeight: 600,
+                        fontFamily: '"Lora",serif', fontSize: 12, fontWeight: 600,
                       }}
                     >
                       {reprovisioning === r.slug ? '…' : 'Re-provision'}
@@ -5065,23 +5095,23 @@ export function ProvisionLogAdmin() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-        <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, flex: 1 }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, flex: 1 }}>
           {loading ? '…' : `${rows.length} attempt${rows.length === 1 ? '' : 's'} · ${okCount} ok · ${failCount} failed`}
         </span>
-        <div onClick={() => setFilterFailed(v => !v)} data-tap style={{ padding: '6px 12px', borderRadius: 3, background: filterFailed ? G.clsBg : G.card, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: filterFailed ? '#F2E5C0' : G.muted }}>
+        <div onClick={() => setFilterFailed(v => !v)} data-tap style={{ padding: '7px 13px', borderRadius: 3, background: filterFailed ? G.clsBg : G.card, border: `1px solid ${G.border}`, cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: filterFailed ? '#F2E5C0' : G.muted }}>
             {filterFailed ? '✓ Failures only' : 'Show failures only'}
           </span>
         </div>
       </div>
 
       {loading && (
-        <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center', margin: 0 }}>Loading provision log…</p>
+        <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0', textAlign: 'center', margin: 0 }}>Loading provision log…</p>
       )}
 
       {!loading && rows.length === 0 && (
-        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '20px 16px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '22px 16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>
             {filterFailed ? 'No failed provisions — system is healthy.' : 'No provision attempts logged yet. The next club onboarding will populate this.'}
           </p>
         </div>
@@ -5093,21 +5123,21 @@ export function ProvisionLogAdmin() {
         const badgeLabel = r.ok ? (r.already_existed ? 'EXISTED' : 'OK') : 'FAILED';
         const clubLabel = r.clubs?.name || (r.club_id ? '(deleted club)' : '(no club)');
         return (
-          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8, overflow: 'hidden' }}>
-            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '11px 14px', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <div key={r.id} style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10, overflow: 'hidden' }}>
+            <div onClick={() => setExpanded(isOpen ? null : r.id)} data-tap style={{ padding: '13px 16px', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                 <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: badgeColor, padding: '2px 7px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{badgeLabel}</span>
                 {r.status_code != null && (
-                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted }}>HTTP {r.status_code}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: G.muted }}>HTTP {r.status_code}</span>
                 )}
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, marginLeft: 'auto' }}>
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, marginLeft: 'auto' }}>
                   {new Date(r.attempted_at).toLocaleString()}
                 </span>
               </div>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: '0 0 2px' }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: '0 0 3px' }}>
                 {r.hostname || `${r.slug}.groundslive.com`}
               </p>
-              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, lineHeight: 1.4 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: 0, lineHeight: 1.5 }}>
                 {clubLabel}
                 {r.error && <> · <span style={{ color: G.clsDot }}>{r.error.slice(0, 80)}{r.error.length > 80 ? '…' : ''}</span></>}
               </p>
@@ -5144,10 +5174,13 @@ export function ProvisionLogAdmin() {
 }
 
 function DetailRow({ label, value }) {
+  // v0.12.8 — DetailRow primitive used by ProvisionLogAdmin's
+  // expanded attempt detail. Label 10 → 12, monospace value
+  // 11 → 13.
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
-      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontFamily: 'monospace', fontSize: 11, color: G.text, textAlign: 'right', maxWidth: '65%', wordBreak: 'break-all' }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '5px 0', borderBottom: `1px solid ${G.border}`, gap: 12 }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontFamily: 'monospace', fontSize: 13, color: G.text, textAlign: 'right', maxWidth: '65%', wordBreak: 'break-all' }}>{value}</span>
     </div>
   );
 }
@@ -5246,41 +5279,45 @@ export function LessonRequestsAdmin({ mode = 'all' } = {}) {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
+      {/* v0.12.8 — typography pass round 2. Lesson Requests / Pro
+          Shop Inquiries queue: name 14 → 16, secondary 11 → 13,
+          detail 12 → 14, notes 12 → 13, select 12 → 13, reply button
+          11 → 13, card padding 12/14 → 14/16. */}
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
         {heading} Update status as you respond. Tap "Reply via clubhouse" to open a thread with the requester.
       </p>
       {replyErr && (
-        <div onClick={() => setReplyErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4, padding: '8px 12px', marginBottom: 10, cursor: 'pointer' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.text, margin: 0 }}>{replyErr} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
+        <div onClick={() => setReplyErr(null)} data-tap style={{ background: 'rgba(224,84,84,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4, padding: '10px 14px', marginBottom: 10, cursor: 'pointer' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0 }}>{replyErr} <span style={{ color: G.muted }}>· tap to dismiss</span></p>
         </div>
       )}
-      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
+      {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '20px 0', textAlign: 'center' }}>Loading…</p>}
       {!loading && rows.length === 0 && (
-        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '16px', textAlign: 'center' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No requests yet.</p>
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '18px', textAlign: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0 }}>No requests yet.</p>
         </div>
       )}
       {rows.map(r => {
         const isReplying = busyReply === r.id;
         return (
-          <div key={r.id} style={{ padding: '12px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: G.text, margin: 0 }}>{r.members?.name || 'Unknown'}</p>
+          <div key={r.id} style={{ padding: '14px 16px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+              <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text, margin: 0 }}>{r.members?.name || 'Unknown'}</p>
               <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: STATUS_COLORS[r.status] || G.muted, padding: '2px 8px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{r.status}</span>
             </div>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 4px' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '0 0 5px' }}>
               {r.members?.email || '—'} · {r.kind || 'lesson'} {r.pro && `· Pro: ${r.pro}`}
             </p>
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: '0 0 4px' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: '0 0 5px' }}>
               {[r.preferred_date && new Date(r.preferred_date).toLocaleDateString(), r.preferred_time, r.skill_level && `Skill: ${r.skill_level}`].filter(Boolean).join(' · ')}
             </p>
-            {r.notes && <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '4px 0 8px' }}>{r.notes}</p>}
+            {r.notes && <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '5px 0 9px' }}>{r.notes}</p>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <select
                 value={r.status}
                 onChange={e => setStatus(r.id, e.target.value)}
                 disabled={!canEdit}
-                style={{ padding: '5px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+                style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
               >
                 {['pending', 'contacted', 'scheduled', 'done', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -5288,9 +5325,9 @@ export function LessonRequestsAdmin({ mode = 'all' } = {}) {
                 <div
                   onClick={isReplying ? undefined : () => replyViaClubhouse(r)}
                   data-tap
-                  style={{ padding: '5px 12px', background: isReplying ? G.muted : G.green, borderRadius: 3, cursor: isReplying ? 'wait' : 'pointer' }}
+                  style={{ padding: '7px 14px', background: isReplying ? G.muted : G.green, borderRadius: 3, cursor: isReplying ? 'wait' : 'pointer' }}
                 >
-                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 500 }}>
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>
                     {isReplying ? 'Opening…' : 'Reply via clubhouse'}
                   </span>
                 </div>

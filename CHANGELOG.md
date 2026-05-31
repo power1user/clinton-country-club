@@ -129,6 +129,61 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.8** — Typography pass round 2 (every admin queue card).
+
+  v0.12.6 only touched four patterns (CrudSection, FoodOrdersAdmin,
+  EventRegistrationsAdmin, EventsAdmin lists). Marc surfaced a
+  miss almost immediately — the Lesson Requests screen on desktop
+  was still reading at the old 14/11 primary/secondary sizing.
+  Round 2 bumps every remaining custom queue / list / detail
+  surface in `sections.jsx`:
+
+  · **LessonRequestsAdmin** (Comms → Lesson Requests + Pro Shop
+    Inquiries) — name `14 → 16`, email/kind/pro line `11 → 13`,
+    detail line `12 → 14`, notes `12 → 13`, status select +
+    "Reply via clubhouse" `11/12 → 13`, card padding bumped.
+  · **ClubhouseInboxAdmin** (Comms → Clubhouse Messages) — topic
+    header `14 → 16`, thread count `11 → 13`, starter primary
+    `13 → 15`, preview `11 → 13`, timestamp `10 → 12`.
+  · **MemberPostsAdmin** (People → Moderate Posts, bulletin +
+    partner tabs) — title `14 → 16`, category/author `11 → 13`,
+    body `12 → 14`, action links `11 → 13`, tab labels `12 → 13`,
+    date chip `10 → 12`.
+  · **NotificationsAdmin** (Broadcasts → Push Broadcasts history)
+    — title `14 → 16`, body `12 → 14`, "Sent" timestamp `10 → 12`,
+    Compose button `12 → 13`.
+  · **SuperAdminsAdmin** (Platform → Super Admins) — admin row
+    primary `13 → 15`, secondary `11 → 13`, Remove link `11 → 13`,
+    promote button `13 → 14`, member-pool primary `13 → 15`,
+    secondary `11 → 13`, Promote link `11 → 13`.
+  · **AllClubsAdmin** (Platform → All Clubs) — back link `12 → 13`,
+    subtitle `11 → 13`, list count `12 → 13`, new-club button
+    `12 → 13`, row primary `14 → 16`, row secondary `11 → 13`,
+    color-swatch initial `13 → 15`, chevron `14 → 16`.
+  · **GuestList** (People → Guest Settings) — heading `14 → 16`,
+    search box `13 → 14`, filters `12 → 13`, count `11 → 13`,
+    guest row primary `13 → 15`, secondary `11 → 13`, card
+    padding bumped.
+  · **Row primitive** (key/value used by GuestList detail) —
+    key `11 → 13`, value `12 → 14`.
+  · **ProvisionLogAdmin** (Platform → Provisioning Log) — intro
+    `12 → 13`, Subdomain Health title `13 → 15`, secondary
+    `11 → 13`, health-result name `13 → 15`, hostname/status
+    `10 → 12`, "Run health check" button `12 → 13`, Re-provision
+    button `11 → 12`, count `11 → 13`, filter `11 → 13`, attempt
+    primary `14 → 16`, attempt secondary `11 → 13`, timestamp +
+    HTTP code `10 → 12`.
+  · **DetailRow primitive** (key/value used by ProvisionLogAdmin's
+    expanded attempt) — label `10 → 12`, monospace value
+    `11 → 13`.
+
+  Status badges + urgency chips stay at the intentionally compact
+  `9pt` — they read as colored shapes more than as text. Every
+  bump is ~2pt so cards don't suddenly tower; same approach as
+  v0.12.6.
+
+  Member-facing screens untouched — this pass is admin-only.
+
 - **v0.12.7** — Fix: kitchen reply (and "Your order is ready") didn't push.
 
   Marc's report: "the replies from the kitchen are not sending
