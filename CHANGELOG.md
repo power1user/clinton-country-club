@@ -129,6 +129,48 @@ v0.12.2 — Bulk + swipe notification dismissal (per-member state)
 v0.12.3 — Event recurrence: interval + weekday support
 v0.12.4 — Phase 13 closeout (README refresh + phase index entry)
 
+- **v0.12.2** — Notification dismissal: swipe + bulk-select (never hard-deletes).
+
+  Two new affordances on top of the existing per-row X + confirm
+  modal:
+
+  · **Swipe a row left to dismiss.** Translates over a red
+    "Dismiss" rail; releasing past the 90px threshold commits the
+    dismiss, releasing short of it springs back. Direction is
+    locked after 8px of motion so a vertical scroll doesn't get
+    misread as a swipe. Click is suppressed when a swipe was
+    detected so a near-threshold spring-back doesn't also open
+    the item.
+
+  · **Select / bulk-dismiss mode.** A `Select` toggle in the
+    inbox sub-header turns row taps into selection toggles
+    (checkbox replaces the unread dot, no layout jitter). A
+    sticky bottom bar shows `N selected · Cancel · Dismiss N`.
+    One call dismisses everything in the set — threads and
+    notifications run in parallel against their own bulk helpers
+    (`hideThreads`, `hideNotifications`).
+
+  Every dismiss path — swipe, bulk, even the existing X +
+  confirm — surfaces an **Undo snackbar** for 5 seconds.
+  Tapping `UNDO` restores the dismissed items via the new
+  `unhideThread` / `unhideNotification` helpers (set
+  `hidden_at = null`). The realtime subscription on the inbox
+  feed re-renders instantly.
+
+  Per Marc's "dismiss from view only" rule, **nothing is ever
+  hard-deleted from the database.** Dismiss just toggles
+  `hidden_at` on `notification_reads` (for broadcasts) or
+  `thread_participants` (for threads). The admin's broadcast
+  list still shows every notification ever sent, and the
+  existing trigger that clears `hidden_at` when a new message
+  arrives keeps working so a dismissed thread resurfaces on
+  the next reply.
+
+  No migration — `notification_reads.hidden_at` and
+  `thread_participants.hidden_at` were already in the schema
+  from the v0.6.x dismissal work; v0.12.2 only adds bulk +
+  swipe + undo on top.
+
 - **v0.12.1** — Kitchen reply on Food Orders queue.
 
   Each active order card now has a **Reply** button next to the

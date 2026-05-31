@@ -298,3 +298,54 @@ export async function hideNotification(notificationId, memberId) {
     { onConflict: 'message_id,member_id' }
   );
 }
+
+// v0.12.2 — bulk + undo helpers. The single-item hideNotification +
+// hideThread above stay (used by the per-row X / confirm modal). The
+// new bulk + unhide helpers are used by:
+//   · Swipe-to-dismiss (mobile) — single dismiss + Undo snackbar
+//   · Bulk-select mode — multiple dismiss with one network round-trip
+//     per item, then one Undo snackbar that reverses the whole set
+// Per Marc's "dismiss from view only" rule, the underlying rows are
+// never deleted — we just toggle hidden_at on notification_reads /
+// thread_participants. Setting it to null restores the row to the
+// member's inbox feed instantly (realtime sub picks up the change).
+
+export async function unhideNotification(notificationId, memberId) {
+  if (!notificationId || !memberId) return;
+  await supabase.from('notification_reads').upsert(
+    { message_id: notificationId, member_id: memberId, hidden_at: null },
+    { onConflict: 'message_id,member_id' }
+  );
+}
+
+export async function unhideThread(threadId, userId) {
+  if (!threadId || !userId) return;
+  await supabase
+    .from('thread_participants')
+    .update({ hidden_at: null })
+    .eq('thread_id', threadId)
+    .eq('user_id', userId);
+}
+
+// Bulk versions. Done as parallel single-row writes rather than one
+// statement because the notification_reads side needs an upsert on the
+// composite key (member_id, message_id) — Postgres can take the
+// multi-row form but supabase-js's upsert with onConflict on a list of
+// objects is the cleanest cross-version path.
+export async function hideNotifications(notificationIds, memberId) {
+  if (!notificationIds?.length || !memberId) return;
+  const now = new Date().toISOString();
+  await supabase.from('notification_reads').upsert(
+    notificationIds.map(id => ({ message_id: id, member_id: memberId, hidden_at: now })),
+    { onConflict: 'message_id,member_id' }
+  );
+}
+
+export async function hideThreads(threadIds, userId) {
+  if (!threadIds?.length || !userId) return;
+  await supabase
+    .from('thread_participants')
+    .update({ hidden_at: new Date().toISOString() })
+    .in('thread_id', threadIds)
+    .eq('user_id', userId);
+}
