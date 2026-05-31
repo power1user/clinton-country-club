@@ -36,6 +36,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
 // @ts-ignore Deno-only
 import Anthropic from "npm:@anthropic-ai/sdk@0.39.0";
+import { ADMIN_MANUAL } from "./manual.ts";
 
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -126,6 +127,12 @@ End EVERY reply with the line:
 > *AI-generated guidance. For account-level changes contact support@groundslive.com.*
 
 (Two newlines before, italics, exactly that text.)
+
+== REFERENCE MANUAL ==
+
+The full admin manual follows. Treat it as your authoritative source of truth about every screen, section, role, and workflow in The Grounds. When the user asks "how do I…" or "where do I find…", quote labels from this manual exactly.
+
+${ADMIN_MANUAL}
 `;
 
 // ── Build Anthropic messages from the inbound chat history ────────

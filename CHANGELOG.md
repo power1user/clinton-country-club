@@ -164,6 +164,55 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.1** — Admin manual content + cached system prompt.
+
+  Drafted a comprehensive admin manual from the codebase
+  (\`supabase/functions/admin-ai-chat/manual.ts\`, ~25KB markdown,
+  ~6K tokens). Covers every admin area + section + cross-cutting
+  feature + a "Common admin tasks" section with step-by-step
+  walkthroughs for the 15 most common workflows (add an event,
+  set facility hours, reply to a food order, award a badge,
+  send a push, save a workspace, reply to a support ticket, etc.).
+
+  Wired into the Edge Function via \`import { ADMIN_MANUAL }
+  from "./manual.ts"\` + injected into the cached system prompt
+  block. The system prompt is now ~30KB / ~7K tokens — well
+  above Haiku 4.5's 1024-token cache minimum, so **prompt caching
+  now engages on every admin question within the 5-minute TTL**.
+
+  **Cost impact (per typical admin question):**
+  - First call after 5-min idle: full system prompt write
+    (~$0.009) — pays the cache premium once
+  - Every subsequent call in the same 5-min window: cache read
+    (~$0.0007) — basically free
+  - Output cost dominates after that (~$0.001 per response)
+
+  So a typical session of 5 questions over 2 minutes runs about
+  $0.01 — down from ~$0.05 without caching. At 50 admin
+  questions/day across the platform, that's $0.30/day = $9/month
+  for unlimited admin AI. Well inside Marc's plan to absorb as
+  part of "supporting your managers."
+
+  **Manual content highlights:**
+  - Phase-aware (mentions v0.13.9 facility trigger, v0.13.2 push
+    fan-out, v0.10.14 member-side Help & Support, etc.)
+  - Role gating noted inline ((manager only), (super_admin only))
+    so the AI flags it when telling someone where to go
+  - References UI labels EXACTLY as they appear in the sidebar
+    ("Communications → Lesson Requests", not "the lesson queue")
+  - Escalation path documented: AI cannot do account-level
+    changes, password resets, or platform features — those go to
+    the Contact Support modal with the right category
+
+  **What's next:**
+  - v0.14.2 — Admin chat UI in the topbar (modal with multi-turn
+    conversation, disclaimer rendering, cost display for
+    super_admin). Marc finally gets to actually talk to it.
+
+  No client-side changes this patch — function-only deploy.
+  Bumping the version anyway so anyone reading the inline phase
+  index in version.js sees the manual landed.
+
 - **v0.14.0** — Phase 15 opens: GroundsLive AI foundation.
 
   After the strategy session (member-side AI to differentiate the
