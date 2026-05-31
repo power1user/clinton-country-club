@@ -164,6 +164,40 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.13.3** — Outbound reply pipeline (server only).
+
+  New Edge Function `send-support-reply` (deployed v1). Super_admin
+  JWT in, reply email out via Resend appearing as
+  `support@groundslive.com` (or whatever `RESEND_FROM_ADDRESS`
+  is set to). Inserts a `direction='out'` row in `support_messages`
+  on send; the v0.13.0 trigger auto-flips the thread to
+  `status='answered'` and updates `last_message_at`. Also upserts
+  `support_reads` for the sending super_admin since they obviously
+  read the thread.
+
+  **Threading correctness** — the recipient's mail client
+  (Gmail/Outlook/etc.) needs three RFC-822 headers to chain
+  replies properly:
+  - `Message-ID` — fresh UUID-based ID on our domain
+    (`<reply-<UUID>@groundslive.com>`) so the recipient's
+    "Re:" comes back with this as `In-Reply-To` and we can
+    thread it on our side too
+  - `In-Reply-To` — set to the last inbound message's
+    `message_id` (looked up from support_messages)
+  - `References` — concatenation of the inbound parent's
+    `references_ids` + the parent's `Message-ID`
+
+  Resend's `headers` field carries all three to the wire. Tested
+  threading: a reply to a Gmail message keeps the same thread in
+  Gmail's UI; a fresh ticket starts a new Gmail thread.
+
+  Subject auto-prefixed with `Re: ` unless the original already
+  starts with it (case-insensitive).
+
+  No client code in this patch — the reply composer UI lands in
+  v0.13.4 which calls this endpoint. The function is fully
+  testable now via curl with a super_admin JWT.
+
 - **v0.13.2** — Push fan-out for support tickets.
 
   Every inbound support email now fires a Web Push to every
