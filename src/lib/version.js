@@ -69,6 +69,35 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.14.x — Phase 15: GroundsLive AI. Two-agent, prompt-cached
+//             AI assistant embedded throughout The Grounds. The
+//             Admin AI ships first (manager onboarding payoff is
+//             biggest) — accessed from the admin topbar, knows the
+//             admin manual + live club data, bills to The Grounds
+//             via mode='admin' rows in ai_usage_log. The Member AI
+//             ships later (v0.14.5+) as a floating bubble on
+//             member surfaces, gated per-club by
+//             clubs.member_ai_enabled, bills to the club via
+//             mode='member' rows. One log table, one billing axis
+//             (the `mode` column), separate Edge Functions per
+//             agent so system prompts, tool registries, and auth
+//             rules diverge cleanly. Uses Claude Haiku 4.5 with
+//             Anthropic prompt caching for cost discipline.
+//             v0.14.0 — Foundation: Migration 73 (ai_usage_log
+//             table with sub-cent precision cost columns + RLS for
+//             super_admin platform-wide and managers per-club +
+//             clubs.member_ai_enabled flag default false).
+//             admin-ai-chat Edge Function (v1): admin-role auth
+//             (super_admin / club_manager / club_admin), Anthropic
+//             SDK with prompt caching wired on the system prompt
+//             (cache discount engages once the admin manual lands
+//             in v0.14.1 and pushes the prefix past 1024 tokens),
+//             per-call cost computed from usage and written to
+//             ai_usage_log, ?diag=1 endpoint pings Anthropic with
+//             max_tokens=4 to verify ANTHROPIC_API_KEY is set and
+//             reachable. No chat UI yet (v0.14.2). No manual yet
+//             (v0.14.1). Foundation is callable via curl this
+//             patch; admins can't actually use it until v0.14.2.
 //   v0.13.x — Phase 14: Platform Support Inbox. A super_admin-only
 //             ticketing surface for club managers / staff to email
 //             support@groundslive.com from anywhere and have it
@@ -221,7 +250,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.13.9';
+export const VERSION = '0.14.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

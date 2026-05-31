@@ -164,6 +164,80 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.0** — Phase 15 opens: GroundsLive AI foundation.
+
+  After the strategy session (member-side AI to differentiate the
+  product + admin-side AI to slash manager-onboarding support load),
+  this patch lands the plumbing for both. **Admin AI ships first**
+  per Marc's call — the manager onboarding payoff is biggest.
+  Member AI lands later in v0.14.5+. Both will share one
+  `ai_usage_log` table; the `mode` column is the billing axis
+  (`mode='member'` rolls up per-club for clubs that opt in;
+  `mode='admin'` rolls up to The Grounds regardless of which club's
+  manager was asking).
+
+  **Migration 73:**
+  - **`ai_usage_log`** — append-only audit log of every Anthropic
+    API call. Columns for token counts (input / cached / output),
+    computed cost in cents at `numeric(14,6)` precision (sub-cent
+    matters when a Haiku message costs ~0.05¢), Anthropic request
+    ID for support tickets, a client-supplied `conversation_id` to
+    group multi-turn calls, latency, and an optional `error` column
+    for failed calls. RLS: super_admin reads everything; managers
+    read their club's rows; service-role inserts only — no user
+    writes, no updates, no deletes.
+  - **`clubs.member_ai_enabled`** boolean, default `false`. Gates
+    the future member-side AI per-club so managers explicitly opt
+    in once they understand the cost model. Admin AI is
+    platform-controlled and does NOT use this flag.
+
+  **`admin-ai-chat` Edge Function (v1):**
+  - Admin-role auth (super_admin / club_manager / club_admin)
+    matching the v0.13.7 `user_roles.club_id` schema fix.
+  - **Anthropic Claude Haiku 4.5** via official SDK
+    (`@anthropic-ai/sdk@0.39.0`).
+  - **Prompt caching wired** on the system prompt
+    (`cache_control: { type: "ephemeral" }`). With just the
+    foundation system prompt (~250 tokens) it's below Haiku's
+    1024-token cache minimum and won't actually engage yet — but
+    when v0.14.1 lands the admin manual content (probably 5-15K
+    tokens), the wiring is already correct and savings turn on
+    automatically.
+  - **Per-call cost calculation** from `response.usage`
+    (input + cache_creation × 1.25 + cache_read × 0.10 + output)
+    converted to cents and written to `ai_usage_log` with
+    `mode='admin'`. Failed calls write a row too with the error
+    message in the `error` column and cost columns at 0 — the log
+    is the truth.
+  - **`?diag=1` endpoint** (GET, no auth) checks
+    `ANTHROPIC_API_KEY` presence and format, then pings Anthropic
+    with a 4-token `max_tokens` call to verify the key is
+    reachable. Used to confirm Marc's secret is wired correctly
+    before opening the chat UI in v0.14.2.
+  - **No chat UI yet.** The function is callable via curl this
+    patch; the admin topbar integration lands in v0.14.2 after the
+    manual content (v0.14.1) gives it something useful to say.
+
+  **Phase 15 patch shape going forward:**
+  - v0.14.0 — Foundation (this patch)
+  - v0.14.1 — Admin manual content drafted from the codebase,
+    wired as cached system content
+  - v0.14.2 — Admin chat UI in the topbar (modal with multi-turn
+    conversation)
+  - v0.14.3 — Super admin usage dashboard (per-club spend, top
+    question categories, cache-hit rate)
+  - v0.14.4 — Admin enable/disable toggle in Club Settings
+  - v0.14.5 — Member AI: floating bubble + minimal tools (gated by
+    `clubs.member_ai_enabled`)
+  - v0.14.6 — Member manual content
+  - v0.14.7 — Member tools (live data queries: menu, hours, events)
+  - v0.14.8 — Phase 15 closeout (guest mode + README + polish)
+
+  **Marc needs to add `ANTHROPIC_API_KEY` to Supabase Edge Function
+  secrets** before the function can actually answer. Without it,
+  POST returns a 503 with an instructional error message and the
+  diag endpoint returns `anthropic_key_present: false`.
+
 - **v0.13.9** — Fix: custom facilities never got a `club_status` row.
 
   Marc added Tennis Court (custom) at Clinton CC, marked it active
