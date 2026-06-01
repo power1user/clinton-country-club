@@ -164,6 +164,33 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.9** — Admin AI floating bubble (discoverability).
+
+  Marc reported the topbar chat-bubble icon was too subtle —
+  hard to notice unless you knew where to look. Added a much
+  more prominent floating pill bottom-right:
+
+  - **Brass-accented "Ask AI" pill** with a chat icon + bold
+    label. Distinct from the member bubble's green so super_admins
+    flipping between contexts stay oriented.
+  - **Mounted on both desktop AND mobile admin shells**
+    (`AdminLayoutDesktop` for tablet+desktop, `AdminPanel.jsx` for
+    pure mobile drill-down). I missed mobile in the original v0.14.2.
+  - **Dismissible** per-user via localStorage
+    (`admin-ai-dismissed:<user_id>`). A tiny brass tab on the
+    right edge recalls it.
+  - **Hides while the chat modal is open** (no overlap with the
+    modal's z-index).
+
+  **Topbar icon stays** as a secondary entry point for users who
+  already learned where it is. Two entry points → unmistakable.
+
+  Wiring required wrapping the 3 mobile-shell return statements
+  in fragments to mount the bubble + modal alongside each level
+  of the drill-down (Level 1 hub, Level 2 area sub-hub, Level 3
+  section content). State for `aiOpen` lives at the AdminPanel
+  level so it persists across drill transitions.
+
 - **v0.14.8** — Phase 15 closeout.
 
   README + version.js phase index updated to reflect the full

@@ -38,6 +38,7 @@ import BellChip from '../../components/BellChip.jsx';
 import SupportBellChip from '../../components/SupportBellChip.jsx';
 import ContactSupportModal from '../../components/ContactSupportModal.jsx';
 import AdminAIChatModal from '../../components/AdminAIChatModal.jsx';
+import AdminAIBubble from '../../components/AdminAIBubble.jsx';
 import AdminSearchPalette, { SearchTrigger } from '../../components/AdminSearchPalette.jsx';
 import AdminWorkspaceSwitcher from '../../components/AdminWorkspaceSwitcher.jsx';
 import AdminDashboard from '../../components/AdminDashboard.jsx';
@@ -655,6 +656,11 @@ export default function AdminLayoutDesktop({
 
       {/* v0.14.2 — Admin AI chat modal. Hidden until aiOpen flips true. */}
       <AdminAIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
+
+      {/* v0.14.9 — Floating "Ask AI" bubble (bottom-right). Much more
+          prominent than the topbar icon — that one stays as a
+          secondary entry point for users who already know it's there. */}
+      {!aiOpen && <AdminAIBubble onOpen={() => setAiOpen(true)} />}
 
       {/* ─── Main content ─── */}
       <main style={{

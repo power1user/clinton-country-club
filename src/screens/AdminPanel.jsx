@@ -19,6 +19,10 @@ import {
 // v0.14.3 — AI usage dashboard lives in its own file (avoids
 // bloating the 6KLOC sections.jsx).
 import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
+// v0.14.9 — Floating Admin AI bubble for the MOBILE shell. Desktop
+// gets its own mount inside AdminLayoutDesktop.
+import AdminAIBubble from '../components/AdminAIBubble.jsx';
+import AdminAIChatModal from '../components/AdminAIChatModal.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
@@ -341,6 +345,9 @@ export default function AdminPanel() {
   );
   const [area, setArea] = useState(() => (isDesktop ? lastSection?.areaId : null) || null);
   const [sec, setSec] = useState(() => (isDesktop ? lastSection?.sectionId : null) || null);
+  // v0.14.9 — AI modal state for the mobile shell. Desktop's AI
+  // state lives inside AdminLayoutDesktop.
+  const [aiOpen, setAiOpen] = useState(false);
   // Persist whenever desktop navigation lands on a section.
   useEffect(() => {
     if (!isDesktop) return;
@@ -411,21 +418,26 @@ export default function AdminPanel() {
   // Level 3 — section content view, back returns to its area sub-hub
   if (activeSection) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-        <BackHeader
-          title={activeSection.l}
-          onBack={() => setSec(null)}
-          right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
-        />
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
-          {/* v0.11.1 — section if-chain moved into the shared
-              SectionContent component at the top of this file so
-              the mobile + desktop layouts render identical
-              section bodies without duplication. */}
-          <SectionContent sec={sec} club={club} isManager={isManager} isSuperAdmin={isSuperAdmin} />
+      <>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+          <BackHeader
+            title={activeSection.l}
+            onBack={() => setSec(null)}
+            right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
+          />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 28px' }}>
+            {/* v0.11.1 — section if-chain moved into the shared
+                SectionContent component at the top of this file so
+                the mobile + desktop layouts render identical
+                section bodies without duplication. */}
+            <SectionContent sec={sec} club={club} isManager={isManager} isSuperAdmin={isSuperAdmin} />
+          </div>
         </div>
-      </div>
+        {/* v0.14.9 — floating AI on mobile admin */}
+        {!aiOpen && <AdminAIBubble onOpen={() => setAiOpen(true)} />}
+        <AdminAIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
+      </>
     );
   }
 
@@ -442,25 +454,30 @@ export default function AdminPanel() {
       setSec(id);
     };
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-        <BackHeader
-          title={activeArea.l}
-          onBack={() => setArea(null)}
-          right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
-        />
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
-            {activeArea.d}
-          </p>
-          <CardGrid items={sectionsToShow} onSelect={handleSelect} badgeOf={badgeOf} />
+      <>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
+          <BackHeader
+            title={activeArea.l}
+            onBack={() => setArea(null)}
+            right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>}
+          />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 28px' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 16px', textAlign: 'center' }}>
+              {activeArea.d}
+            </p>
+            <CardGrid items={sectionsToShow} onSelect={handleSelect} badgeOf={badgeOf} />
+          </div>
         </div>
-      </div>
+        {!aiOpen && <AdminAIBubble onOpen={() => setAiOpen(true)} />}
+        <AdminAIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
+      </>
     );
   }
 
   // Level 1 — main hub with 6 area cards
   return (
+    <>
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <BackHeader title="Staff Admin" right={<span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.brassLt }}>{member?.name || 'Staff'}</span>} />
@@ -522,6 +539,10 @@ export default function AdminPanel() {
         )}
       </div>
     </div>
+    {/* v0.14.9 — floating Admin AI bubble on mobile Level-1 hub */}
+    {!aiOpen && <AdminAIBubble onOpen={() => setAiOpen(true)} />}
+    <AdminAIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
+    </>
   );
 }
 
