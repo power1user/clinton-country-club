@@ -164,6 +164,34 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.6** — Member manual content + member-ai-chat v2.
+
+  Replaced the v0.14.5 stub with the full ~15KB member-facing
+  manual. Covers:
+  - What MyClub is + the bottom tab bar
+  - Per-tab inventory (Home, Golf, Food & Drink, Community, My Club)
+  - 16 step-by-step common tasks (order food to-go / eat-in, RSVP,
+    cancel RSVP, see pin position, DM another member, post on
+    bulletin, post on partner board, browse pro shop, book a
+    lesson, update profile photo, change to dark mode, see Trophy
+    Case, view RSVP history, open membership card / QR, message
+    clubhouse, get app help)
+  - Pending membership banner explanation
+  - Guest mode (all three access levels — data_only, read_only,
+    full_temporary)
+  - Cross-cutting concepts (real-time, push, PWA install, status
+    pill colors, brass-ring calendar overrides, cart badge,
+    magic-link sign-in)
+  - What the AI can't help with (account changes, personal
+    records, tee times, disputes, other clubs)
+  - Escalation paths (Message Clubhouse for club stuff, Help &
+    Support for app stuff)
+
+  Member-ai-chat deployed at v2. Diag endpoint reports
+  manual_chars so we can verify it loaded. Prompt cache now
+  engages on the member side too (manual is well above Haiku's
+  1024-token cache minimum).
+
 - **v0.14.5** — Member AI: Edge Function + floating bubble.
 
   **`member-ai-chat` Edge Function (v1)** — mirror of admin-ai-chat
