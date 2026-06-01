@@ -265,23 +265,37 @@ export default function GuestRegister() {
             </div>
           )}
 
-          <div
-            onClick={formValid && !busy ? submit : undefined}
+          {/* v0.14.13 — real <button> with `disabled` so the browser
+              gives native a11y + disabled affordance + no tap-delay
+              quirk on mobile. The prior <div onClick> pattern had
+              visual flash on the data-tap CSS animation even when
+              onClick was undefined, which felt like "lag" to guests
+              before the form was complete. */}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!formValid || busy}
             data-tap
             style={{
+              width: '100%',
               padding: '14px',
               background: formValid && !busy ? G.green : G.border,
+              border: 'none',
               borderRadius: 4,
               textAlign: 'center',
               cursor: formValid && !busy ? 'pointer' : 'not-allowed',
+              fontFamily: '"Lora",serif',
+              fontSize: 14,
+              color: formValid && !busy ? '#F2EDE0' : G.muted,
+              fontWeight: 500,
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: formValid && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-              {busy ? 'Sending…' :
-                (pwaRequired && !isStandalone) ? 'Install the app to continue' :
-                'Send Access Link'}
-            </span>
-          </div>
+            {busy ? 'Sending…' :
+              (pwaRequired && !isStandalone) ? 'Install the app to continue' :
+              'Send Access Link'}
+          </button>
 
           {/* Footer attribution — same treatment as the MyClub footer.
               v0.8.6: small Grounds mark inline with the text. */}

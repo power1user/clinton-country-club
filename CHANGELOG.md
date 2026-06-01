@@ -164,6 +164,44 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.13** — Fix: guest registration redirect + button lag.
+
+  Real guest signup attempt surfaced two bugs:
+
+  **The redirect bug (critical):** A guest filled out the
+  registration form at \`clinton-country-club.marcabla1.workers.dev\`
+  (the OLD default workers.dev URL from when the Cloudflare Worker
+  was named \`clinton-country-club\` before being renamed to
+  \`the-grounds\`). Form sent \`redirect_to: window.location.origin\`
+  to the \`guest-register\` Edge Function. Edge Function used that
+  as \`emailRedirectTo\` for the magic link. Guest got their magic
+  link, clicked it, landed back at workers.dev which serves
+  "nothing here yet."
+
+  Fix: **\`guest-register\` Edge Function v17 ignores the client's
+  \`redirect_to\`** and always uses the canonical
+  \`https://{club.slug}.{ROOT_DOMAIN}/\` URL it looks up
+  server-side. Defense in depth — regardless of what host the form
+  was filled on, the magic link goes to the right place.
+
+  Manual followup required: disable the workers.dev URL on the
+  \`the-grounds\` Cloudflare Worker (dashboard → Settings →
+  Triggers → uncheck the workers.dev route), so old QRs and
+  bookmarks pointing at workers.dev stop serving the app
+  entirely.
+
+  **The form button lag:** Form used \`<div onClick={formValid ?
+  submit : undefined}>\` with a \`data-tap\` CSS animation. Tapping
+  the gray (disabled) state still fired the visual flash (scale +
+  opacity dip) but did nothing — felt like "lag" to guests
+  filling the form.
+
+  Fix: converted to real \`<button type="button" disabled={!formValid
+  || busy}>\` with \`touchAction: 'manipulation'\` and
+  \`WebkitTapHighlightColor: 'transparent'\`. Native disabled
+  affordance, no fake tap feedback when disabled, no iOS click
+  delay.
+
 - **v0.14.12** — Audit + fix dark-mode contrast everywhere.
 
   v0.14.10 fixed the AI textarea white-on-white but Marc reported
