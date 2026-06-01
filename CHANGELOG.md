@@ -164,6 +164,16 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.11** — Remove "Clinton Country Club · Member App" desktop label.
+
+  Leftover from very early prototyping — a hardcoded caption with a
+  little phone icon sat below the phone-frame chrome on desktop
+  views, saying "Clinton Country Club · Member App". Two problems:
+  it hardcoded "Clinton" (would have looked wrong on any other
+  club's domain) and Marc didn't want it. Deleted the markup from
+  \`index.html\` and the orphaned \`.desktop-label\` CSS rule from
+  \`src/index.css\`. No replacement.
+
 - **v0.14.10** — Fix: AI textarea white-on-white in dark mode.
 
   Marc reported the member AI textarea was unreadable in dark mode.
