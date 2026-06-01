@@ -37,6 +37,7 @@ import EventDetail from './screens/EventDetail.jsx';
 import BulletinBoard from './screens/BulletinBoard.jsx';
 import TrophyCase from './screens/TrophyCase.jsx';
 import MyClub from './screens/MyClub.jsx';
+import MemberAIBubble from './components/MemberAIBubble.jsx';
 import MemberCard from './screens/MemberCard.jsx';
 import MyEvents from './screens/MyEvents.jsx';
 import ProShop from './screens/ProShop.jsx';
@@ -212,6 +213,11 @@ function ScreenRenderer() {
     >
       <Comp params={current.params} />
       {isRoot && <BottomNav />}
+      {/* v0.14.5 — floating GroundsLive AI bubble. Self-gates on
+          isFeatureOn(club, 'member_ai') so this renders null when the
+          club hasn't opted in. Hidden on the admin surface (admin has
+          its own AI in the topbar). */}
+      {!current.id.startsWith('myclub/admin') && <MemberAIBubble />}
     </div>
   );
 }

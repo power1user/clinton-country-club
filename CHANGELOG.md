@@ -164,6 +164,50 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.5** — Member AI: Edge Function + floating bubble.
+
+  **`member-ai-chat` Edge Function (v1)** — mirror of admin-ai-chat
+  with three deltas:
+  - Auth = any signed-in user (member or admin) at the posted
+    `club_id`. Verifies via `members` lookup OR `user_roles` row at
+    that club.
+  - Gates on `clubs.feature_flags.member_ai === true` — returns 403
+    if the manager hasn't opted in. Defense-in-depth (the bubble
+    self-hides client-side too).
+  - Logs every call with `mode='member'` + `club_id` so cost rolls
+    up per-club in the Platform → AI Usage dashboard.
+
+  Uses the same Claude Haiku 4.5 + prompt-caching pattern; manual
+  content is a small stub for v0.14.5 (full member manual lands in
+  v0.14.6).
+
+  **`MemberAIBubble` component**:
+  - Floating bottom-right on every member screen. Self-gated by
+    `isFeatureOn(club, 'member_ai')` — renders null when the club
+    hasn't opted in.
+  - Three states: **bubble** (idle, with a tiny "Hide" tab above),
+    **expanded chat panel** (360px × 560px), **dismissed** (tiny
+    brass tab on the right edge to recall).
+  - Dismissal persisted in localStorage keyed by `(user_id,
+    club_id)` so each member's choice survives reloads + applies
+    only to their account.
+  - Chat panel includes 3 starter prompt chips for empty state,
+    "Thinking…" indicator, error rendering, Esc-to-close,
+    Enter-to-send (Shift+Enter for newline).
+  - Inline markdown renderer (smaller than admin's — member
+    replies are shorter).
+
+  **Mount point**: in `App.jsx` ScreenRenderer, after the
+  `<BottomNav />`. Hidden on the admin surface
+  (`!current.id.startsWith('myclub/admin')`) since admin has its
+  own AI in the topbar.
+
+  **What's next**: v0.14.6 lands the full member manual content
+  (~25KB drafted from the member-side codebase). v0.14.7 adds
+  live-data tools (`get_today_status`, `get_menu`, etc.) so the
+  AI can answer "is the pool open right now?" with current data
+  instead of "check the home screen."
+
 - **v0.14.4** — Member AI per-club toggle (in Club Features).
 
   Added `member_ai` to the feature flags catalog (`src/lib/features.js`).
