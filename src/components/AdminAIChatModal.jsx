@@ -427,7 +427,7 @@ export default function AdminAIChatModal({ open, onClose }) {
                 fontFamily: '"Lora",serif',
                 fontSize: 14,
                 color: G.text,
-                background: '#F8F4EC',
+                background: G.card,
                 outline: 'none',
                 resize: 'none',
                 lineHeight: 1.45,

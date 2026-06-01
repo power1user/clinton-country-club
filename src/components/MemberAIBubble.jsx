@@ -319,7 +319,7 @@ export default function MemberAIBubble() {
             style={{
               flex: 1, padding: '8px 11px', border: `1px solid ${G.border}`,
               borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13,
-              color: G.text, background: '#F8F4EC', outline: 'none',
+              color: G.text, background: G.card, outline: 'none',
               resize: 'none', lineHeight: 1.4,
               opacity: busy ? 0.6 : 1,
             }}

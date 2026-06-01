@@ -164,6 +164,37 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.10** — Fix: AI textarea white-on-white in dark mode.
+
+  Marc reported the member AI textarea was unreadable in dark mode.
+  Root cause: both MemberAIBubble and AdminAIChatModal hardcoded
+  `background: '#F8F4EC'` (light cream) on their textareas. When
+  the admin sidebar's true-dark theme override is on, the global
+  CSS vars flip — `G.text` becomes light (`#E8E4D8`) — but the
+  hardcoded `#F8F4EC` background stays light cream. Result:
+  light-on-light text, unreadable.
+
+  **Fix:** swapped both hardcoded `#F8F4EC` values for `G.card`,
+  which routes through CSS vars and adapts:
+  - light mode: `#F2EDE0` (cream)
+  - medium mode: `#EAE4D0` (slightly darker cream)
+  - member dark mode: `#D2C8B0` (darker beige)
+  - admin true-dark mode: `#1E2125` (dark gray-blue)
+
+  In every mode the textarea now has visible contrast against
+  both the panel background (`G.bg`) and the text color (`G.text`),
+  with the `G.border` outline distinguishing the input field.
+
+  **Other Phase 15 colors verified across all 4 modes:**
+  - User message bubble (green bg + light cream text) — constant
+    colors, always readable
+  - Admin bubble (brass bg + dark text) — constant colors, always
+    readable
+  - Assistant bubble (G.card bg + G.text) — adapts correctly
+  - Starter chips, headers, footers — all use G.* tokens, adapt
+    correctly
+  - The fix is the only one needed
+
 - **v0.14.9** — Admin AI floating bubble (discoverability).
 
   Marc reported the topbar chat-bubble icon was too subtle —
