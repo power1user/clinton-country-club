@@ -386,7 +386,7 @@ function BadgeDetailSheet({ badge, assignments, memberById, currentMemberId, pro
                   <div key={h.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 10px',
-                    background: isYou ? '#F8F4EC' : G.card,
+                    background: isYou ? G.card : G.card,
                     border: `1px solid ${isYou ? G.brass : G.border}`,
                     borderRadius: 4,
                   }}>

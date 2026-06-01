@@ -157,7 +157,7 @@ export default function LessonRequest() {
         </div>
         <div style={{ marginBottom: 18 }}>
           <SectionHead label="Preferred Date" />
-          <input value={date} onChange={e => setDate(e.target.value)} type="date" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+          <input value={date} onChange={e => setDate(e.target.value)} type="date" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }} />
         </div>
         <div style={{ marginBottom: 20 }}>
           <SectionHead label="Focus Areas (select all that apply)" />

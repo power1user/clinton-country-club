@@ -181,7 +181,7 @@ export default function MemberDirectory() {
             width: '100%', padding: '10px 12px',
             border: `1px solid ${G.border}`, borderRadius: 3,
             fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
-            background: '#F8F4EC', outline: 'none', boxSizing: 'border-box',
+            background: G.card, outline: 'none', boxSizing: 'border-box',
           }}
         />
       </div>

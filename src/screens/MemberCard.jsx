@@ -148,7 +148,7 @@ export default function MemberCard() {
           // at arm's length on a phone screen even in moderate
           // glare. Falls back to a dash if for some reason the
           // member has no membership_number set.
-          <div style={{ width: '100%', maxWidth: 346, height: 218, background: '#F8F4EC', borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${G.border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.1)', padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 346, height: 218, background: G.card, borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${G.border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.1)', padding: 16 }}>
             <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginBottom: 10, lineHeight: 0 }}>
               <QRCodeSVG
                 value={String(m.number || '-')}

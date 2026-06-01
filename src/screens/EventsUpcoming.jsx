@@ -98,7 +98,7 @@ export default function EventsUpcoming() {
             value={query}
             onChange={e => onSearch(e.target.value)}
             placeholder="Search future events — title, category, date…"
-            style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${G.border}`, borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${G.border}`, borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
           />
           {query && (
             <div onClick={() => onSearch('')} data-tap style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', padding: 4 }}>

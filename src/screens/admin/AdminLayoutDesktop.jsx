@@ -566,7 +566,7 @@ export default function AdminLayoutDesktop({
           spacing doesn't shift when search shows up. */}
       <header style={{
         gridArea: 'topbar',
-        background: '#FFFFFF',
+        background: G.bg,
         borderBottom: `1px solid ${G.border}`,
         display: 'flex',
         alignItems: 'center',

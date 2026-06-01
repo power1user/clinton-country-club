@@ -492,7 +492,7 @@ export default function AdminPanel() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search admin settings…"
-            style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${G.border}`, borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${G.border}`, borderRadius: 6, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
           />
           {query && (
             <div onClick={() => setQuery('')} data-tap style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', padding: 4 }}>
@@ -925,7 +925,7 @@ function DailyStatusAdmin({ club }) {
               value={d.staff_note}
               onChange={e => setField(item.id, 'staff_note', e.target.value)}
               placeholder="Staff note (optional) — shown to members in the pill popover"
-              style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
         );
@@ -1175,7 +1175,7 @@ function WeeklyHoursModal({ pill, onClose }) {
 }
 
 const smLabel = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 3 };
-const smInput = { width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+const smInput = { width: '100%', padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
 
 // ─── News composer ─────────────────────────────────────────────────────────
 function NewsAdmin({ club }) {
@@ -1542,7 +1542,7 @@ function PeopleAdmin({ club }) {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Search by name or email…"
-          style={{ width: '100%', padding: '8px 12px 8px 32px', border: `1px solid ${G.border}`, borderRadius: 4, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '8px 12px 8px 32px', border: `1px solid ${G.border}`, borderRadius: 4, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
         />
         {query && (
           <div onClick={() => setQuery('')} data-tap style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', padding: 4 }}>
@@ -1941,7 +1941,7 @@ function MembersAdmin({ club }) {
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Search by name, email, or member #"
-          style={{ flex: 1, padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+          style={{ flex: 1, padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
         />
         <div onClick={() => setShowAdd(true)} data-tap style={{ padding: '9px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add</span>
@@ -2183,7 +2183,7 @@ function CsvImportModal({ club, onClose, onSaved }) {
           value={csvText}
           onChange={e => setCsvText(e.target.value)}
           placeholder={'name,membership_number,email,tier\nMarc Abla,0001,marc@example.com,Full Member\nMatt Bohlmann,0002,matt@example.com,Full Member'}
-          style={{ width: '100%', height: 200, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 11, color: G.text, background: '#F8F4EC', resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+          style={{ width: '100%', height: 200, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 11, color: G.text, background: G.card, resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
         />
 
         {result?.error && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{result.error}</p>}
@@ -2665,7 +2665,7 @@ const badgeInputStyle = {
   padding: '8px 10px',
   borderRadius: 4,
   border: `1px solid ${G.border}`,
-  background: '#fff',
+  background: G.card,
   width: '100%',
   boxSizing: 'border-box',
 };
@@ -2935,5 +2935,5 @@ function fmt12(t) {
 
 // ─── Shared form styles ────────────────────────────────────────────────────
 const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
 const selectStyle = { ...inputStyle };

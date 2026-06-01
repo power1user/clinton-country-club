@@ -164,6 +164,46 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.12** — Audit + fix dark-mode contrast everywhere.
+
+  v0.14.10 fixed the AI textarea white-on-white but Marc reported
+  more spots breaking in dark mode. Full sweep — found 63
+  hardcoded light backgrounds across 22 files. **60 fixed, 3
+  intentionally kept.**
+
+  **Bulk fix:** \`#F8F4EC\` → \`G.card\` across all .jsx files
+  via a Node walker (54 replacements, 17 files). This was the
+  dominant input/textarea background pattern. \`G.card\` routes
+  through CSS vars and adapts:
+  - Light/medium/dark member modes: variants of cream
+  - Admin true-dark override: dark gray (\`#1E2125\`)
+  - Contrast against \`G.text\` works in every mode
+
+  **Manual fixes** (6 specific instances):
+  - \`AdminTable.jsx\` — table container \`#FFFFFF\` → \`G.card\`
+  - \`AdminSearchPalette.jsx\` — Cmd+K palette \`#FFFFFF\` → \`G.bg\`
+  - \`AdminLayoutDesktop.jsx\` — topbar \`#FFFFFF\` → \`G.bg\`
+  - \`SidePanel.jsx\` — drawer \`#FFFFFF\` → \`G.bg\`
+  - \`AdminPanel.jsx\` — input \`#fff\` → \`G.card\`
+  - \`sections.jsx\` — CRUD input \`#fff\` → \`G.card\`
+
+  **Intentionally kept:**
+  - \`MemberCard.jsx\` QR container — must stay white;
+    QR scanners require light background
+  - \`Toggle.jsx\` knob (\`#F2EDE0\`) — small UI element on
+    the colored switch track; works visually in all modes
+  - \`AdminAIBubble.jsx\` "Ask AI" text (\`#1A180F\`) — dark
+    on gold brass, constant readable
+  - All \`color: '#F2EDE0'\` instances — light text on green
+    buttons, intentional constants
+  - Translucent \`rgba(255,255,255,...)\` dividers on green
+    header — green is constant so these work
+
+  **Result:** every input, textarea, modal, side panel, table
+  background, and topbar now adapts cleanly across all 3 member
+  display modes (light/medium/dark) AND the admin true-dark
+  override toggle.
+
 - **v0.14.11** — Remove "Clinton Country Club · Member App" desktop label.
 
   Leftover from very early prototyping — a hardcoded caption with a

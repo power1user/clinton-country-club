@@ -173,7 +173,7 @@ export default function Replies({ postTable, postId, defaultOpen = false }) {
                   fontFamily: '"Lora",serif',
                   fontSize: 16,    // keeps iOS from auto-zooming on focus
                   color: G.text,
-                  background: '#F8F4EC',
+                  background: G.card,
                   outline: 'none',
                   resize: 'none',
                   maxHeight: 90,

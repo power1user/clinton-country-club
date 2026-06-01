@@ -111,7 +111,7 @@ export default function AdminTable({
 
   return (
     <div style={{
-      background: '#FFFFFF',
+      background: G.card,
       border: `1px solid ${G.border}`,
       borderRadius: 6,
       overflow: 'hidden',

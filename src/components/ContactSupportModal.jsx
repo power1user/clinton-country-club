@@ -170,7 +170,7 @@ export default function ContactSupportModal({ open, onClose }) {
               value={subject}
               onChange={e => setSubject(e.target.value)}
               placeholder="Short summary of what you need"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', marginBottom: 12 }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', marginBottom: 12 }}
             />
 
             {/* Body */}
@@ -182,7 +182,7 @@ export default function ContactSupportModal({ open, onClose }) {
               onChange={e => setBody(e.target.value)}
               placeholder="Describe what you're trying to do, what's happening, and any error you see."
               rows={6}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', resize: 'vertical', lineHeight: 1.5, marginBottom: 6 }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', resize: 'vertical', lineHeight: 1.5, marginBottom: 6 }}
             />
 
             {err && (

@@ -151,7 +151,7 @@ export default function Login() {
 
 const inputStyle = {
   width: '100%', padding: '12px 14px', border: `1px solid ${G.border}`, borderRadius: 3,
-  fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box',
+  fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box',
 };
 
 function Field({ label, children }) {

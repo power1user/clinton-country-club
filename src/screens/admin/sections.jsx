@@ -222,7 +222,7 @@ function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholde
             onChange={e => setDraft(d => ({ ...d, [primaryField]: e.target.value }))}
             placeholder={placeholder}
             autoFocus
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 4, border: `1px solid ${G.border}`, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#fff', boxSizing: 'border-box', marginBottom: 10 }}
+            style={{ width: '100%', padding: '8px 10px', borderRadius: 4, border: `1px solid ${G.border}`, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, boxSizing: 'border-box', marginBottom: 10 }}
           />
           {('is_active' in draft) && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 12, color: G.text }}>
@@ -582,7 +582,7 @@ function ComposeNotificationModal({ club, authorId, onClose, onSaved }) {
     onClose();
   };
 
-  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
   const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 
   return (
@@ -880,7 +880,7 @@ export function FoodOrdersAdmin() {
               value={r.status}
               onChange={e => setStatus(r, e.target.value)}
               disabled={!canEdit}
-              style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+              style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: G.card, opacity: canEdit ? 1 : 0.6 }}
             >
               {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
             </select>
@@ -914,7 +914,7 @@ export function FoodOrdersAdmin() {
           {/* v0.12.1 — Inline reply composer. Member gets a push +
               inbox entry via the existing send-push pipeline. */}
           {replyOpen[r.id] && (
-            <div style={{ marginTop: 10, padding: 10, background: '#F8F4EC', border: `1px solid ${G.border}`, borderRadius: 4 }}>
+            <div style={{ marginTop: 10, padding: 10, background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '0 0 6px', fontStyle: 'italic' }}>
                 Reply to {r.members?.name || 'this member'}. They'll get a push notification and see it in their inbox.
               </p>
@@ -1088,7 +1088,7 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
 
                   {/* ── Registrant list (inline expanded) ─────── */}
                   {isOpen && (
-                    <div style={{ background: '#F8F4EC', borderTop: `1px solid ${G.border}` }}>
+                    <div style={{ background: G.card, borderTop: `1px solid ${G.border}` }}>
                       {g.registrations.map((r, i) => (
                         <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 10px 40px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1160,7 +1160,7 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
                   value={r.status}
                   onChange={e => setStatus(r.id, e.target.value)}
                   disabled={!canEdit}
-                  style={{ padding: '4px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+                  style={{ padding: '4px 6px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 11, background: G.card, opacity: canEdit ? 1 : 0.6 }}
                 >
                   {['registered', 'waitlist', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -1335,7 +1335,7 @@ export function FacilitiesAdmin() {
                       updateRow(row.id, { display_name: v });
                     }
                   }}
-                  style={{ flex: 1, padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', minWidth: 0 }}
+                  style={{ flex: 1, padding: '6px 8px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', minWidth: 0 }}
                 />
                 {!row.active && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.clsDot, background: 'rgba(107,32,32,0.12)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>OFF</span>}
                 {!row.is_default && <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, background: 'rgba(155,122,30,0.10)', padding: '2px 6px', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, flexShrink: 0 }}>CUSTOM</span>}
@@ -1377,7 +1377,7 @@ export function FacilitiesAdmin() {
             placeholder="Pickleball, Tennis, Locker Room…"
             autoFocus
             onKeyDown={e => e.key === 'Enter' && addFacility()}
-            style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+            style={{ width: '100%', padding: '8px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <div onClick={busyId === 'new' ? undefined : addFacility} data-tap style={{ flex: 1, padding: 10, background: busyId === 'new' ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busyId === 'new' ? 'wait' : 'pointer' }}>
@@ -1795,7 +1795,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
   };
 
   const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
 
   if (!club) {
     return <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, padding: '40px 0', textAlign: 'center' }}>Loading club…</p>;
@@ -2055,7 +2055,7 @@ function ColorRow({ label, value, onChange }) {
         type="color"
         value={hex}
         onChange={e => onChange(e.target.value.toUpperCase())}
-        style={{ width: 48, height: 36, border: `1px solid ${G.border}`, borderRadius: 3, padding: 2, background: '#F8F4EC', cursor: 'pointer', flexShrink: 0 }}
+        style={{ width: 48, height: 36, border: `1px solid ${G.border}`, borderRadius: 3, padding: 2, background: G.card, cursor: 'pointer', flexShrink: 0 }}
       />
       <div style={{ flex: 1 }}>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>{label}</p>
@@ -2063,7 +2063,7 @@ function ColorRow({ label, value, onChange }) {
           value={value}
           onChange={e => onChange(e.target.value.toUpperCase())}
           placeholder="#1B3A2D"
-          style={{ width: '100%', padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 12, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 12, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
         />
       </div>
     </div>
@@ -2292,7 +2292,7 @@ function NewsEditor({ club, canEdit, row, onClose, onSaved }) {
     onClose();
   };
 
-  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
   const label = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 
   return (
@@ -2967,7 +2967,7 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
     onClose();
   };
 
-  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
   const label = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 
   return (
@@ -3374,7 +3374,7 @@ function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, 
     onClose();
   };
 
-  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
   const label = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 
   return (
@@ -4068,7 +4068,7 @@ function CreateClubModal({ onClose, onCreated }) {
   };
 
   const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
 
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
@@ -4413,7 +4413,7 @@ function GuestSettingsCard({ club }) {
               save({ guest_visit_duration_days: v === '' ? null : Math.max(1, Math.min(365, Number(v))) }, 'duration');
             }}
             placeholder="e.g. 1"
-            style={{ width: 80, padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: 80, padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
           />
         </SettingRow>
 
@@ -4425,7 +4425,7 @@ function GuestSettingsCard({ club }) {
             value={club.guest_phone_collection || 'off'}
             disabled={saving === 'phone'}
             onChange={e => save({ guest_phone_collection: e.target.value }, 'phone')}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none' }}
           >
             <option value="off">Off — don't ask</option>
             <option value="optional">Optional</option>
@@ -4441,7 +4441,7 @@ function GuestSettingsCard({ club }) {
             value={club.guest_default_access_level || 'read_only'}
             disabled={saving === 'access'}
             onChange={e => save({ guest_default_access_level: e.target.value }, 'access')}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none' }}
           >
             <option value="data_only">data_only — capture contact info only</option>
             <option value="read_only">read_only — status / map / menu / weather</option>
@@ -4469,7 +4469,7 @@ function GuestSettingsCard({ club }) {
             value={club.clubhouse_qr_visit_type || 'public_play'}
             disabled={saving === 'cqv'}
             onChange={e => save({ clubhouse_qr_visit_type: e.target.value }, 'cqv')}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none' }}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none' }}
           >
             <option value="public_play">Public play</option>
             <option value="tournament_guest">Tournament guest</option>
@@ -4792,10 +4792,10 @@ function GuestList({ club }) {
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Search by name or email…"
-          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
         />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }}>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }}>
             <option value="all">All visit types</option>
             <option value="member_guest">Member guests</option>
             <option value="public_play">Public play</option>
@@ -4805,15 +4805,15 @@ function GuestList({ club }) {
           {/* v0.8.8: filter by referring member. Options are derived
               from members who've actually brought guests (no point
               listing every member). */}
-          <select value={refFilter} onChange={e => setRefFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }}>
+          <select value={refFilter} onChange={e => setRefFilter(e.target.value)} style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }}>
             <option value="all">All referrers</option>
             <option value="none">No referring member (clubhouse / public)</option>
             {referringMembers.map(([id, nm]) => (
               <option key={id} value={id}>Guest of {nm}</option>
             ))}
           </select>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }} />
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC' }} />
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
           <div onClick={exportCsv} data-tap style={{ padding: '7px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
           </div>
@@ -5318,7 +5318,7 @@ export function LessonRequestsAdmin({ mode = 'all' } = {}) {
                 value={r.status}
                 onChange={e => setStatus(r.id, e.target.value)}
                 disabled={!canEdit}
-                style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: '#F8F4EC', opacity: canEdit ? 1 : 0.6 }}
+                style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card, opacity: canEdit ? 1 : 0.6 }}
               >
                 {['pending', 'contacted', 'scheduled', 'done', 'cancelled'].map(o => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -5743,7 +5743,7 @@ function SupportThreadDetail({ threadId, onBack }) {
           <select
             value={thread.category || ''}
             onChange={e => setCategory(e.target.value)}
-            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: '#F8F4EC', color: G.text, outline: 'none' }}
+            style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, background: G.card, color: G.text, outline: 'none' }}
           >
             <option value="">{thread.category ? '— remove category —' : 'Triage to…'}</option>
             {SUPPORT_CATEGORIES.map(c => (
@@ -5818,7 +5818,7 @@ function SupportThreadDetail({ threadId, onBack }) {
             onChange={e => setReply(e.target.value)}
             placeholder="Type your reply…"
             rows={4}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', lineHeight: 1.5, resize: 'vertical', outline: 'none' }}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, lineHeight: 1.5, resize: 'vertical', outline: 'none' }}
           />
           {err && (
             <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsDot, margin: '8px 0 0' }}>{err}</p>
@@ -6064,11 +6064,11 @@ function SupportTeamTab() {
           </p>
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Name</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Matt Bohlmann" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Matt Bohlmann" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Email</label>
-            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="matt@example.com" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' }} />
+            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="matt@example.com" style={{ width: '100%', padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 14, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div onClick={busy ? undefined : addDestination} data-tap style={{ padding: 12, background: busy ? G.muted : G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 14, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Adding…' : 'Add + send verification'}</span>

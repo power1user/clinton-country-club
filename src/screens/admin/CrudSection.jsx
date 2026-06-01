@@ -243,7 +243,7 @@ function FieldInput({ field, value, onChange }) {
       {label}{required && <span style={{ color: G.clsDot, marginLeft: 4 }}>*</span>}
     </label>
   );
-  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: '#F8F4EC', outline: 'none', boxSizing: 'border-box' };
+  const input = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
 
   if (type === 'textarea') {
     return (

@@ -336,7 +336,7 @@ const inputStyle = {
   fontFamily: '"Lora",serif',
   fontSize: 16,            // 16px to suppress iOS auto-zoom on focus
   color: G.text,
-  background: '#F8F4EC',
+  background: G.card,
   outline: 'none',
   boxSizing: 'border-box',
 };

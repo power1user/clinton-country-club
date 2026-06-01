@@ -284,7 +284,7 @@ export default function CourseOrder() {
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="e.g. extra ranch, hold the onions, finishing in ~30 min…"
-              style={{ width: '100%', height: 80, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: '#F8F4EC', lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', height: 80, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 12, color: G.text, background: G.card, lineHeight: 1.6, resize: 'none', outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
         )}

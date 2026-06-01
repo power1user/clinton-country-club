@@ -107,7 +107,7 @@ export default function SidePanel({ open, onClose, title, width = '420px', child
           top: 0, right: 0, bottom: 0,
           width,
           maxWidth: '92%',
-          background: '#FFFFFF',
+          background: G.bg,
           borderLeft: `1px solid ${G.border}`,
           boxShadow: open ? '-12px 0 32px rgba(0,0,0,0.10)' : 'none',
           transform: open ? 'translateX(0)' : 'translateX(100%)',

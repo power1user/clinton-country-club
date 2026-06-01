@@ -164,7 +164,7 @@ export default function AdminSearchPalette({
       <div style={{
         width: 560,
         maxWidth: '90vw',
-        background: '#FFFFFF',
+        background: G.bg,
         borderRadius: 10,
         boxShadow: '0 20px 60px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.12)',
         display: 'flex',
