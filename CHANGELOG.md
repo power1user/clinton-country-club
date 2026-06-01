@@ -164,6 +164,42 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.3** — Super_admin AI usage dashboard.
+
+  New **Platform → AI Usage** section (super_admin only). Shows
+  GroundsLive AI spend, call volume, and cache-hit rate per mode
+  (admin vs member), per club, and per top user.
+
+  **Migration 74** adds three SECURITY DEFINER rollup RPCs that
+  check `is_super_admin()` at the top:
+  - `ai_usage_summary(p_since)` — single row per mode with token
+    counts, total cost, cache hit rate.
+  - `ai_usage_by_club(p_since)` — per-club totals (clubs with no
+    `club_id` roll up as "(platform)" — that's super_admin asking
+    the admin AI without club context).
+  - `ai_usage_by_user(p_since, p_limit)` — top spenders by user;
+    catches power users + runaway loops.
+
+  **`AIUsageAdmin.jsx`** (split into its own file — the
+  `sections.jsx` 6KLOC bloat is a real problem so new Phase 15
+  additions live separately) renders:
+  - **Window picker** (7 / 30 / 90 days)
+  - **Four cost tiles**: Platform total · Admin AI · Member AI ·
+    Admin cache-hit rate
+  - **Per-club table** with mode badge + cost
+  - **Top users table** (20 max) with email + mode + cost
+
+  Cost formatter adapts to scale: ¢0.060 for sub-cent, ¢0.05 for
+  cents, $14.32 for dollars. Makes per-call AND monthly totals
+  both readable in the same column.
+
+  **Use case for Marc:** open this monthly to see what each club
+  is costing (member AI rolls up per club; you can pass those
+  costs through to clubs later as a billing tier). Admin AI total
+  is your operating expense for supporting managers. Cache-hit
+  rate confirms v0.14.1's prompt caching is actually engaging —
+  anything above 60% means the manual content is doing its job.
+
 - **v0.14.2** — Admin AI chat UI in the admin topbar.
 
   Marc finally gets to actually talk to GroundsLive Admin AI. New

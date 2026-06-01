@@ -16,6 +16,9 @@ import {
   SupportAdmin,
   GuestRegistrationsFeed, FacilitiesAdmin,
 } from './admin/sections.jsx';
+// v0.14.3 — AI usage dashboard lives in its own file (avoids
+// bloating the 6KLOC sections.jsx).
+import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
@@ -247,6 +250,8 @@ const AREAS = [
       { id: 'provisionlog',  l: 'Provision Log',  d: 'Cloudflare DNS automation history', icon: IconList    },
       // v0.13.1: support inbox + team management (Phase 14).
       { id: 'support',       l: 'Support',        d: 'Support inbox + team destinations',  icon: IconList    },
+      // v0.14.3: GroundsLive AI usage dashboard (Phase 15).
+      { id: 'aiusage',       l: 'AI Usage',       d: 'GroundsLive AI cost + usage by club', icon: IconList    },
     ],
   },
 ];
@@ -298,6 +303,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
       {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
       {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
+      {sec === 'aiusage'        && isSuperAdmin && <AIUsageAdmin />}
       {sec === 'support'        && isSuperAdmin && <SupportAdmin />}
     </>
   );
