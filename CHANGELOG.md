@@ -164,6 +164,57 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.7** — Member AI live-data tools.
+
+  Added Anthropic tool use to the member-ai-chat Edge Function
+  (deployed at v3). Five tool definitions registered:
+
+  - **`get_today_status`** — facility status + staff notes for today
+  - **`get_menu`** — current food & drink menu organized by category
+  - **`get_upcoming_events`** — events in the next N days
+    (default 14, max 60)
+  - **`get_recent_news`** — last N published news posts
+    (default 5, max 10)
+  - **`get_lesson_pros`** — club's lesson pros roster
+
+  Each tool's executor runs server-side with the service-role
+  Supabase client, **scoped to the authenticated user's
+  `club_id`** (set at request time from the auth check, not by
+  the model — defense against a misbehaving model trying to leak
+  cross-club data).
+
+  Schema verification done before deploy — fixed several
+  column-name assumptions:
+  - \`events\` uses \`event_time_start\`/\`event_time_end\` (not
+    \`start_time\`/\`end_time\`) and \`spots\` (not
+    \`max_capacity\`)
+  - \`news\` uses \`headline\` (not \`title\`) and
+    \`published_at IS NOT NULL\` (not a \`published\` boolean)
+  - Table is \`menus\` (not \`menu_items\`); items use
+    \`item_name\` and \`available_today\`
+  - \`menu_categories\` uses \`is_active\` (not \`active\`)
+  - \`lesson_pros\` has no phone/email — uses \`title\` instead
+
+  Tool-execution loop: capped at **5 iterations** to prevent
+  runaway tool calls. Each iteration sends tool_results back to
+  the model; loops until \`stop_reason !== "tool_use"\`. All
+  iterations' token usage accumulates into one ai_usage_log row
+  so per-message cost stays a single number.
+
+  Now the AI can answer "is the pool open right now?" with
+  current data, not just "check the home screen." It can also
+  recommend lesson pros by name, summarize recent news, and tell
+  someone what's on the menu before they tap to the Food tab.
+
+  System prompt updated with tool-use guidance: USE tools for
+  current state, DON'T use them for "how does the app work"
+  questions (those come from the manual).
+
+  **What's next:**
+  - v0.14.8 — Phase 15 closeout: README refresh, version.js phase
+    index update, polish pass, document the foundation→manual→
+    chat-UI→tools pattern for future use.
+
 - **v0.14.6** — Member manual content + member-ai-chat v2.
 
   Replaced the v0.14.5 stub with the full ~15KB member-facing
