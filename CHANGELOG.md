@@ -164,6 +164,26 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.4** — Member AI per-club toggle (in Club Features).
+
+  Added `member_ai` to the feature flags catalog (`src/lib/features.js`).
+  FeaturesAdmin auto-renders the toggle — no per-flag UI code, the
+  Phase 7 Club Features Control Panel pattern just picks it up.
+
+  - **Default OFF** — managers explicitly opt in once they
+    understand member AI bills per-club.
+  - New **"AI" category** in the features grouping (positioned
+    between Appearance and Guest System).
+  - **`min_tier: 'basic'`** — available on every paid tier; no
+    add-on gate.
+  - The unused `clubs.member_ai_enabled` column from migration 73
+    becomes vestigial — v0.14.5+ checks `isFeatureOn(club,
+    'member_ai')` instead. A future cleanup migration can drop the
+    column.
+
+  Managers can now flip the toggle today; the actual member bubble
+  + Edge Function land in v0.14.5.
+
 - **v0.14.3** — Super_admin AI usage dashboard.
 
   New **Platform → AI Usage** section (super_admin only). Shows

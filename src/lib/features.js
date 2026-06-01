@@ -249,6 +249,22 @@ export const FEATURES = {
     category:        'Appearance',
   },
 
+  // ─── AI ────────────────────────────────────────────────────────────
+  // v0.14.4 — per-club opt-in for the floating member AI bubble.
+  // Default OFF so managers explicitly turn it on once they understand
+  // the cost model (member AI cost rolls up per-club, see Platform →
+  // AI Usage). When on, the bubble appears on every member screen and
+  // is dismissible per-member. Admin AI is platform-controlled
+  // (always on for admins) and not represented in this catalog.
+  member_ai: {
+    key:             'member_ai',
+    label:           'GroundsLive AI for members',
+    description:     'A floating AI helper on every member screen. Knows your club\'s data (status, hours, menu, events) and a member-facing manual. Default OFF — turn on once you\'re ready for the cost (per-club, ~$0.001 per question on average; see Platform → AI Usage).',
+    min_tier:        'basic',
+    default_enabled: false,
+    category:        'AI',
+  },
+
   // ─── Guest System ──────────────────────────────────────────────────
   // Phase 8 (v0.8.0): master switch for the entire guest registration
   // system. When OFF, all guest entry points disappear, the public
@@ -269,7 +285,7 @@ export const FEATURES = {
 // Category order used by admin UI grouping. Anything not listed here
 // falls to the end in catalog-declaration order.
 export const CATEGORY_ORDER = [
-  'Golf', 'Pro Shop', 'Dining', 'Community', 'Messaging', 'Member Info', 'Appearance', 'Guest System',
+  'Golf', 'Pro Shop', 'Dining', 'Community', 'Messaging', 'Member Info', 'Appearance', 'AI', 'Guest System',
 ];
 
 // All flags as an ordered array — used by admin UI to render toggles.
