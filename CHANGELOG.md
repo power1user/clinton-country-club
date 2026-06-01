@@ -164,6 +164,41 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.8** — Phase 15 closeout.
+
+  README + version.js phase index updated to reflect the full
+  v0.14.x build. Architecture diagram added so future patches
+  don't have to rediscover the pattern:
+
+      TWO EDGE FUNCTIONS (separate per-agent)
+        admin-ai-chat   →  mode='admin' rows
+        member-ai-chat  →  mode='member' rows
+      ONE LOG TABLE
+        ai_usage_log  (mode is the billing axis)
+          → super_admin reads all (Platform → AI Usage)
+          → managers read their club's rows
+      TWO ROLLUP SURFACES
+        Admin AI    → AdminAIChatModal (topbar)
+        Member AI   → MemberAIBubble (floating)
+
+  **To add a new tool** to either agent: declare in the TOOLS
+  array + add an executeTool() case + redeploy. The system
+  prompt's "TOOL USE" section needs a one-line description so the
+  model knows when to call it.
+
+  **To add a new agent** (e.g. a kitchen-side AI for staff who
+  aren't full club_admins): copy admin-ai-chat as a template,
+  swap the auth check + system prompt + manual, add a new value
+  to ai_usage_log.mode CHECK constraint, surface in the same
+  ai_usage_log dashboard.
+
+  **Phase 15 totals**: 2 Edge Functions, 2 client components,
+  ~40KB of manual content (15KB member + 25KB admin), 2 migrations
+  (ai_usage_log + 3 rollup RPCs), 8 patches over the v0.14.x
+  series, ~1100 LOC client code.
+
+  Phase 15 is closed. Next phase TBD.
+
 - **v0.14.7** — Member AI live-data tools.
 
   Added Anthropic tool use to the member-ai-chat Edge Function

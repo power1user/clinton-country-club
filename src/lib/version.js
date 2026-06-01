@@ -75,29 +75,83 @@
 //             biggest) — accessed from the admin topbar, knows the
 //             admin manual + live club data, bills to The Grounds
 //             via mode='admin' rows in ai_usage_log. The Member AI
-//             ships later (v0.14.5+) as a floating bubble on
-//             member surfaces, gated per-club by
-//             clubs.member_ai_enabled, bills to the club via
-//             mode='member' rows. One log table, one billing axis
-//             (the `mode` column), separate Edge Functions per
-//             agent so system prompts, tool registries, and auth
-//             rules diverge cleanly. Uses Claude Haiku 4.5 with
-//             Anthropic prompt caching for cost discipline.
+//             ships as a floating bubble on member surfaces, gated
+//             per-club by feature_flags.member_ai (default OFF),
+//             bills to the club via mode='member' rows. One log
+//             table, one billing axis (the `mode` column),
+//             separate Edge Functions per agent so system prompts,
+//             tool registries, and auth rules diverge cleanly.
+//             Uses Claude Haiku 4.5 with Anthropic prompt caching
+//             for cost discipline (~10x cost reduction on follow-up
+//             messages within 5-min cache TTL).
 //             v0.14.0 — Foundation: Migration 73 (ai_usage_log
-//             table with sub-cent precision cost columns + RLS for
-//             super_admin platform-wide and managers per-club +
-//             clubs.member_ai_enabled flag default false).
-//             admin-ai-chat Edge Function (v1): admin-role auth
-//             (super_admin / club_manager / club_admin), Anthropic
-//             SDK with prompt caching wired on the system prompt
-//             (cache discount engages once the admin manual lands
-//             in v0.14.1 and pushes the prefix past 1024 tokens),
-//             per-call cost computed from usage and written to
-//             ai_usage_log, ?diag=1 endpoint pings Anthropic with
-//             max_tokens=4 to verify ANTHROPIC_API_KEY is set and
-//             reachable. No chat UI yet (v0.14.2). No manual yet
-//             (v0.14.1). Foundation is callable via curl this
-//             patch; admins can't actually use it until v0.14.2.
+//             with sub-cent-precision cost columns + RLS for
+//             super_admin platform-wide and managers per-club).
+//             admin-ai-chat Edge Function (v1): admin-role auth,
+//             Anthropic SDK with prompt caching wired, per-call
+//             cost computed + logged, ?diag=1 endpoint.
+//             v0.14.1 — Admin manual content (~25KB markdown
+//             covering every admin area + 15 common tasks),
+//             injected into the cached system prompt block.
+//             Prompt caching engages from this patch.
+//             v0.14.2 — Admin AI chat UI: brass chat-bubble icon
+//             in topbar opens AdminAIChatModal. Multi-turn with
+//             client UUID conversation_id, inline markdown
+//             renderer (~60 lines, no npm dep), starter prompt
+//             chips, super_admin-only cost line, Esc-to-close.
+//             v0.14.3 — Super_admin AI Usage dashboard.
+//             Migration 74 adds three SECURITY DEFINER rollup
+//             RPCs (ai_usage_summary, ai_usage_by_club,
+//             ai_usage_by_user). New Platform → AI Usage section
+//             with window picker, cost tiles, per-club + top-users
+//             tables. Cost formatter adapts cent→dollar.
+//             v0.14.4 — Member AI toggle in Club Features.
+//             Added member_ai entry to features.js catalog
+//             (default OFF, new "AI" category). Phase 7 Features
+//             panel auto-renders the toggle — no per-flag UI.
+//             v0.14.5 — Member AI: member-ai-chat Edge Function
+//             (member/guest auth, gates on feature flag, logs
+//             mode='member'). MemberAIBubble component: floating
+//             bottom-right with dismissible/recallable states,
+//             dismissal persisted in localStorage per (user,
+//             club). Mounted in App.jsx ScreenRenderer after
+//             BottomNav, hidden on admin surface.
+//             v0.14.6 — Member manual content (~15KB) covering
+//             every tab + 16 common tasks + guest mode + concepts
+//             + escalation. member-ai-chat redeployed at v2.
+//             v0.14.7 — Member AI live-data tools. 5 Anthropic
+//             tools (get_today_status, get_menu,
+//             get_upcoming_events, get_recent_news,
+//             get_lesson_pros). Service-role executors scoped to
+//             the user's club_id. Tool-use loop capped at 5
+//             iterations. Lets the AI answer "is the pool open?"
+//             with current data instead of "check the home
+//             screen." Cumulative usage rolls into one log row
+//             per question.
+//             v0.14.8 — Phase 15 closeout (this entry + README
+//             refresh). Phase 15 architecture as built:
+//
+//             ┌─────────────────────────────────────────────────┐
+//             │  TWO EDGE FUNCTIONS (separate per-agent)        │
+//             │  admin-ai-chat  →  mode='admin' rows            │
+//             │  member-ai-chat →  mode='member' rows           │
+//             └─────────────────────────────────────────────────┘
+//             ┌─────────────────────────────────────────────────┐
+//             │  ONE LOG TABLE                                  │
+//             │  ai_usage_log  (mode is the billing axis)       │
+//             │  → super_admin reads all (Platform → AI Usage)  │
+//             │  → managers read their club's rows              │
+//             └─────────────────────────────────────────────────┘
+//             ┌─────────────────────────────────────────────────┐
+//             │  TWO ROLLUP SURFACES                            │
+//             │  Admin AI    → AdminAIChatModal (topbar)        │
+//             │  Member AI   → MemberAIBubble (floating)        │
+//             └─────────────────────────────────────────────────┘
+//
+//             To add a new tool to either agent: declare in TOOLS
+//             array + add an executeTool case + redeploy. The
+//             system prompt's "TOOL USE" section needs a one-line
+//             description added so the model knows when to call.
 //   v0.13.x — Phase 14: Platform Support Inbox. A super_admin-only
 //             ticketing surface for club managers / staff to email
 //             support@groundslive.com from anywhere and have it
@@ -250,7 +304,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.14.7';
+export const VERSION = '0.14.8';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

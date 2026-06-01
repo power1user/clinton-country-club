@@ -11,11 +11,25 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.13.6` (Phase 14 — Platform Support Inbox, complete)
+**Current version:** `v0.14.8` (Phase 15 — GroundsLive AI, complete)
 
-> This README is refreshed on every **minor** release (0.x bump). Phase 14
-> opens at v0.13.0 and runs through v0.13.6 — a super_admin-only support
-> inbox that lands `support@groundslive.com` mail in three places at once:
+> Phase 15 is the **two-agent embedded AI** built on Claude Haiku 4.5
+> with Anthropic prompt caching. **Admin AI** lives in the admin
+> topbar (a brass chat-bubble next to the existing `?` icon); it knows
+> the full admin manual + bills to The Grounds as platform expense.
+> **Member AI** is a dismissible floating bubble on every member
+> screen, gated per-club by `feature_flags.member_ai` (default OFF);
+> it has 5 live-data tools (`get_today_status`, `get_menu`,
+> `get_upcoming_events`, `get_recent_news`, `get_lesson_pros`) and
+> bills per-club. One `ai_usage_log` table; the `mode` column is the
+> billing axis. Super_admins see the rollup at Platform → AI Usage.
+>
+> See `src/lib/version.js` for the full v0.14.0 → v0.14.8 phase index
+> with architecture diagram.
+
+> Phase 14 (v0.13.0 → v0.13.9) shipped the Platform Support Inbox —
+> a super_admin-only triage surface that lands
+> `support@groundslive.com` mail in three places at once:
 > the platform team's existing personal inboxes (Cloudflare Email Routing
 > forward to a list managed in-app), a persistent in-app inbox under
 > Platform → Support with full thread view + inline reply via Resend, and
