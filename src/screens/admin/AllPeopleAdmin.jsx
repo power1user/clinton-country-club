@@ -465,6 +465,7 @@ export default function AllPeopleAdmin() {
           mode={editing.mode}
           person={editing.person || null}
           club={club}
+          isManager={isManager}
           isSuperAdmin={isSuperAdmin}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); refresh(); }}
@@ -534,7 +535,7 @@ const VISIT_TYPE_OPTIONS = ['public_play','member_guest','tournament_guest','eve
 const ACCESS_LEVEL_OPTIONS = ['data_only','read_only','full_temporary'];
 const GUEST_STATUS_OPTIONS = ['active','pending_authentication','expired'];
 
-function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved }) {
+function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose, onSaved }) {
   // v0.15.6 — when a person has both records, let the admin toggle
   // which side they're editing without leaving the modal.
   const initialKind = mode === 'add-guest' ? 'guest'
@@ -555,7 +556,16 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
   const [notice, setNotice] = useState(null);
   const [loadingRow, setLoadingRow] = useState(!isAdd);
   const [fieldErrors, setFieldErrors] = useState({});     // v0.15.7 — per-field inline validation
-  const firstInputRef = useRef(null);                     // v0.15.7 — auto-focus on open
+  const firstInputRef = useRef(null);                     // v0.15.7 — auto-focus on open (now unused; see v0.15.8 note)
+
+  // v0.15.9 — Activity history. Manager-only (per Marc — club_admins
+  // don't see this even though their RLS may permit reading the rows;
+  // UI gate is `isManager` which excludes club_admin and includes
+  // super_admin).
+  const [audit, setAudit] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const showAuditSection = isManager && !isAdd && !!person?.auth_user_id;
 
   // Clearing the field's error as the user types kills the red text the
   // moment they fix it; otherwise it lingers until they hit Save again.
@@ -596,6 +606,47 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [person?.auth_user_id, club?.id]);
+
+  // v0.15.9 — fetch the per-person audit trail from people_audit_log.
+  // Two-step: first the raw rows for the person+club, then resolve
+  // performer names from the unified `people` table. Two queries
+  // instead of an embedded relation because we can't assume PostgREST
+  // has a declared FK from people_audit_log.performed_by_user_id to
+  // people.auth_user_id (and if we got it wrong, the embed would
+  // silently return null names instead of erroring loudly).
+  useEffect(() => {
+    if (!showAuditSection || !club?.id) { setAudit([]); return; }
+    let cancelled = false;
+    (async () => {
+      setAuditLoading(true);
+      const { data: rows, error } = await supabase
+        .from('people_audit_log')
+        .select('id, action, from_status, to_status, performed_by_user_id, metadata, created_at')
+        .eq('club_id', club.id)
+        .eq('auth_user_id', person.auth_user_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (cancelled) return;
+      if (error || !rows?.length) {
+        setAudit(rows || []);
+        setAuditLoading(false);
+        return;
+      }
+      const ids = [...new Set(rows.map(r => r.performed_by_user_id).filter(Boolean))];
+      let nameByAuthId = {};
+      if (ids.length) {
+        const { data: namers } = await supabase
+          .from('people')
+          .select('auth_user_id, name')
+          .in('auth_user_id', ids);
+        nameByAuthId = Object.fromEntries((namers || []).map(p => [p.auth_user_id, p.name]));
+      }
+      if (cancelled) return;
+      setAudit(rows.map(r => ({ ...r, performed_by_name: nameByAuthId[r.performed_by_user_id] || null })));
+      setAuditLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [showAuditSection, club?.id, person?.auth_user_id]);
 
   // v0.15.8 — Removed the v0.15.7 auto-focus useEffect. On mobile the
   // soft keyboard slid up immediately when the editor opened, blocking
@@ -917,7 +968,82 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
             <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete {kind} record</span>
           </div>
         )}
+
+        {/* v0.15.9 — Per-person audit history, collapsed by default.
+            Manager-only (isManager excludes club_admin per Marc).
+            Sits below the action area so it doesn't add visual
+            weight on first open — you have to choose to look. */}
+        {showAuditSection && (
+          <div style={{ marginTop: 18, borderTop: `1px solid ${G.border}`, paddingTop: 14 }}>
+            <div onClick={() => setAuditOpen(o => !o)} data-tap
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 700, lineHeight: 1 }}>
+                {auditOpen ? '▾' : '▸'}
+              </span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>
+                Activity history{audit.length > 0 ? ` (${audit.length})` : ''}
+              </span>
+            </div>
+            {auditOpen && (
+              <div style={{ marginTop: 8 }}>
+                {auditLoading ? (
+                  <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '8px 0 0' }}>Loading…</p>
+                ) : audit.length === 0 ? (
+                  <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '8px 0 0' }}>No recorded activity yet.</p>
+                ) : (
+                  audit.map(a => <AuditEventRow key={a.id} a={a} />)
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// v0.15.9 — Friendly labels for the action enum stored in
+// people_audit_log. Anything not on this list falls back to the raw
+// value with underscores → spaces, so a new action introduced in a
+// future migration still renders something readable without a code
+// change.
+const AUDIT_ACTION_LABEL = {
+  guest_converted_to_member: 'Converted from guest to member',
+  member_status_changed:     'Member status changed',
+  member_promoted_to_staff:  'Promoted to staff',
+  staff_role_changed:        'Staff role changed',
+  staff_demoted_to_member:   'Demoted from staff to member',
+  member_demoted_to_guest:   'Demoted from member to guest',
+  person_created:            'Person record created',
+  person_updated:            'Person record updated',
+};
+
+function formatAuditTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return ''; }
+}
+
+function AuditEventRow({ a }) {
+  const label = AUDIT_ACTION_LABEL[a.action] || a.action?.replace(/_/g, ' ') || 'Event';
+  const ts = formatAuditTime(a.created_at);
+  const hasDiff = a.from_status && a.to_status && a.from_status !== a.to_status;
+  return (
+    <div style={{ padding: '8px 0', borderTop: `1px solid ${G.border}` }}>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, margin: 0, fontWeight: 500 }}>
+        {label}
+        {hasDiff && (
+          <span style={{ marginLeft: 6, color: G.muted, fontSize: 11, fontWeight: 400 }}>
+            {a.from_status.replace(/_/g, ' ')} → {a.to_status.replace(/_/g, ' ')}
+          </span>
+        )}
+      </p>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '3px 0 0' }}>
+        {ts}{a.performed_by_name ? ` · by ${a.performed_by_name}` : ''}
+      </p>
     </div>
   );
 }

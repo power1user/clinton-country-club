@@ -164,6 +164,34 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.9** — Per-person audit history inside the People editor (manager-only).
+
+  A new **Activity history** section at the bottom of the PersonEditModal,
+  collapsed by default. Click ▸ to expand and see up to the last 50 events
+  for this person at this club:
+
+  - Friendly action label (e.g. "Promoted to staff", "Demoted from member
+    to guest"), with the raw enum as a fallback so a future action added
+    in a migration still renders.
+  - Status diff (e.g. \`pending → active\`) when the event has from/to
+    statuses.
+  - Timestamp (\`Mar 15, 2026, 3:42 PM\`) + the name of who performed it,
+    resolved from the unified \`people\` table.
+  - "No recorded activity yet." empty state for people created before
+    the audit log existed (or who haven't had any lifecycle event).
+
+  **Permission gating:** UI gated on \`isManager\` (which includes
+  super_admin and club_manager, **excludes** club_admin per Marc's
+  explicit ask). RLS on \`people_audit_log\` may still allow club_admin
+  to read — UI-level gate matches the requested visibility scope, not
+  a hard security boundary. If you need DB-level enforcement later, we
+  tighten the RLS policy.
+
+  Two queries, not an embedded relation: we don't assume PostgREST
+  has the FK declared between \`people_audit_log.performed_by_user_id\`
+  and \`people.auth_user_id\`. First query fetches the rows, second
+  resolves names by \`auth_user_id IN (...)\`.
+
 - **v0.15.8** — Fix mobile dropdown chevron + drop auto-focus.
 
   Two regressions Marc hit immediately after v0.15.7:
