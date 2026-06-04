@@ -69,6 +69,37 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.15.x — Phase 16: People Lifecycle Management. Stable
+//             per-person attributes (name, email, phone, address,
+//             photo) now live in a single `people` table keyed by
+//             auth.user_id — Marc's "if you want a different
+//             identity at a different club, use a different email"
+//             rule. Per-club relations (members, guests,
+//             user_roles) stay where they were and own their
+//             per-club fields (handicap, locker, access_level,
+//             role, etc.). Every lifecycle transition (guest →
+//             member, status changes, staff promote/demote) is
+//             append-only logged to `people_audit_log` for
+//             compliance + "who promoted this person to admin"
+//             accountability.
+//
+//             v0.15.0 — Foundation. Migration 75 (people table +
+//             people_audit_log + RLS + backfill of 8 rows from
+//             existing members/guests). Migration 76 (log_people_event
+//             SECURITY DEFINER helper).
+//             v0.15.1 — Unified People admin view (read-only).
+//             Migration 77 (all_people_at_club RPC). New People
+//             → All People section showing every person with any
+//             relation, with relation chips (member/guest/staff).
+//             v0.15.2 — Lifecycle actions (combined v0.15.2-4).
+//             Migration 78 (convert_guest_to_member,
+//             change_member_status, promote_member_to_staff,
+//             demote_staff_to_member RPCs, all audit-logged).
+//             Kebab menu per row in AllPeopleAdmin with
+//             state-dependent action items. Manager-promotion +
+//             manager-demotion gated to managers + super_admin so
+//             a club can't end up with zero managers.
+//             v0.15.3 — Phase 16 closeout (this entry).
 //   v0.14.x — Phase 15: GroundsLive AI. Two-agent, prompt-cached
 //             AI assistant embedded throughout The Grounds. The
 //             Admin AI ships first (manager onboarding payoff is
@@ -304,7 +335,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.15.2';
+export const VERSION = '0.15.3';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

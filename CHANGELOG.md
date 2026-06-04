@@ -164,6 +164,66 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.3** — Phase 16 closeout.
+
+  Phase 16 is complete. 4 patches landed in this session:
+  v0.15.0 (foundation) → v0.15.1 (unified view) → v0.15.2
+  (lifecycle actions) → v0.15.3 (this closeout). version.js
+  phase index updated with the full Phase 16 architectural notes.
+
+  **Phase 16 architecture as built:**
+
+      auth.users (Supabase)        ← universal identity, keyed by email
+            │
+            ├── people             ← INVARIANT person attributes
+            │                        (name, email, phone, address,
+            │                         photo, notes). ONE row per
+            │                        human. Marc's rule: "different
+            │                        identity = different email = a
+            │                        different people row"
+            │
+            ├── members            ← per-club relation w/ per-club
+            │                        fields (tier, handicap, locker,
+            │                        cart, parking, badges, status)
+            │
+            ├── guests             ← per-club relation w/ per-club
+            │                        fields (access_level, expires_at,
+            │                        referring_member_id, status)
+            │
+            ├── user_roles         ← staff role (club_admin /
+            │                        club_manager / super_admin)
+            │
+            └── people_audit_log   ← append-only lifecycle log
+                                     (who promoted X to admin, when
+                                     did guest Y become member, etc.)
+
+  **4 SECURITY DEFINER lifecycle RPCs** (all audit-logged):
+  - convert_guest_to_member
+  - change_member_status (active / pending / inactive)
+  - promote_member_to_staff (club_admin / club_manager)
+  - demote_staff_to_member
+
+  **Critical safety rules baked in:**
+  - Manager-promotion gated to existing managers + super_admin
+    (so a club_admin can't promote themselves to manager)
+  - Manager-demotion gated to other managers + super_admin (so
+    a club can't accidentally end up with zero managers)
+  - Guest conversion preserves the guest row (status='graduated')
+    for history; never deletes data
+
+  **What's still missing (deferred to Phase 17 or beyond):**
+  - Triggers writing initial \`guest_registered\` /
+    \`member_added\` audit events at insert time (currently the
+    audit log only captures transitions, not creation events —
+    add as needed)
+  - UI for editing people identity fields directly (currently
+    inherited from members/guests CRUD — when a new \`people\`
+    row diverges from members.name, we have an inconsistency)
+  - Background job to expire guests automatically and log
+    \`guest_expired\` events when their expires_at passes
+  - Member status badge on existing Manage Members surface
+    (currently shown only in AllPeopleAdmin)
+
 - **v0.15.2** — People lifecycle actions: convert, status, promote, demote.
 
   Combines what was originally planned as three patches (v0.15.2
