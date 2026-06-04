@@ -164,6 +164,26 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.8** — Fix mobile dropdown chevron + drop auto-focus.
+
+  Two regressions Marc hit immediately after v0.15.7:
+
+  **1. Mobile dropdowns still looked like text fields.** Root cause was
+  an inline-style bug, not a CSS bug. The People editor's \`selectStyle\`
+  used \`background: G.card\` (CSS shorthand), which expands to
+  \`background-image: none\` and silently wiped the ▲▼ chevron SVG that
+  \`index.css\` paints into every \`<select>\`. iOS Safari's empty native
+  rendering then made the field indistinguishable from a text input.
+  - Fix: switched the inline style to \`backgroundColor: G.card\`.
+  - Defense in depth: added \`!important\` to all background-* declarations
+    in \`index.css\` so any future inline \`background:\` shorthand can't
+    nuke the icon again.
+
+  **2. Auto-focus pulled up the mobile keyboard before the admin
+  could read the record.** Removed the v0.15.7 \`firstInputRef.focus()\`
+  useEffect. Now you tap into a field deliberately to start typing —
+  the expected behavior when you're opening a record to read it first.
+
 - **v0.15.7** — People editor UX polish.
 
   A grab-bag patch built on Marc's feedback after first contact with the

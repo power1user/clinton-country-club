@@ -165,17 +165,25 @@ input:focus, textarea:focus, select:focus { outline: none; }
        value text is short and floats next to the icon.
    The icon uses a hardcoded muted color; dark-theme override below
    swaps to the darker stroke so it stays visible in true-dark. */
+/* v0.15.8 — Every background-* declaration is !important so that an
+   inline `style={{ background: 'something' }}` shorthand on a <select>
+   can't silently wipe the icon. (The shorthand expands to background-
+   image: none, which is what was breaking the People editor on mobile
+   in v0.15.7 — the inline color was overwriting our SVG, leaving the
+   field looking like a normal text input.) Per-element inline styles
+   should use `backgroundColor` going forward; this !important is
+   belt-and-suspenders for cases that don't. */
 select {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23786E5C' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='8 9 12 5 16 9'/%3E%3Cpolyline points='8 15 12 19 16 15'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: left 10px center;
-  background-size: 12px 14px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23786E5C' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='8 9 12 5 16 9'/%3E%3Cpolyline points='8 15 12 19 16 15'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: left 10px center !important;
+  background-size: 12px 14px !important;
   padding-left: 30px !important;
   cursor: pointer;
 }
 [data-theme='dark'] select,
 html[data-theme='dark'] select {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E5440' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='8 9 12 5 16 9'/%3E%3Cpolyline points='8 15 12 19 16 15'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E5440' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='8 9 12 5 16 9'/%3E%3Cpolyline points='8 15 12 19 16 15'/%3E%3C/svg%3E") !important;
 }
 
 /* ── Hide scrollbars ── */

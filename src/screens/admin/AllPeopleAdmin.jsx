@@ -23,7 +23,11 @@ import { useAuth } from '../../hooks/useAuth.jsx';
 // ── Form helpers (kept inline so this file is self-contained
 //    after we delete the old MembersAdmin in AdminPanel.jsx). ──
 const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
+// v0.15.8 — `backgroundColor` instead of the `background` shorthand
+// so we don't clobber the chevron SVG that index.css paints into
+// every <select>'s background-image. (The shorthand expands to
+// `background-image: none` and silently kills the icon on mobile.)
+const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, backgroundColor: G.card, outline: 'none', boxSizing: 'border-box' };
 const selectStyle = { ...inputStyle };
 function FormRow({ children }) {
   return <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>{children}</div>;
@@ -593,14 +597,13 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [person?.auth_user_id, club?.id]);
 
-  // v0.15.7 — auto-focus the first field once the form is rendered.
-  // Slight delay lets the bottom-sheet animation finish so the focus
-  // ring doesn't paint mid-slide.
-  useEffect(() => {
-    if (loadingRow) return;
-    const t = setTimeout(() => firstInputRef.current?.focus(), 120);
-    return () => clearTimeout(t);
-  }, [loadingRow, kind]);
+  // v0.15.8 — Removed the v0.15.7 auto-focus useEffect. On mobile the
+  // soft keyboard slid up immediately when the editor opened, blocking
+  // the record from view before the admin could read it. The admin
+  // now has to tap into a field to start typing — that's the expected
+  // behavior on a record-browsing form. The `firstInputRef` is left
+  // attached but unused in case we want to bring focus back behind a
+  // "(hover: hover)" media-query gate in a future patch.
 
   // When user toggles kind on a dual-record person, repopulate form
   // from the cached row so we don't lose unsaved typing on the other.
