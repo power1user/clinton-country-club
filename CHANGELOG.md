@@ -164,6 +164,64 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.2** — People lifecycle actions: convert, status, promote, demote.
+
+  Combines what was originally planned as three patches (v0.15.2
+  guest→member, v0.15.3 member status, v0.15.4 staff promote/demote)
+  into one because they all converge on a single migration + a
+  single UI surface — splitting was artificial.
+
+  **Migration 78 — Lifecycle RPCs:**
+  - \`is_club_admin_at(club_id)\` helper — checks super_admin OR
+    manager/admin role at the club. Reused by every action below.
+  - \`convert_guest_to_member(auth_user_id, club_id, tier, status)\`
+    — creates a \`members\` row carrying identity from \`people\`,
+    marks the \`guests\` row \`status='graduated'\` (preserves
+    history; no DELETE), writes \`guest_converted_to_member\` to
+    audit log.
+  - \`change_member_status(auth_user_id, club_id, to_status)\` —
+    flips between active / pending / inactive with audit log.
+  - \`promote_member_to_staff(auth_user_id, club_id, role)\` —
+    inserts or updates the \`user_roles\` row. **club_manager
+    promotion is gated**: only existing managers (or super_admin)
+    can promote someone to club_manager; club_admins can only
+    grant club_admin.
+  - \`demote_staff_to_member(auth_user_id, club_id)\` — removes
+    the \`user_roles\` row. **Manager demotion is gated**: only
+    another manager (or super_admin) can demote a club_manager.
+    Self-demotion of a manager requires super_admin (so we don't
+    end up with zero managers at a club).
+
+  All four RPCs SECURITY DEFINER. All four write to
+  \`people_audit_log\` via \`log_people_event()\`. Errors raise
+  exceptions with clear messages the client can surface.
+
+  **\`AllPeopleAdmin\` actions UI:**
+  - Per-row kebab menu (three vertical dots) replaces the
+    read-only display with an action list. Items shown depend on
+    current state:
+    - Guest (no member row) → "Convert to Member"
+    - Member → "Mark Active / Pending / Inactive" (omitting the
+      current status)
+    - Member (not staff) → "Promote to Admin" (always),
+      "Promote to Manager" (manager-gated)
+    - Staff (club_admin) → "Promote Admin → Manager" (manager-gated)
+    - Staff (club_manager) → "Demote Manager → Admin"
+      (manager-gated)
+    - Staff (any role) → "Remove Staff Role" (red, danger color)
+  - Confirmation prompts on destructive / role-changing actions.
+  - Errors render below the list in a red bar.
+  - Auto-refresh on success.
+
+  **What you can now do from one screen:**
+  - See every person at your club regardless of role
+  - Convert a registered guest into a full member with one click
+  - Mark members active/pending/inactive without touching SQL
+  - Promote members to admin or manager
+  - Demote staff back to members
+  - Every action audited in \`people_audit_log\` with who, what,
+    when, from-status, to-status, metadata jsonb
+
 - **v0.15.1** — Unified People admin view (read-only).
 
   New admin section: **People → All People**. Shows every person

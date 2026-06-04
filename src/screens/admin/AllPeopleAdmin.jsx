@@ -41,26 +41,73 @@ function RelationChip({ rel }) {
 }
 
 export default function AllPeopleAdmin() {
-  const { club } = useAuth();
+  const { club, isManager } = useAuth();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | member | guest | staff
+  // v0.15.2-4 — per-row action state
+  const [actionFor, setActionFor] = useState(null);   // auth_user_id whose menu is open
+  const [busyId, setBusyId] = useState(null);
+  const [actionErr, setActionErr] = useState(null);
+
+  const refresh = async () => {
+    if (!club?.id) return;
+    setLoading(true); setErr(null);
+    const { data, error } = await supabase.rpc('all_people_at_club', { p_club_id: club.id });
+    if (error) setErr(error.message);
+    else setPeople(data || []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    if (!club?.id) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true); setErr(null);
-      const { data, error } = await supabase.rpc('all_people_at_club', { p_club_id: club.id });
-      if (cancelled) return;
-      if (error) setErr(error.message);
-      else setPeople(data || []);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [club?.id]);
+
+  // ── Action handlers ─────────────────────────────────────────────
+  const runAction = async (rpcName, args, personId, confirmMsg) => {
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    setBusyId(personId);
+    setActionErr(null);
+    const { error } = await supabase.rpc(rpcName, args);
+    setBusyId(null);
+    setActionFor(null);
+    if (error) {
+      setActionErr(error.message);
+      return;
+    }
+    await refresh();
+  };
+
+  const convertGuest = (p) => runAction(
+    'convert_guest_to_member',
+    { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_tier: 'standard', p_status: 'active' },
+    p.auth_user_id,
+    `Convert ${p.name} from guest to member?\n\nA new member row is created. Their guest record stays as history.`
+  );
+
+  const changeStatus = (p, to) => runAction(
+    'change_member_status',
+    { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_to_status: to },
+    p.auth_user_id,
+    null
+  );
+
+  const promote = (p, role) => runAction(
+    'promote_member_to_staff',
+    { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_role: role },
+    p.auth_user_id,
+    `Promote ${p.name} to ${role === 'club_manager' ? 'Manager' : 'Admin'}?\n\nThey'll gain admin access. Audited in people_audit_log.`
+  );
+
+  const demote = (p) => runAction(
+    'demote_staff_to_member',
+    { p_auth_user_id: p.auth_user_id, p_club_id: club.id },
+    p.auth_user_id,
+    `Demote ${p.name} back to member?\n\nThey lose all admin permissions at this club. Audited.`
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -167,14 +214,107 @@ export default function AllPeopleAdmin() {
                   <RelationChip key={j} rel={rel} />
                 ))}
               </div>
+
+              {/* Actions menu (v0.15.2-4) */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div
+                  onClick={() => setActionFor(actionFor === p.auth_user_id ? null : p.auth_user_id)}
+                  data-tap
+                  style={{
+                    padding: '6px 8px', cursor: 'pointer',
+                    background: actionFor === p.auth_user_id ? G.card : 'transparent',
+                    borderRadius: 4,
+                  }}
+                  title="Actions"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2.2">
+                    <circle cx="12" cy="5"  r="1.2" />
+                    <circle cx="12" cy="12" r="1.2" />
+                    <circle cx="12" cy="19" r="1.2" />
+                  </svg>
+                </div>
+                {actionFor === p.auth_user_id && (
+                  <div style={{
+                    position: 'absolute', right: 0, top: 30,
+                    background: G.bg, border: `1px solid ${G.border}`, borderRadius: 4,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                    minWidth: 200, zIndex: 50, padding: '4px 0',
+                  }}>
+                    {p.is_guest && !p.is_member && (
+                      <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
+                        Convert to Member
+                      </ActionItem>
+                    )}
+                    {p.is_member && p.member_status !== 'active' && (
+                      <ActionItem onClick={() => changeStatus(p, 'active')} busy={busyId === p.auth_user_id}>
+                        Mark Active
+                      </ActionItem>
+                    )}
+                    {p.is_member && p.member_status !== 'pending' && (
+                      <ActionItem onClick={() => changeStatus(p, 'pending')} busy={busyId === p.auth_user_id}>
+                        Mark Pending
+                      </ActionItem>
+                    )}
+                    {p.is_member && p.member_status !== 'inactive' && (
+                      <ActionItem onClick={() => changeStatus(p, 'inactive')} busy={busyId === p.auth_user_id}>
+                        Mark Inactive
+                      </ActionItem>
+                    )}
+                    {p.is_member && !p.is_staff && (
+                      <>
+                        <ActionItem onClick={() => promote(p, 'club_admin')} busy={busyId === p.auth_user_id}>
+                          Promote to Admin
+                        </ActionItem>
+                        {isManager && (
+                          <ActionItem onClick={() => promote(p, 'club_manager')} busy={busyId === p.auth_user_id}>
+                            Promote to Manager
+                          </ActionItem>
+                        )}
+                      </>
+                    )}
+                    {p.is_staff && p.staff_role === 'club_admin' && isManager && (
+                      <ActionItem onClick={() => promote(p, 'club_manager')} busy={busyId === p.auth_user_id}>
+                        Promote Admin → Manager
+                      </ActionItem>
+                    )}
+                    {p.is_staff && p.staff_role === 'club_manager' && isManager && (
+                      <ActionItem onClick={() => promote(p, 'club_admin')} busy={busyId === p.auth_user_id}>
+                        Demote Manager → Admin
+                      </ActionItem>
+                    )}
+                    {p.is_staff && (
+                      <ActionItem onClick={() => demote(p)} busy={busyId === p.auth_user_id} danger>
+                        Remove Staff Role
+                      </ActionItem>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '14px 0 0', textAlign: 'center' }}>
-        Conversion actions (guest → member, member → staff, etc.) coming in v0.15.2.
-      </p>
+      {actionErr && (
+        <div style={{ marginTop: 14, padding: '10px 12px', background: 'rgba(107,32,32,0.08)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.clsDot, margin: 0 }}>{actionErr}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionItem({ onClick, busy, danger, children }) {
+  return (
+    <div onClick={busy ? undefined : onClick} data-tap
+      style={{
+        padding: '8px 14px',
+        cursor: busy ? 'wait' : 'pointer',
+        fontFamily: '"Lora",serif', fontSize: 13,
+        color: danger ? G.clsDot : G.text,
+        opacity: busy ? 0.5 : 1,
+      }}>
+      {children}
     </div>
   );
 }
