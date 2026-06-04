@@ -164,6 +164,60 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.0** — Phase 16 opens: People lifecycle management.
+
+  Marc's call: stable per-person attributes (name, email, phone,
+  photo, address) should live in ONE place, not duplicated across
+  \`members\` + \`guests\`. Per-club relation fields (handicap,
+  locker, access level, role) stay where they are — that's correct
+  multi-tenant normalization.
+
+  **Migration 75 — \`people\` table:**
+  - Keyed by \`auth_user_id\` (one row per real human, FK to
+    \`auth.users\`)
+  - Invariant fields: \`name\`, \`email\`, \`phone\`, \`street\`,
+    \`city\`, \`state\`, \`zip\`, \`photo_url\`, \`notes\`
+  - GIN index on \`name\` for full-text search; lower(\`email\`)
+    index for case-insensitive lookups
+  - RLS: self-read + self-update for the person themselves;
+    super_admin all access; club_manager + club_admin read/write
+    for anyone with a relation at their club (member, guest, or
+    staff)
+  - **Backfilled** from existing \`members\` + \`guests\` rows for
+    every auth user that already has a relation. Members data
+    preferred; COALESCE picks up guest data (phone, zip) members
+    didn't have.
+
+  **Migration 75 — \`people_audit_log\` table:**
+  - Append-only immutable log of every lifecycle event
+  - Actions: \`guest_registered\`, \`guest_status_changed\`,
+    \`guest_converted_to_member\`, \`guest_expired\`,
+    \`member_added\`, \`member_status_changed\`,
+    \`member_promoted_to_staff\`, \`staff_role_changed\`,
+    \`staff_demoted_to_member\`, \`member_removed\`,
+    \`person_data_updated\`
+  - Records: who, what, when, from-state, to-state, metadata jsonb
+  - RLS: super_admin reads all; club_admin reads their club;
+    user reads their own
+  - No INSERT/UPDATE/DELETE policies — writes via SECURITY DEFINER
+    function only. Audit means immutable.
+
+  **Migration 76 — \`log_people_event(...)\` RPC:**
+  - SECURITY DEFINER helper any caller (Edge Function, RPC) can
+    use to record lifecycle events without direct table access.
+  - Validates action name via CHECK constraint on the table.
+
+  No client UI changes this patch — foundation only. v0.15.1 lands
+  the unified People admin view; v0.15.2-3 land the conversion +
+  lifecycle flows that actually USE this foundation.
+
+  **Phase 16 patch shape:**
+  - v0.15.0 — Foundation (this patch)
+  - v0.15.1 — Unified "People" admin view (read-only)
+  - v0.15.2 — Guest → Member conversion flow
+  - v0.15.3 — Member status lifecycle (active / pending / inactive)
+  - v0.15.4 — Staff promote/demote with audit + Phase 16 closeout
+
 - **v0.14.14** — Client-side host-rescue redirect.
 
   Last layer of defense against guests landing on stale workers.dev
