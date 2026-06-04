@@ -109,6 +109,16 @@ export default function AllPeopleAdmin() {
     `Demote ${p.name} back to member?\n\nThey lose all admin permissions at this club. Audited.`
   );
 
+  // v0.15.5 — symmetry partner to convertGuest. Marks the members
+  // row inactive (preserves history) + creates/reactivates a guests
+  // row at the configured access_level. Audited.
+  const demoteToGuest = (p) => runAction(
+    'demote_member_to_guest',
+    { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_access_level: 'read_only' },
+    p.auth_user_id,
+    `Demote ${p.name} from member to guest?\n\nTheir member row is marked inactive (kept for history). A guest row is created/reactivated with read_only access. Audited.`
+  );
+
   // v0.15.4 — send a fresh magic link to the person's email.
   // Works for any user (members, guests, staff) — Supabase issues a
   // new OTP on every call regardless of previous state. The email
@@ -150,9 +160,23 @@ export default function AllPeopleAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px', lineHeight: 1.55 }}>
-        Every member, guest, and staff person at {club?.name || 'this club'} in one searchable list. Use the kebab menu (⋮) on any row to send a magic link, change status, promote, demote, or convert a guest to a member. <strong style={{ color: G.text, fontStyle: 'normal' }}>To add a new member from scratch or bulk-import a CSV roster, use Manage Members.</strong>
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 10px', lineHeight: 1.55 }}>
+        Every member, guest, and staff person at {club?.name || 'this club'} in one searchable list. Use the kebab menu (⋮) on any row to send a magic link, change status, promote, demote, or convert between member and guest.
       </p>
+
+      {/* v0.15.5 — quick-access buttons to the heavier CRUD flows.
+          Navigation via custom event listened by AdminLayoutDesktop +
+          mobile AdminPanel. Lets us keep the route to Manage Members
+          alive without surfacing it as a separate sidebar entry. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div
+          onClick={() => window.dispatchEvent(new CustomEvent('admin-nav', { detail: { area: 'people', section: 'members' } }))}
+          data-tap
+          style={{ padding: '8px 14px', background: G.green, borderRadius: 4, cursor: 'pointer' }}
+        >
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 600 }}>+ Add member / Import CSV</span>
+        </div>
+      </div>
 
       {/* Filter pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -273,7 +297,12 @@ export default function AllPeopleAdmin() {
                     <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
                     {p.is_guest && !p.is_member && (
                       <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
-                        Convert to Member
+                        Convert Guest → Member
+                      </ActionItem>
+                    )}
+                    {p.is_member && p.member_status !== 'inactive' && (
+                      <ActionItem onClick={() => demoteToGuest(p)} busy={busyId === p.auth_user_id}>
+                        Demote Member → Guest
                       </ActionItem>
                     )}
                     {p.is_member && p.member_status !== 'active' && (

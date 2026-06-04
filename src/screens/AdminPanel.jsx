@@ -202,7 +202,11 @@ const AREAS = [
       // PeopleAdmin import.
       // { id: 'people_all',  permKey: 'can_manage_members', l: 'Directory',         d: 'Find anyone: members, guests, staff',                  icon: IconPeople },
       { id: 'people_unified', permKey: 'can_manage_members', l: 'People',         d: 'Members, guests, staff in one view',                   icon: IconPeople },
-      { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
+      // v0.15.5 — Manage Members hidden from sidebar; the People view
+      // surfaces a "+ Add member / Import CSV" button that navigates
+      // here via the admin-nav event. The section is still routable
+      // for the underlying CRUD workflows.
+      // { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
       { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',    d: 'Hide / delete bulletin + partner posts',               icon: IconList   },
       // v0.10.0 (Phase 10) — badges. Preview-only at first patch so
       // Marc can react to the shield visual; CRUD + assignment land
@@ -360,6 +364,21 @@ export default function AdminPanel() {
   // v0.14.9 — AI modal state for the mobile shell. Desktop's AI
   // state lives inside AdminLayoutDesktop.
   const [aiOpen, setAiOpen] = useState(false);
+
+  // v0.15.5 — Listen for admin-nav events. Section bodies can fire
+  // these to jump elsewhere in the admin without prop drilling. The
+  // desktop shell also subscribes; one of the two listeners wins
+  // depending on viewport. Idempotent — both calling setArea/setSec
+  // with the same value is a no-op after the first.
+  useEffect(() => {
+    const onNav = (e) => {
+      const { area: a, section: s } = e.detail || {};
+      if (a !== undefined) setArea(a);
+      if (s !== undefined) setSec(s);
+    };
+    window.addEventListener('admin-nav', onNav);
+    return () => window.removeEventListener('admin-nav', onNav);
+  }, []);
   // Persist whenever desktop navigation lands on a section.
   useEffect(() => {
     if (!isDesktop) return;

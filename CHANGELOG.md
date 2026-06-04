@@ -164,6 +164,45 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.5** — Member↔Guest symmetry + sidebar consolidation + dropdown styling.
+
+  Three of Marc's complaints from one feedback pass:
+
+  **1. Member → Guest demotion (the symmetry gap):**
+  - Migration 79 adds \`demote_member_to_guest(auth_user_id,
+    club_id, access_level)\` RPC.
+  - Preserves history: marks the existing \`members\` row
+    \`status='inactive'\` (never deletes).
+  - Creates or reactivates a \`guests\` row at the configured
+    access level (default \`read_only\`).
+  - Audit log entry: \`member_demoted_to_guest\` (new action added
+    to the CHECK constraint).
+  - New kebab item: **"Demote Member → Guest"** appears for any
+    active/pending member.
+  - Existing **"Convert Guest → Member"** label clarified to read
+    in the same direction.
+
+  **2. Sidebar consolidation (was 2 People entries):**
+  - **Manage Members hidden** from the sidebar. People is now the
+    only entry.
+  - Existing Manage Members route stays alive; reached via a new
+    \`+ Add member / Import CSV\` button at the top of the People
+    view.
+  - Navigation handled by a new \`admin-nav\` custom event
+    listened by both \`AdminLayoutDesktop\` and the mobile
+    \`AdminPanel\`. Decoupled from prop drilling — any section
+    body can fire \`window.dispatchEvent(new
+    CustomEvent('admin-nav', { detail: { area, section } }))\`
+    to jump anywhere.
+
+  **3. Dropdown visual distinction:**
+  - All \`<select>\` elements globally now have an inline-SVG
+    chevron-down icon + 32px right padding so they're visually
+    distinct from text inputs.
+  - Two color variants: muted brown for member modes
+    (light/medium/dark cream), lighter brown for admin
+    true-dark mode.
+
 - **v0.15.4** — People consolidation + Send Magic Link action.
 
   Marc flagged that the People area had THREE overlapping screens

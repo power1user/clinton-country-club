@@ -130,6 +130,20 @@ export default function AdminLayoutDesktop({
     'g b': () => { setArea('comms'); setSec(null); },
     'g e': () => { setArea('events'); setSec(null); },
   });
+
+  // v0.15.5 — Cross-section navigation via custom event. Lets a
+  // section body (e.g. AllPeopleAdmin) jump to a different section
+  // without needing setSec passed as a prop. Decoupled and works
+  // identically on desktop + mobile.
+  useEffect(() => {
+    const onNav = (e) => {
+      const { area: a, section: s } = e.detail || {};
+      if (a !== undefined) setArea(a);
+      if (s !== undefined) setSec(s);
+    };
+    window.addEventListener('admin-nav', onNav);
+    return () => window.removeEventListener('admin-nav', onNav);
+  }, [setArea, setSec]);
   // v0.11.19 — Accordion sidebar. AT MOST ONE area group expanded at
   // a time. Click an area to open it (collapses whatever was open
   // before); click the open area again to close it (back to all-
