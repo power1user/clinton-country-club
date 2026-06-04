@@ -164,6 +164,29 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.14.14** — Client-side host-rescue redirect.
+
+  Last layer of defense against guests landing on stale workers.dev
+  URLs from emails issued before today's Supabase Auth fix.
+
+  Synchronous redirect in \`main.jsx\` BEFORE React mounts. If the
+  host is anything other than \`*.groundslive.com\`, \`localhost\`,
+  or \`127.0.0.1\`, the SPA replaces the URL with the canonical
+  groundslive.com equivalent, **preserving \`pathname + search +
+  hash\`** so the magic-link auth token survives the bounce.
+
+  Slug extraction logic: if the URL path is \`/guest/<slug>\`, use
+  that slug's subdomain. Otherwise default to \`clintoncc\`. The
+  default is pragmatic for the current production scale (1-2 active
+  clubs); a future smarter version could decode the JWT in the
+  auth hash to find the user's actual club.
+
+  Combined with today's Supabase Auth URL config update (Site URL +
+  Additional Redirect URLs allowlist via wildcards) and v0.14.13's
+  Edge Function canonical-redirect fix, **all three paths into auth
+  now flow through canonical URLs** — fresh magic links go straight
+  there, stale ones bounce there.
+
 - **v0.14.13** — Fix: guest registration redirect + button lag.
 
   Real guest signup attempt surfaced two bugs:
