@@ -164,6 +164,48 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.6** — Real People consolidation: edit/add/import lives inside the People view.
+
+  v0.15.5 hid the Manage Members sidebar entry and added a button that
+  *navigated* you back to it — same UI, just behind one extra click.
+  Marc called this out: "you just got rid of all of my edit capabilities
+  that were in the member section. you were supposed to cover all of that
+  in the people section." Fair. This patch actually consolidates.
+
+  **What's new inside People:**
+  - **+ Add Person** button → chooser modal (Member or Guest) → bottom-sheet
+    edit form with full field parity. Members get the original 10 fields
+    (name, member #, tier, email, member_since, hcp, locker, cart, parking,
+    status). Guests get name, email, phone, ZIP, visit_type, access_level,
+    status, visit_date, and optional expires_at.
+  - **Click any row** → opens the same edit modal pre-loaded with that
+    person's record. When someone is both a member AND a guest, a tab
+    toggle lets you flip between editing either record without leaving
+    the modal.
+  - **Import CSV** button → same bulk-import modal (name + membership_number
+    required; tier, email, etc. optional). Upserts on club_id +
+    membership_number so re-imports update instead of duplicating.
+  - **Send Magic Link** button inside the edit modal (in addition to the
+    kebab action) — uses canonical \`{slug}.groundslive.com\` redirect.
+  - **Delete record** link at the bottom of the edit modal (super_admin
+    only — matches the prior gate).
+  - Kebab menu gains an explicit **"Edit Person…"** entry so the action is
+    discoverable without already knowing the row is clickable.
+
+  **What's gone:**
+  - The \`'members'\` admin section (\`Manage Members\` route) is fully
+    removed: route entry, sidebar entry (commented out in v0.15.5, deleted
+    now), and the routing line in \`SectionContent\`.
+  - The retired components in \`AdminPanel.jsx\` — \`MembersAdmin\`,
+    \`MemberEditModal\`, \`CsvImportModal\`, \`StatusChip\`, \`parseCsvLine\` —
+    are deleted (~325 lines). All capabilities now live inside
+    \`screens/admin/AllPeopleAdmin.jsx\`.
+
+  **Path A intact:** No schema changes. Modal writes go to \`members\` /
+  \`guests\` tables directly — same RLS, same auto-link-on-sign-in
+  behavior. \`people\` table stays managed by triggers; the client never
+  writes to it from this flow.
+
 - **v0.15.5** — Member↔Guest symmetry + sidebar consolidation + dropdown styling.
 
   Three of Marc's complaints from one feedback pass:

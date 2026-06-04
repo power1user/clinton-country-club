@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { G, gCfg } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -202,11 +202,9 @@ const AREAS = [
       // PeopleAdmin import.
       // { id: 'people_all',  permKey: 'can_manage_members', l: 'Directory',         d: 'Find anyone: members, guests, staff',                  icon: IconPeople },
       { id: 'people_unified', permKey: 'can_manage_members', l: 'People',         d: 'Members, guests, staff in one view',                   icon: IconPeople },
-      // v0.15.5 — Manage Members hidden from sidebar; the People view
-      // surfaces a "+ Add member / Import CSV" button that navigates
-      // here via the admin-nav event. The section is still routable
-      // for the underlying CRUD workflows.
-      // { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
+      // v0.15.6 — Manage Members section retired. The People view now
+      // owns all member CRUD (add, edit, CSV import) plus the same
+      // workflows for guests and staff. No more dual UIs.
       { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',    d: 'Hide / delete bulletin + partner posts',               icon: IconList   },
       // v0.10.0 (Phase 10) — badges. Preview-only at first patch so
       // Marc can react to the shield visual; CRUD + assignment land
@@ -306,7 +304,6 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'lessonpros'     && <LessonProsAdmin />}
       {sec === 'people_all'     && <PeopleAdmin club={club} />}
       {sec === 'people_unified' && <AllPeopleAdmin />}
-      {sec === 'members'        && <MembersAdmin club={club} />}
       {sec === 'badges'         && <BadgesAdmin club={club} />}
       {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
       {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
@@ -1436,9 +1433,12 @@ function PinsAdmin({ club }) {
 // ─── People admin — v0.9.18 unified browse of everyone at the club ─
 // Members + Guests + Staff in one list. Role badges, status sub-
 // badges, search by name/email, filter chips. Tap to expand for
-// inline details. Edit ops still live in MembersAdmin / Guest
-// Management / StaffAdmin under the hood — this is a unified
-// browse surface, not a replacement for the deep editors.
+// inline details. (Note: v0.15.6 retired MembersAdmin — the unified
+// AllPeopleAdmin in screens/admin/ now owns full member CRUD.)
+// This older PeopleAdmin component is now unreachable (its
+// 'people_all' sidebar entry was hidden in v0.15.4); left in
+// place pending final removal once we're confident nothing in
+// the codebase still references it.
 //
 // Why: Marc's spec — "make that a Person section that has the
 // delineation as to what group they are a part of." Surfaces
@@ -1924,331 +1924,11 @@ function GuestDetailPanel({ g }) {
   );
 }
 
-// ─── Members admin (list, search, add, edit, deactivate, bulk CSV import) ─
-function MembersAdmin({ club }) {
-  const { isSuperAdmin } = useAuth();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [editing, setEditing] = useState(null);     // member row or null
-  const [showImport, setShowImport] = useState(false);
-  const [version, setVersion] = useState(0);
-  const refresh = () => setVersion(v => v + 1);
-
-  useEffect(() => {
-    if (!club) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from('members')
-        .select('id, name, membership_number, tier, email, status, user_id, member_since, hcp, locker, cart, parking')
-        .eq('club_id', club.id)
-        .order('membership_number', { ascending: true });
-      if (cancelled) return;
-      setRows(data || []);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [club?.id, version]);
-
-  const filtered = q
-    ? rows.filter(r =>
-        (r.name || '').toLowerCase().includes(q.toLowerCase()) ||
-        (r.email || '').toLowerCase().includes(q.toLowerCase()) ||
-        (r.membership_number || '').toLowerCase().includes(q.toLowerCase())
-      )
-    : rows;
-
-  return (
-    <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: '0 0 12px' }}>
-        {rows.length} member{rows.length === 1 ? '' : 's'} on the roster.
-        Add individuals or import a CSV. Pending members are activated automatically when they sign up with the matching email.
-      </p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <input
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder="Search by name, email, or member #"
-          style={{ flex: 1, padding: '9px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }}
-        />
-        <div onClick={() => setShowAdd(true)} data-tap style={{ padding: '9px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: '#F2EDE0', fontWeight: 500 }}>+ Add</span>
-        </div>
-        <div onClick={() => setShowImport(true)} data-tap style={{ padding: '9px 14px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 500 }}>Import CSV</span>
-        </div>
-      </div>
-
-      {loading ? <Loading label="Loading members…" /> : (
-        <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}`, overflow: 'hidden' }}>
-          {filtered.length === 0 && (
-            <p style={{ padding: 16, fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0 }}>No members match.</p>
-          )}
-          {filtered.map((m, i) => (
-            <div
-              key={m.id}
-              onClick={() => setEditing(m)}
-              data-tap
-              style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, cursor: 'pointer', gap: 8 }}
-            >
-              <span style={{ width: 36, fontFamily: '"Playfair Display",serif', fontSize: 13, fontWeight: 700, color: G.text }}>#{m.membership_number}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, margin: 0, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email || '— no email —'} · {m.tier || 'Member'}</p>
-              </div>
-              <StatusChip status={m.status} hasAccount={!!m.user_id} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showAdd && <MemberEditModal mode="add" club={club} onClose={() => setShowAdd(false)} onSaved={refresh} />}
-      {editing && <MemberEditModal mode="edit" club={club} member={editing} canDelete={isSuperAdmin} onClose={() => setEditing(null)} onSaved={refresh} />}
-      {showImport && <CsvImportModal club={club} onClose={() => setShowImport(false)} onSaved={refresh} />}
-    </div>
-  );
-}
-
-function StatusChip({ status, hasAccount }) {
-  let bg = G.openBg, txt = '#A8D8B8', lbl = 'Active';
-  if (status === 'pending' || !hasAccount) { bg = G.limBg; txt = G.limTxt; lbl = 'Pending'; }
-  if (status === 'inactive')                { bg = G.muted;  txt = '#F2EDE0'; lbl = 'Inactive'; }
-  return (
-    <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: txt, background: bg, padding: '2px 8px', borderRadius: 10, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>{lbl}</span>
-  );
-}
-
-function MemberEditModal({ mode, club, member, canDelete, onClose, onSaved }) {
-  const isAdd = mode === 'add';
-  const [form, setForm] = useState(() => ({
-    name:               member?.name || '',
-    membership_number:  member?.membership_number || '',
-    email:              member?.email || '',
-    tier:               member?.tier || 'Full Member',
-    member_since:       member?.member_since || String(new Date().getFullYear()),
-    hcp:                member?.hcp || '',
-    locker:             member?.locker || '',
-    cart:               member?.cart || '',
-    parking:            member?.parking || '',
-    status:             member?.status || 'pending',
-  }));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const [invited, setInvited] = useState(false);
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const save = async () => {
-    setBusy(true); setErr(null);
-    const row = {
-      club_id: club.id,
-      name: form.name.trim(),
-      membership_number: form.membership_number.trim(),
-      email: form.email.trim() || null,
-      tier: form.tier || null,
-      member_since: form.member_since || null,
-      hcp: form.hcp || null,
-      locker: form.locker || null,
-      cart: form.cart || null,
-      parking: form.parking || null,
-      status: form.status,
-    };
-    let error;
-    if (isAdd) {
-      ({ error } = await supabase.from('members').insert(row));
-    } else {
-      ({ error } = await supabase.from('members').update(row).eq('id', member.id));
-    }
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    onSaved?.();
-    onClose();
-  };
-
-  const sendInvite = async () => {
-    if (!form.email) { setErr('Email is required to send an invite.'); return; }
-    setBusy(true); setErr(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: form.email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    setInvited(true);
-  };
-
-  const remove = async () => {
-    if (!confirm(`Delete ${form.name}? This is permanent.`)) return;
-    setBusy(true);
-    const { error } = await supabase.from('members').delete().eq('id', member.id);
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    onSaved?.();
-    onClose();
-  };
-
-  return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{isAdd ? 'Add Member' : 'Edit Member'}</h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
-        </div>
-
-        <Row>
-          <Field label="Full name *"><input value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} /></Field>
-        </Row>
-        <Row>
-          <Field label="Member # *"><input value={form.membership_number} onChange={e => set('membership_number', e.target.value)} style={inputStyle} /></Field>
-          <Field label="Tier">
-            <select value={form.tier} onChange={e => set('tier', e.target.value)} style={selectStyle}>
-              {['Full Member','Social Member','Junior Member','Honorary','Other'].map(t => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-        </Row>
-        <Row>
-          <Field label="Email"><input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} placeholder="invite address" /></Field>
-        </Row>
-        <Row>
-          <Field label="Member since"><input value={form.member_since} onChange={e => set('member_since', e.target.value)} style={inputStyle} placeholder="Year" /></Field>
-          <Field label="Handicap"><input value={form.hcp} onChange={e => set('hcp', e.target.value)} style={inputStyle} placeholder="14.2" /></Field>
-        </Row>
-        <Row>
-          <Field label="Locker"><input value={form.locker} onChange={e => set('locker', e.target.value)} style={inputStyle} /></Field>
-          <Field label="Cart"><input value={form.cart} onChange={e => set('cart', e.target.value)} style={inputStyle} /></Field>
-        </Row>
-        <Row>
-          <Field label="Parking"><input value={form.parking} onChange={e => set('parking', e.target.value)} style={inputStyle} /></Field>
-          <Field label="Status">
-            <select value={form.status} onChange={e => set('status', e.target.value)} style={selectStyle}>
-              {['active','pending','inactive'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-            </select>
-          </Field>
-        </Row>
-
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
-        {invited && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.openBg, marginBottom: 10 }}>✓ Magic-link invite sent to {form.email}. They'll be auto-linked to this record on sign-in.</p>}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <div onClick={save} data-tap style={{ flex: 1, padding: 12, background: G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : (isAdd ? 'Add Member' : 'Save')}</span>
-          </div>
-          {form.email && !member?.user_id && (
-            <div onClick={sendInvite} data-tap style={{ flex: 1, padding: 12, background: G.brass, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer' }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>Send Invite</span>
-            </div>
-          )}
-        </div>
-        {!isAdd && canDelete && (
-          <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete member</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CsvImportModal({ club, onClose, onSaved }) {
-  const [csvText, setCsvText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const run = async () => {
-    setBusy(true); setResult(null);
-    const lines = csvText.split(/\r?\n/).filter(l => l.trim());
-    if (!lines.length) { setBusy(false); setResult({ error: 'No rows.' }); return; }
-    const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
-    const rows = lines.slice(1).map(l => {
-      const cells = parseCsvLine(l);
-      const obj = {};
-      header.forEach((h, i) => { obj[h] = (cells[i] ?? '').trim(); });
-      return obj;
-    });
-    // Required: name + membership_number (or 'member' / 'member_number')
-    const out = rows.map(r => ({
-      club_id: club.id,
-      name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim(),
-      membership_number: r.membership_number || r.member_number || r.member || r.number || '',
-      email: r.email || null,
-      tier: r.tier || 'Full Member',
-      member_since: r.member_since || r.since || null,
-      hcp: r.hcp || r.handicap || null,
-      locker: r.locker || null,
-      cart: r.cart || null,
-      parking: r.parking || null,
-      status: 'pending',
-    })).filter(r => r.name && r.membership_number);
-
-    if (!out.length) { setBusy(false); setResult({ error: 'No valid rows found. CSV needs at least name + membership_number columns.' }); return; }
-
-    const { data, error } = await supabase.from('members').upsert(out, { onConflict: 'club_id,membership_number' }).select('id');
-    setBusy(false);
-    if (error) { setResult({ error: error.message }); return; }
-    setResult({ ok: data?.length || 0 });
-    onSaved?.();
-  };
-
-  return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>Bulk Import Members</h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
-        </div>
-
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: '0 0 10px' }}>
-          Paste a CSV below. First row = column headers. Required: <code>name</code>, <code>membership_number</code>.
-          Optional: <code>email</code>, <code>tier</code>, <code>member_since</code>, <code>hcp</code>, <code>locker</code>, <code>cart</code>, <code>parking</code>.
-          New members are added with <strong>Pending</strong> status; they activate when they sign up with the matching email.
-          Existing membership numbers are updated.
-        </p>
-
-        <textarea
-          value={csvText}
-          onChange={e => setCsvText(e.target.value)}
-          placeholder={'name,membership_number,email,tier\nMarc Abla,0001,marc@example.com,Full Member\nMatt Bohlmann,0002,matt@example.com,Full Member'}
-          style={{ width: '100%', height: 200, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 11, color: G.text, background: G.card, resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
-        />
-
-        {result?.error && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{result.error}</p>}
-        {result?.ok && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.openBg, marginBottom: 10 }}>✓ Imported / updated {result.ok} member{result.ok === 1 ? '' : 's'}.</p>}
-
-        <div onClick={run} data-tap style={{ padding: 12, background: csvText && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: csvText && !busy ? 'pointer' : 'not-allowed' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: csvText && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Importing…' : 'Import'}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Minimal CSV row parser — handles quoted fields with commas.
-function parseCsvLine(line) {
-  const out = [];
-  let cur = '';
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQ) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') { inQ = false; }
-      else cur += ch;
-    } else {
-      if (ch === '"') inQ = true;
-      else if (ch === ',') { out.push(cur); cur = ''; }
-      else cur += ch;
-    }
-  }
-  out.push(cur);
-  return out;
-}
-
+// v0.15.6 — MembersAdmin / MemberEditModal / CsvImportModal /
+// StatusChip / parseCsvLine were retired here. All of their
+// capabilities now live inside AllPeopleAdmin (the "People"
+// section) — add / edit / CSV import for members, guests, and
+// staff in one unified view. See AllPeopleAdmin.jsx.
 // ─── Badges admin (v0.9.22) — full CRUD on the v0.10.0 badges schema ─────
 //
 // Library + creation form for shield-shaped badges. Manager picks name,
