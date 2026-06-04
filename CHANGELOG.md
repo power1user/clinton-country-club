@@ -164,6 +164,37 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.4** — People consolidation + Send Magic Link action.
+
+  Marc flagged that the People area had THREE overlapping screens
+  (Directory, All People, Manage Members) and no obvious place to
+  fire a magic-link invite. Consolidated:
+
+  **From 3 surfaces down to 2 with clearer purpose:**
+  - **People** (renamed from "All People") — the everyday browse
+    + take-action surface for any person at the club. Search,
+    filter, kebab menu.
+  - **Manage Members** — kept for the heavier CRUD: add a new
+    member from scratch, bulk-import a CSV roster, edit individual
+    member fields (tier, locker, cart, handicap).
+  - **~~Directory~~** — hidden from the sidebar. People (unified)
+    is its full replacement. PeopleAdmin component stays linked
+    so the route still works if someone has a bookmark; just no
+    longer surfaced.
+
+  **"Send Magic Link" action** added as the always-available top
+  item in the People kebab menu — separated from the lifecycle
+  actions by a divider. Works for any user with an email on file
+  (member, guest, staff). Calls \`supabase.auth.signInWithOtp\`
+  with \`emailRedirectTo\` set to the canonical
+  \`{club.slug}.groundslive.com/\` URL (NOT \`window.location.origin\`
+  — fixes a vestigial flaw in the old Manage Members invite
+  button that could send people to workers.dev).
+
+  **Better intro copy** on the People screen so admins know
+  exactly when to switch to Manage Members ("To add a new member
+  from scratch or bulk-import a CSV roster, use Manage Members").
+
 - **v0.15.3** — Phase 16 closeout.
 
   Phase 16 is complete. 4 patches landed in this session:

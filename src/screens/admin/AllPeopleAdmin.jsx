@@ -109,6 +109,32 @@ export default function AllPeopleAdmin() {
     `Demote ${p.name} back to member?\n\nThey lose all admin permissions at this club. Audited.`
   );
 
+  // v0.15.4 — send a fresh magic link to the person's email.
+  // Works for any user (members, guests, staff) — Supabase issues a
+  // new OTP on every call regardless of previous state. The email
+  // lands at the canonical {slug}.groundslive.com URL.
+  const sendMagicLink = async (p) => {
+    if (!p.email) {
+      setActionErr('No email on file — add one in Manage Members first.');
+      return;
+    }
+    setBusyId(p.auth_user_id);
+    setActionErr(null);
+    setActionFor(null);
+    const redirect = club?.slug ? `https://${club.slug}.groundslive.com/` : window.location.origin;
+    const { error } = await supabase.auth.signInWithOtp({
+      email: p.email,
+      options: { emailRedirectTo: redirect },
+    });
+    setBusyId(null);
+    if (error) {
+      setActionErr(`Couldn't send: ${error.message}`);
+      return;
+    }
+    setActionErr(`✓ Magic link sent to ${p.email}`);
+    setTimeout(() => setActionErr(null), 4000);
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (people || []).filter(p => {
@@ -124,8 +150,8 @@ export default function AllPeopleAdmin() {
 
   return (
     <div>
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
-        Every person with a relationship to {club?.name || 'this club'} — members, guests, and staff in one view. Identity data (name, email, phone) comes from the unified <code style={{ background: 'rgba(122,172,136,0.14)', padding: '0 4px', borderRadius: 2 }}>people</code> table; relationships and per-club data come from <code style={{ background: 'rgba(122,172,136,0.14)', padding: '0 4px', borderRadius: 2 }}>members</code>, <code style={{ background: 'rgba(122,172,136,0.14)', padding: '0 4px', borderRadius: 2 }}>guests</code>, and <code style={{ background: 'rgba(122,172,136,0.14)', padding: '0 4px', borderRadius: 2 }}>user_roles</code>.
+      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px', lineHeight: 1.55 }}>
+        Every member, guest, and staff person at {club?.name || 'this club'} in one searchable list. Use the kebab menu (⋮) on any row to send a magic link, change status, promote, demote, or convert a guest to a member. <strong style={{ color: G.text, fontStyle: 'normal' }}>To add a new member from scratch or bulk-import a CSV roster, use Manage Members.</strong>
       </p>
 
       {/* Filter pills */}
@@ -238,8 +264,13 @@ export default function AllPeopleAdmin() {
                     position: 'absolute', right: 0, top: 30,
                     background: G.bg, border: `1px solid ${G.border}`, borderRadius: 4,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-                    minWidth: 200, zIndex: 50, padding: '4px 0',
+                    minWidth: 220, zIndex: 50, padding: '4px 0',
                   }}>
+                    {/* v0.15.4 — always-available action */}
+                    <ActionItem onClick={() => sendMagicLink(p)} busy={busyId === p.auth_user_id}>
+                      Send Magic Link
+                    </ActionItem>
+                    <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
                     {p.is_guest && !p.is_member && (
                       <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
                         Convert to Member
