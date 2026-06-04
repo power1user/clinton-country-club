@@ -164,6 +164,40 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.10** — Lifecycle actions moved into the modal; kebab trimmed to the fast lane.
+
+  Marc: *"wouldn't it make more sense to move those actions into the same
+  ui as everything else? ... make sure it has everything and the kebab
+  for a few of the major things"*. The row kebab was inheriting a list of
+  9+ conditional items that really belonged on the person's record, where
+  the audit history and form context already live.
+
+  **PersonEditModal — new Actions section** (between the form and the
+  audit history). Every applicable transition renders as an iOS-style
+  tap row with a chevron:
+  - Convert Guest → Member  (when person is a guest and not a member)
+  - Demote Member → Guest   (when active/pending member)
+  - Mark Member Active / Pending / Inactive  (one-tap status RPC, audited)
+  - Promote to Admin / to Manager  (Manager promotion gated to managers)
+  - Promote Admin → Manager / Demote Manager → Admin  (manager-only)
+  - Remove Staff Role  (danger styling, removes user_role)
+
+  Every button calls the corresponding SECURITY DEFINER RPC, then
+  refreshes both the modal's own data (member + guest + audit) and the
+  parent list — no unmount/remount, so unsaved form edits stay put.
+  After Convert / Demote-to-Guest the modal also auto-switches the
+  member↔guest kind toggle so you land on the new primary record.
+
+  **Kebab — trimmed to the fast lane:**
+  - Edit Person…
+  - Send Magic Link  (the #1 reason an admin opens the kebab)
+  - Convert Guest → Member  (when applicable — common during onboarding)
+  - Mark Active  (when applicable — common snowbird reactivation)
+
+  Everything else lives in the modal. If you find yourself wanting an
+  action that's not in the kebab, you're one tap further away (Edit
+  Person → Actions section).
+
 - **v0.15.9** — Per-person audit history inside the People editor (manager-only).
 
   A new **Activity history** section at the bottom of the PersonEditModal,

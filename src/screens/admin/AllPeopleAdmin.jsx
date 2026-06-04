@@ -379,64 +379,36 @@ export default function AllPeopleAdmin() {
                     boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
                     minWidth: 220, zIndex: 50, padding: '4px 0',
                   }}>
+                    {/* v0.15.10 — Kebab is now the "fast lane" only.
+                        Full lifecycle (promote / demote / status / staff role)
+                        lives inside the PersonEditModal's Actions section.
+                        Reasons:
+                          · The modal is where the audit history + full record
+                            context already are, so big transitions belong there.
+                          · The kebab is the right surface for one-tap actions
+                            you fire from the list without opening anything:
+                            magic links, guest-approval, snowbird reactivation. */}
                     <ActionItem onClick={() => { setActionFor(null); openEdit(p); }} busy={busyId === p.auth_user_id}>
                       Edit Person…
                     </ActionItem>
                     <ActionItem onClick={() => sendMagicLink(p)} busy={busyId === p.auth_user_id}>
                       Send Magic Link
                     </ActionItem>
-                    <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
                     {p.is_guest && !p.is_member && (
-                      <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
-                        Convert Guest → Member
-                      </ActionItem>
-                    )}
-                    {p.is_member && p.member_status !== 'inactive' && (
-                      <ActionItem onClick={() => demoteToGuest(p)} busy={busyId === p.auth_user_id}>
-                        Demote Member → Guest
-                      </ActionItem>
-                    )}
-                    {p.is_member && p.member_status !== 'active' && (
-                      <ActionItem onClick={() => changeStatus(p, 'active')} busy={busyId === p.auth_user_id}>
-                        Mark Active
-                      </ActionItem>
-                    )}
-                    {p.is_member && p.member_status !== 'pending' && (
-                      <ActionItem onClick={() => changeStatus(p, 'pending')} busy={busyId === p.auth_user_id}>
-                        Mark Pending
-                      </ActionItem>
-                    )}
-                    {p.is_member && p.member_status !== 'inactive' && (
-                      <ActionItem onClick={() => changeStatus(p, 'inactive')} busy={busyId === p.auth_user_id}>
-                        Mark Inactive
-                      </ActionItem>
-                    )}
-                    {p.is_member && !p.is_staff && (
                       <>
-                        <ActionItem onClick={() => promote(p, 'club_admin')} busy={busyId === p.auth_user_id}>
-                          Promote to Admin
+                        <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
+                        <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
+                          Convert Guest → Member
                         </ActionItem>
-                        {isManager && (
-                          <ActionItem onClick={() => promote(p, 'club_manager')} busy={busyId === p.auth_user_id}>
-                            Promote to Manager
-                          </ActionItem>
-                        )}
                       </>
                     )}
-                    {p.is_staff && p.staff_role === 'club_admin' && isManager && (
-                      <ActionItem onClick={() => promote(p, 'club_manager')} busy={busyId === p.auth_user_id}>
-                        Promote Admin → Manager
-                      </ActionItem>
-                    )}
-                    {p.is_staff && p.staff_role === 'club_manager' && isManager && (
-                      <ActionItem onClick={() => promote(p, 'club_admin')} busy={busyId === p.auth_user_id}>
-                        Demote Manager → Admin
-                      </ActionItem>
-                    )}
-                    {p.is_staff && (
-                      <ActionItem onClick={() => demote(p)} busy={busyId === p.auth_user_id} danger>
-                        Remove Staff Role
-                      </ActionItem>
+                    {p.is_member && p.member_status !== 'active' && (
+                      <>
+                        <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
+                        <ActionItem onClick={() => changeStatus(p, 'active')} busy={busyId === p.auth_user_id}>
+                          Mark Active
+                        </ActionItem>
+                      </>
                     )}
                   </div>
                 )}
@@ -469,6 +441,7 @@ export default function AllPeopleAdmin() {
           isSuperAdmin={isSuperAdmin}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); refresh(); }}
+          onActionComplete={refresh}
         />
       )}
       {showCsv && (
@@ -535,7 +508,7 @@ const VISIT_TYPE_OPTIONS = ['public_play','member_guest','tournament_guest','eve
 const ACCESS_LEVEL_OPTIONS = ['data_only','read_only','full_temporary'];
 const GUEST_STATUS_OPTIONS = ['active','pending_authentication','expired'];
 
-function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose, onSaved }) {
+function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose, onSaved, onActionComplete }) {
   // v0.15.6 — when a person has both records, let the admin toggle
   // which side they're editing without leaving the modal.
   const initialKind = mode === 'add-guest' ? 'guest'
@@ -566,6 +539,12 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const showAuditSection = isManager && !isAdd && !!person?.auth_user_id;
+
+  // v0.15.10 — bumping `loadVersion` causes the load + audit useEffects
+  // to re-fire, refreshing the modal's view after a lifecycle action.
+  // Avoids unmounting/remounting (which would wipe unsaved form edits).
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [actionBusy, setActionBusy] = useState(false);
 
   // Clearing the field's error as the user types kills the red text the
   // moment they fix it; otherwise it lingers until they hit Save again.
@@ -605,7 +584,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person?.auth_user_id, club?.id]);
+  }, [person?.auth_user_id, club?.id, loadVersion]);
 
   // v0.15.9 — fetch the per-person audit trail from people_audit_log.
   // Two-step: first the raw rows for the person+club, then resolve
@@ -646,7 +625,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
       setAuditLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [showAuditSection, club?.id, person?.auth_user_id]);
+  }, [showAuditSection, club?.id, person?.auth_user_id, loadVersion]);
 
   // v0.15.8 — Removed the v0.15.7 auto-focus useEffect. On mobile the
   // soft keyboard slid up immediately when the editor opened, blocking
@@ -773,6 +752,60 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     if (error) { setErr(error.message); return; }
     onSaved?.();
   };
+
+  // v0.15.10 — Lifecycle action handlers, moved up from the row kebab.
+  // Pattern: call SECURITY DEFINER RPC, then refresh both the modal
+  // (bumping loadVersion → re-runs the load + audit useEffects) and
+  // the parent list (so the kebab/chips reflect the new state).
+  // postKind: optional kind to auto-switch to after success, so e.g.
+  // after Convert Guest → Member the form lands on the new member row
+  // instead of staying on the now-stale guest record.
+  const runModalAction = async ({ rpc, args, confirm, postKind, errPrefix }) => {
+    if (confirm && !window.confirm(confirm)) return;
+    setActionBusy(true); setErr(null); setNotice(null);
+    const { error } = await supabase.rpc(rpc, args);
+    setActionBusy(false);
+    if (error) { setErr(`${errPrefix || 'Action failed'}: ${error.message}`); return; }
+    if (postKind) setKind(postKind);
+    if (onActionComplete) await onActionComplete();
+    setLoadVersion(v => v + 1);
+  };
+
+  const actConvertGuestToMember = () => runModalAction({
+    rpc: 'convert_guest_to_member',
+    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_tier: 'standard', p_status: 'active' },
+    confirm: `Convert ${person.name} from guest to member?\n\nA new member row is created. Their guest record stays as history.`,
+    postKind: 'member',
+    errPrefix: "Couldn't convert",
+  });
+
+  const actDemoteMemberToGuest = () => runModalAction({
+    rpc: 'demote_member_to_guest',
+    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_access_level: 'read_only' },
+    confirm: `Demote ${person.name} from member to guest?\n\nTheir member row is marked inactive (kept for history). A guest row is created/reactivated with read_only access. Audited.`,
+    postKind: 'guest',
+    errPrefix: "Couldn't demote",
+  });
+
+  const actChangeStatus = (toStatus) => runModalAction({
+    rpc: 'change_member_status',
+    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_to_status: toStatus },
+    errPrefix: "Couldn't change status",
+  });
+
+  const actPromote = (role) => runModalAction({
+    rpc: 'promote_member_to_staff',
+    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_role: role },
+    confirm: `Promote ${person.name} to ${role === 'club_manager' ? 'Manager' : 'Admin'}?\n\nThey'll gain admin access. Audited in people_audit_log.`,
+    errPrefix: "Couldn't promote",
+  });
+
+  const actDemoteStaff = () => runModalAction({
+    rpc: 'demote_staff_to_member',
+    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id },
+    confirm: `Remove ${person.name}'s staff role?\n\nThey lose all admin permissions at this club. Audited.`,
+    errPrefix: "Couldn't remove staff role",
+  });
 
   const title = isAdd
     ? (kind === 'member' ? 'Add Member' : 'Add Guest')
@@ -963,6 +996,62 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
           );
         })()}
 
+        {/* v0.15.10 — Actions section: every lifecycle transition that
+            used to live in the row kebab. Conditional gates mirror the
+            kebab's old logic: status moves only when the person is in
+            the relevant kind, staff promote/demote rules respect
+            manager-vs-admin scope. Each action calls a SECURITY DEFINER
+            RPC, refreshes the modal, and refreshes the parent list. */}
+        {!isAdd && person && (() => {
+          const actions = [];
+          if (person.is_guest && !person.is_member) {
+            actions.push({ label: 'Convert Guest → Member', onClick: actConvertGuestToMember });
+          }
+          if (person.is_member && person.member_status !== 'inactive') {
+            actions.push({ label: 'Demote Member → Guest', onClick: actDemoteMemberToGuest });
+          }
+          if (person.is_member && person.member_status !== 'active') {
+            actions.push({ label: 'Mark Member Active',  onClick: () => actChangeStatus('active') });
+          }
+          if (person.is_member && person.member_status !== 'pending') {
+            actions.push({ label: 'Mark Member Pending', onClick: () => actChangeStatus('pending') });
+          }
+          if (person.is_member && person.member_status !== 'inactive') {
+            actions.push({ label: 'Mark Member Inactive', onClick: () => actChangeStatus('inactive') });
+          }
+          if (person.is_member && !person.is_staff) {
+            actions.push({ label: 'Promote to Admin', onClick: () => actPromote('club_admin') });
+            if (isManager) actions.push({ label: 'Promote to Manager', onClick: () => actPromote('club_manager') });
+          }
+          if (person.is_staff && person.staff_role === 'club_admin' && isManager) {
+            actions.push({ label: 'Promote Admin → Manager', onClick: () => actPromote('club_manager') });
+          }
+          if (person.is_staff && person.staff_role === 'club_manager' && isManager) {
+            actions.push({ label: 'Demote Manager → Admin', onClick: () => actPromote('club_admin') });
+          }
+          if (person.is_staff) {
+            actions.push({ label: 'Remove Staff Role', onClick: actDemoteStaff, danger: true });
+          }
+          if (!actions.length) return null;
+          return (
+            <>
+              <SectionLabel>Actions</SectionLabel>
+              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                {actions.map((a, i) => (
+                  <PersonActionRow
+                    key={i}
+                    label={a.label}
+                    onClick={a.onClick}
+                    danger={a.danger}
+                    busy={actionBusy}
+                    isFirst={i === 0}
+                  />
+                ))}
+              </div>
+            </>
+          );
+        })()}
+
         {!isAdd && isSuperAdmin && (kind === 'member' ? memberId : guestId) && (
           <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete {kind} record</span>
@@ -1025,6 +1114,28 @@ function formatAuditTime(iso) {
     if (isNaN(d.getTime())) return '';
     return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   } catch { return ''; }
+}
+
+// v0.15.10 — Tappable row used by the modal's Actions section.
+// Looks like an iOS settings row: label on the left, chevron on the
+// right, faint divider above (except first child). Danger variant
+// flips the label to G.clsDot.
+function PersonActionRow({ label, onClick, danger, busy, isFirst }) {
+  return (
+    <div onClick={busy ? undefined : onClick} data-tap
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 14px',
+        borderTop: isFirst ? 'none' : `1px solid ${G.border}`,
+        cursor: busy ? 'wait' : 'pointer',
+        opacity: busy ? 0.5 : 1,
+      }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: danger ? G.clsDot : G.text, fontWeight: 500 }}>
+        {label}
+      </span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  );
 }
 
 function AuditEventRow({ a }) {
