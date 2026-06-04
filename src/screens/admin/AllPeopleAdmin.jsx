@@ -15,7 +15,7 @@
 //               Members section is gone — this is the one place to
 //               manage people now.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
@@ -28,13 +28,44 @@ const selectStyle = { ...inputStyle };
 function FormRow({ children }) {
   return <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>{children}</div>;
 }
-function Field({ label, children }) {
+// v0.15.7 — Field now renders a red asterisk for required props and
+// surfaces a per-field error message right below the input so the
+// user doesn't have to scroll to the bottom of the modal to see what
+// went wrong.
+function Field({ label, required, error, children }) {
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={labelStyle}>{label}</label>
+      <label style={labelStyle}>
+        {label}
+        {required && <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>}
+      </label>
       {children}
+      {error && (
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
+          {error}
+        </p>
+      )}
     </div>
   );
+}
+// v0.15.7 — Subtle section header used to group the member form
+// into "Identity" and "Membership details" so the 8 fields don't
+// read as one undifferentiated wall.
+function SectionLabel({ children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{children}</span>
+      <div style={{ flex: 1, height: 1, background: G.border }} />
+    </div>
+  );
+}
+function formatLastSeen(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return null; }
 }
 
 function parseCsvLine(line) {
@@ -514,12 +545,20 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
   const [guestId,   setGuestId]   = useState(null);
 
   const [form, setForm] = useState(initialFormFor(kind, null, person));
+  const [initialForm, setInitialForm] = useState(null);   // null in add mode → always dirty-enough
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
   const [notice, setNotice] = useState(null);
   const [loadingRow, setLoadingRow] = useState(!isAdd);
+  const [fieldErrors, setFieldErrors] = useState({});     // v0.15.7 — per-field inline validation
+  const firstInputRef = useRef(null);                     // v0.15.7 — auto-focus on open
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  // Clearing the field's error as the user types kills the red text the
+  // moment they fix it; otherwise it lingers until they hit Save again.
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    setFieldErrors(fe => fe[k] ? { ...fe, [k]: undefined } : fe);
+  };
 
   // Load underlying row(s) in edit mode.
   useEffect(() => {
@@ -544,7 +583,9 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
       const g = (Array.isArray(gRes.data) ? gRes.data[0] : gRes.data) || null;
       setMemberRow(m); setMemberId(m?.id || null);
       setGuestRow(g);  setGuestId(g?.id || null);
-      setForm(initialFormFor(kind, kind === 'member' ? m : g, person));
+      const f = initialFormFor(kind, kind === 'member' ? m : g, person);
+      setForm(f);
+      setInitialForm(f);   // freeze a copy so dirty detection compares against the loaded state
       setLoadingRow(false);
     };
     load();
@@ -552,21 +593,51 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [person?.auth_user_id, club?.id]);
 
+  // v0.15.7 — auto-focus the first field once the form is rendered.
+  // Slight delay lets the bottom-sheet animation finish so the focus
+  // ring doesn't paint mid-slide.
+  useEffect(() => {
+    if (loadingRow) return;
+    const t = setTimeout(() => firstInputRef.current?.focus(), 120);
+    return () => clearTimeout(t);
+  }, [loadingRow, kind]);
+
   // When user toggles kind on a dual-record person, repopulate form
   // from the cached row so we don't lose unsaved typing on the other.
   const switchKind = (next) => {
     if (next === kind) return;
     setKind(next);
-    setForm(initialFormFor(next, next === 'member' ? memberRow : guestRow, person));
-    setErr(null); setNotice(null);
+    const f = initialFormFor(next, next === 'member' ? memberRow : guestRow, person);
+    setForm(f);
+    setInitialForm(f);
+    setErr(null); setNotice(null); setFieldErrors({});
   };
 
+  // v0.15.7 — validation is its own function so the Save button can
+  // ask "is this valid?" on every keystroke without running the full
+  // save flow.
+  const validate = () => {
+    const e = {};
+    if (!form.name?.trim()) e.name = 'Required.';
+    if (kind === 'member') {
+      if (!form.membership_number?.trim()) e.membership_number = 'Required.';
+    } else {
+      if (!form.email?.trim()) e.email = 'Required.';
+    }
+    return e;
+  };
+  const isValid = Object.keys(validate()).length === 0;
+  // Add mode: any time it's valid we let them save. Edit mode: must also
+  // be dirty so we don't fire a no-op UPDATE that round-trips to Postgres.
+  const dirty = initialForm ? JSON.stringify(form) !== JSON.stringify(initialForm) : true;
+  const canSave = !busy && !loadingRow && isValid && (isAdd || dirty);
+
   const save = async () => {
+    const v = validate();
+    if (Object.keys(v).length > 0) { setFieldErrors(v); return; }
+    setFieldErrors({});
     setBusy(true); setErr(null);
     if (kind === 'member') {
-      if (!form.name.trim() || !form.membership_number.trim()) {
-        setBusy(false); setErr('Name and Member # are required.'); return;
-      }
       const row = {
         club_id: club.id,
         name: form.name.trim(),
@@ -586,9 +657,6 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
       setBusy(false);
       if (error) { setErr(error.message); return; }
     } else {
-      if (!form.name.trim() || !form.email.trim()) {
-        setBusy(false); setErr('Name and email are required for guests.'); return;
-      }
       const row = {
         club_id: club.id,
         name: form.name.trim(),
@@ -622,6 +690,22 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
     if (error) { setErr(error.message); return; }
     setNotice(`✓ Magic link sent to ${form.email}.`);
   };
+
+  // v0.15.7 — Keyboard shortcuts: ESC closes, Cmd/Ctrl+Enter saves.
+  // The deps array intentionally includes `canSave` + the functions so
+  // we don't fire a save against stale form state.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (canSave) save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSave, kind, form, memberId, guestId, isAdd]);
 
   const remove = async () => {
     if (!isSuperAdmin) return;
@@ -672,19 +756,33 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0' }}>Loading…</p>
         ) : kind === 'member' ? (
           <>
+            <SectionLabel>Identity</SectionLabel>
             <FormRow>
-              <Field label="Full name *"><input value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Full name" required error={fieldErrors.name}>
+                <input ref={firstInputRef} value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
+              </Field>
             </FormRow>
             <FormRow>
-              <Field label="Member # *"><input value={form.membership_number} onChange={e => set('membership_number', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Member #" required error={fieldErrors.membership_number}>
+                <input value={form.membership_number} onChange={e => set('membership_number', e.target.value)} style={inputStyle} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} placeholder="invite address" />
+              </Field>
+            </FormRow>
+
+            <SectionLabel>Membership details</SectionLabel>
+            <FormRow>
               <Field label="Tier">
                 <select value={form.tier} onChange={e => set('tier', e.target.value)} style={selectStyle}>
                   {TIER_OPTIONS.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-            </FormRow>
-            <FormRow>
-              <Field label="Email"><input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} placeholder="invite address" /></Field>
+              <Field label="Status">
+                <select value={form.status} onChange={e => set('status', e.target.value)} style={selectStyle}>
+                  {MEMBER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{cap(s)}</option>)}
+                </select>
+              </Field>
             </FormRow>
             <FormRow>
               <Field label="Member since"><input value={form.member_since} onChange={e => set('member_since', e.target.value)} style={inputStyle} placeholder="Year" /></Field>
@@ -696,25 +794,31 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
             </FormRow>
             <FormRow>
               <Field label="Parking"><input value={form.parking} onChange={e => set('parking', e.target.value)} style={inputStyle} /></Field>
-              <Field label="Status">
-                <select value={form.status} onChange={e => set('status', e.target.value)} style={selectStyle}>
-                  {MEMBER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{cap(s)}</option>)}
-                </select>
-              </Field>
+              {/* second column left blank so Parking aligns with the others
+                  instead of stretching full width — matches the visual
+                  rhythm of the rows above. */}
+              <div style={{ flex: 1 }} />
             </FormRow>
           </>
         ) : (
           <>
+            <SectionLabel>Identity</SectionLabel>
             <FormRow>
-              <Field label="Full name *"><input value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Full name" required error={fieldErrors.name}>
+                <input ref={firstInputRef} value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
+              </Field>
             </FormRow>
             <FormRow>
-              <Field label="Email *"><input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Email" required error={fieldErrors.email}>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} />
+              </Field>
             </FormRow>
             <FormRow>
               <Field label="Phone"><input value={form.phone} onChange={e => set('phone', e.target.value)} style={inputStyle} /></Field>
               <Field label="ZIP"><input value={form.zip} onChange={e => set('zip', e.target.value)} style={inputStyle} /></Field>
             </FormRow>
+
+            <SectionLabel>Visit details</SectionLabel>
             <FormRow>
               <Field label="Visit type">
                 <select value={form.visit_type} onChange={e => set('visit_type', e.target.value)} style={selectStyle}>
@@ -737,6 +841,7 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
                   {GUEST_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                 </select>
               </Field>
+              <div style={{ flex: 1 }} />
             </FormRow>
           </>
         )}
@@ -744,20 +849,65 @@ function PersonEditModal({ mode, person, club, isSuperAdmin, onClose, onSaved })
         {err    && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
         {notice && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.openBg, marginBottom: 10 }}>{notice}</p>}
 
-        {!loadingRow && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <div onClick={busy ? undefined : save} data-tap
-              style={{ flex: 1, padding: 12, background: G.green, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-              <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>{busy ? 'Saving…' : (isAdd ? `Add ${kind === 'member' ? 'Member' : 'Guest'}` : 'Save')}</span>
-            </div>
-            {form.email && (
-              <div onClick={busy ? undefined : sendInvite} data-tap
-                style={{ flex: 1, padding: 12, background: G.brass, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-                <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2E5C0', fontWeight: 500 }}>Send Magic Link</span>
+        {!loadingRow && (() => {
+          // v0.15.7 — Verified users get a quieter "Re-send sign-in link"
+          // outline button + a subline showing when they were last seen.
+          // Unverified users keep the prominent brass CTA — the magic link
+          // is the only path they have to access the app, so it deserves
+          // the loud styling.
+          const verified = !!person?.last_seen_at;
+          const lastSeen = formatLastSeen(person?.last_seen_at);
+          return (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <div onClick={canSave ? save : undefined} data-tap
+                  style={{
+                    flex: 1, padding: 12,
+                    background: canSave ? G.green : G.border,
+                    borderRadius: 3, textAlign: 'center',
+                    cursor: canSave ? 'pointer' : 'not-allowed',
+                    opacity: busy ? 0.6 : 1,
+                  }}
+                  title={!isAdd && !dirty ? 'No changes to save yet' : (!isValid ? 'Fill required fields first' : 'Save (Ctrl+Enter)')}
+                >
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: canSave ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+                    {busy ? 'Saving…' : (isAdd ? `Add ${kind === 'member' ? 'Member' : 'Guest'}` : 'Save')}
+                  </span>
+                </div>
+                {form.email && (
+                  verified ? (
+                    <div onClick={busy ? undefined : sendInvite} data-tap
+                      style={{
+                        flex: 1, padding: 12, background: 'transparent',
+                        border: `1px solid ${G.brass}`,
+                        borderRadius: 3, textAlign: 'center',
+                        cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
+                      }}>
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.brass, fontWeight: 500 }}>
+                        Re-send sign-in link
+                      </span>
+                    </div>
+                  ) : (
+                    <div onClick={busy ? undefined : sendInvite} data-tap
+                      style={{ flex: 1, padding: 12, background: G.brass, borderRadius: 3, textAlign: 'center', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+                      <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2E5C0', fontWeight: 500 }}>
+                        Send Magic Link
+                      </span>
+                    </div>
+                  )
+                )}
               </div>
-            )}
-          </div>
-        )}
+              {verified && lastSeen && (
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', textAlign: 'right' }}>
+                  ✓ Verified · last seen {lastSeen}
+                </p>
+              )}
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
+                ESC to close · Ctrl/⌘+Enter to save
+              </p>
+            </>
+          );
+        })()}
 
         {!isAdd && isSuperAdmin && (kind === 'member' ? memberId : guestId) && (
           <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>

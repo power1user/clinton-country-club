@@ -164,6 +164,52 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.7** — People editor UX polish.
+
+  A grab-bag patch built on Marc's feedback after first contact with the
+  v0.15.6 People editor: dropdown affordance wasn't obvious on mobile,
+  verified users still got a loud "Send Magic Link" CTA they didn't need,
+  and the form lacked the small things that make a long edit form feel
+  fast (auto-focus, keyboard shortcuts, dirty-state save gating).
+
+  **Dropdown affordance (global, all screens):**
+  - Replaced the right-side chevron-down with a **left-side ▲▼ stacked
+    double-caret**. Reason: the right chevron was barely visible on the
+    phone-frame width — iOS Safari trimmed it. A stacked up+down caret
+    reads as "this is a picker" instantly, and left-side placement also
+    sits adjacent to the dropdown's value text for a cleaner read.
+  - Affects every \`<select>\` in the app via \`src/index.css\`, so the
+    visual signal is consistent across admin and member surfaces.
+
+  **Magic-link button — verified vs unverified:**
+  - When \`person.last_seen_at\` is set (= they've signed in at least
+    once), the magic-link button switches to **outline style** with the
+    label **"Re-send sign-in link"**, plus a subline below:
+    \`✓ Verified · last seen Mar 15, 2026\`.
+  - Unverified users keep the prominent filled brass CTA — that link is
+    their only path into the app, so it should still shout.
+
+  **PersonEditModal UX:**
+  - **Auto-focus** the Full name input ~120ms after the bottom-sheet
+    slides up. You can start typing without tapping.
+  - **Keyboard shortcuts**: ESC closes, Ctrl/⌘+Enter saves. Hint line
+    at the bottom of the modal so the shortcuts are discoverable.
+  - **Save button is now properly disabled** when the form isn't dirty
+    (edit mode) or required fields are empty. Title attribute spells out
+    *why* it's disabled when you hover.
+  - **Inline per-field validation**: required-but-empty fields now show
+    a red "Required." line directly under the offending input, instead
+    of a single generic bottom-of-modal error. Errors clear the moment
+    you start typing in that field.
+  - **Red asterisk** on required-field labels (replaces the inline " *"
+    in the label text).
+  - **Section grouping** for the member form: "Identity" (name / member #
+    / email) and "Membership details" (tier, status, since, hcp, locker,
+    cart, parking). Guest form gets "Identity" + "Visit details". Subtle
+    horizontal dividers with small caps headers — no extra clicks.
+
+  No schema changes, no Edge Function changes — purely client-side UX.
+
 - **v0.15.6** — Real People consolidation: edit/add/import lives inside the People view.
 
   v0.15.5 hid the Manage Members sidebar entry and added a button that
