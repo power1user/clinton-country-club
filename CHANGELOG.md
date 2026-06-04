@@ -164,6 +164,38 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.1** — Unified People admin view (read-only).
+
+  New admin section: **People → All People**. Shows every person
+  with ANY relation to the current club (member, guest, OR staff)
+  merged into one row with relation chips. Different from the
+  existing Directory which is members-focused.
+
+  **Migration 77 — \`all_people_at_club(p_club_id)\` RPC:**
+  SECURITY DEFINER, gated to super_admin OR club_manager/admin at
+  the requested club. Returns auth_user_id + identity fields from
+  \`people\` joined to \`members\`/\`guests\`/\`user_roles\` for
+  per-club state. Includes a \`relations\` jsonb array — one entry
+  per role the person holds at the club (member, guest, AND/OR
+  staff if they have multiple).
+
+  **\`AllPeopleAdmin.jsx\`** renders:
+  - Filter pills: All / Members / Guests / Staff with counts
+  - Search box across name, email, phone
+  - Per-row: avatar, name, email + phone subline, and a vertical
+    stack of relation chips (Member / Guest / Staff badges with
+    status nuance — "Member (pending)", "Guest (unverified)",
+    "Manager" vs "Admin")
+  - Avatar uses \`people.photo_url\` if present; otherwise initials
+    on the club's primary color
+
+  **Wired into AdminPanel** as the new section
+  \`people_unified\` under the People area, between Directory and
+  Manage Members. Gated by \`can_manage_members\` permission.
+
+  Read-only this patch. v0.15.2 lands the per-row actions (Convert
+  Guest, Promote to Staff, etc.).
+
 - **v0.15.0** — Phase 16 opens: People lifecycle management.
 
   Marc's call: stable per-person attributes (name, email, phone,

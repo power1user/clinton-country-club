@@ -19,6 +19,10 @@ import {
 // v0.14.3 — AI usage dashboard lives in its own file (avoids
 // bloating the 6KLOC sections.jsx).
 import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
+// v0.15.1 — Phase 16 unified People view (Path A: stable
+// per-person fields in people table; per-club relations stay
+// in members/guests/user_roles).
+import AllPeopleAdmin from './admin/AllPeopleAdmin.jsx';
 // v0.14.9 — Floating Admin AI bubble for the MOBILE shell. Desktop
 // gets its own mount inside AdminLayoutDesktop.
 import AdminAIBubble from '../components/AdminAIBubble.jsx';
@@ -191,6 +195,11 @@ const AREAS = [
       // v0.9.20: labels switched to action-verb pattern so each card
       // signals its purpose at a glance (browse vs. manage vs. settings).
       { id: 'people_all',  permKey: 'can_manage_members', l: 'Directory',         d: 'Find anyone: members, guests, staff',                  icon: IconPeople },
+      // v0.15.1 — Phase 16 unified People view. Different from
+      // Directory: this shows everyone with ANY relation to the club
+      // (member, guest, AND staff) in one searchable list with
+      // relation badges. Future patches add conversion actions.
+      { id: 'people_unified', permKey: 'can_manage_members', l: 'All People',     d: 'Members + guests + staff, unified',                    icon: IconPeople },
       { id: 'members',     permKey: 'can_manage_members', l: 'Manage Members',    d: 'Add, edit, import roster + magic-link invites',        icon: IconPeople },
       { id: 'memberposts', permKey: 'can_manage_members', l: 'Moderate Posts',    d: 'Hide / delete bulletin + partner posts',               icon: IconList   },
       // v0.10.0 (Phase 10) — badges. Preview-only at first patch so
@@ -290,6 +299,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'proitems'       && <ProShopItemsAdmin />}
       {sec === 'lessonpros'     && <LessonProsAdmin />}
       {sec === 'people_all'     && <PeopleAdmin club={club} />}
+      {sec === 'people_unified' && <AllPeopleAdmin />}
       {sec === 'members'        && <MembersAdmin club={club} />}
       {sec === 'badges'         && <BadgesAdmin club={club} />}
       {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
