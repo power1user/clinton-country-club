@@ -1,7 +1,10 @@
-// manual.ts — v0.14.1 GroundsLive Admin AI manual content.
+// manual.ts — v0.15.11 GroundsLive Admin AI manual content.
 //
-// Drafted from the codebase as of v0.14.0. Imported into index.ts
-// and injected as cached system prompt content so prompt caching
+// Last refresh covers everything through v0.15.10 (People
+// consolidation: lifecycle actions live in the PersonEditModal,
+// kebab trimmed to the fast lane, per-person audit history,
+// verified-aware magic link button). Imported into index.ts and
+// injected as cached system prompt content so prompt caching
 // engages on every admin question.
 //
 // AUTHORING NOTES:
@@ -189,23 +192,71 @@ The individual food/drink items. Per item: name, description, price, category, a
 
 ## 11. People area
 
-### Directory
-Unified search across members, guests, and staff. Read-only overview — click into a person to see their detail panel with contact info, badges, RSVP history, and quick actions (message, assign badge, edit). Permission key: \`can_manage_members\`.
+As of v0.15.6, the People area is **consolidated**: there is no more separate "Directory" or "Manage Members" section. Everything lives in one unified **People** section. The old sidebar entries are gone.
 
-### Manage Members
-The CRUD surface for the member roster. Add individually, edit, send magic-link invites, or **bulk-import via CSV**. Form fields: name, email, phone, emergency contact, membership tier, join date. Permission key: \`can_manage_members\`.
+### People
+The single management surface for everyone with any relation to the club — members, guests, and staff. Permission key: \`can_manage_members\`.
+
+**Top of the section:**
+- **+ Add Person** button — opens a chooser modal: Member or Guest. Picking one opens the bottom-sheet edit form with the right field set for that kind.
+- **Import CSV** button — bulk import members. Required CSV columns: \`name\`, \`membership_number\`. Optional: \`email\`, \`tier\`, \`member_since\`, \`hcp\`, \`locker\`, \`cart\`, \`parking\`. Upserts on club_id + membership_number — re-importing the same CSV updates existing rows rather than duplicating.
+- **Filter pills**: All / Members / Guests / Staff (with counts).
+- **Search box**: matches name, email, or phone.
+
+**Each row shows:** avatar + initials, name, email · phone, and **relation chips** on the right (\`Member\`, \`Member (pending)\`, \`Guest\`, \`Guest (unverified)\`, \`Admin\`, \`Manager\`).
+
+**Tap a row** to open the **PersonEditModal** — the per-person edit surface where almost everything happens.
+
+**Kebab (⋮) on each row — the "fast lane":**
+- **Edit Person…** (opens the modal)
+- **Send Magic Link** — the #1 quick action; emails a fresh sign-in link to whatever address is on file
+- **Convert Guest → Member** (only shows when the person is a guest and not yet a member — common onboarding action)
+- **Mark Active** (only shows when the person is a non-active member — common reactivation)
+
+Everything else lives in the modal. If an admin asks "where's promote to admin?" → it moved into the Edit modal's Actions section.
+
+### PersonEditModal — the per-person workspace
+Opens when the admin taps a row or picks Edit Person… from the kebab. Layout from top to bottom:
+
+1. **Title** — \`Edit Member\` / \`Edit Guest\` / \`Add Member\` / \`Add Guest\`.
+2. **Member↔Guest tab toggle** (only when the person has both kinds of record) — \`Edit as member\` / \`Edit as guest\`. Switches the form's field set without leaving the modal.
+3. **Form** — grouped into sections:
+   - **Identity** (member): name *, member # *, email
+   - **Membership details** (member): tier, status, member since, handicap, locker, cart, parking
+   - **Identity** (guest): name *, email *, phone, ZIP
+   - **Visit details** (guest): visit type, access level, visit date, expires_at, status
+   - Required-field asterisks are **red**. Empty required fields surface a red "Required." line directly under the input on save.
+   - Dropdowns are styled with a left-side ▲▼ caret so they're visually distinct from text inputs.
+4. **Save** + **Send Magic Link / Re-send sign-in link** buttons:
+   - **Save** is disabled until the form is valid AND (in edit mode) dirty. The disabled state has a tooltip explaining why.
+   - **Send Magic Link** is a filled brass button for **unverified** users (\`person.last_seen_at\` is null). For **verified** users it switches to outline-only "Re-send sign-in link" + a subline \`✓ Verified · last seen Mar 15, 2026\`.
+   - Keyboard: **ESC** closes, **Ctrl/⌘+Enter** saves. A hint line at the bottom of the modal calls this out.
+5. **Actions section** (between the form and the audit history) — every lifecycle transition that applies to this person renders as an iOS-style tap row with a chevron. Each fires a SECURITY DEFINER RPC, audits to \`people_audit_log\`, and refreshes both the modal and the parent list in place. Possible rows (conditional):
+   - **Convert Guest → Member** — when guest-only.
+   - **Demote Member → Guest** — when active/pending member. Marks the member row inactive (history-preserving), creates/reactivates a guest row with \`read_only\` access.
+   - **Mark Member Active / Pending / Inactive** — one-tap status RPC, audited.
+   - **Promote to Admin** / **Promote to Manager** — manager promotion is manager-only.
+   - **Promote Admin → Manager** / **Demote Manager → Admin** — manager-only.
+   - **Remove Staff Role** — danger styling. Removes the user_role row, member status is retained.
+   After Convert / Demote-to-Guest, the modal **auto-switches** the member↔guest toggle so the form lands on the new primary record.
+6. **Activity history** (collapsed by default, **manager-only** — club_admins don't see this section). Click ▸ to expand. Up to 50 most recent events for this person at this club, sorted newest first. Each row shows:
+   - Friendly action label (e.g. "Promoted to staff", "Demoted from member to guest").
+   - Status diff like \`pending → active\` when the event has from/to statuses.
+   - Timestamp (\`Mar 15, 2026, 3:42 PM\`) + the name of who performed it.
+   Source: \`people_audit_log\` table (Phase 16 migration 75) + \`people\` table for performer name resolution.
+7. **Delete record link** (super_admin only, at the very bottom). Permanent — but the audit log keeps history.
 
 ### Moderate Posts
 Hide/delete member-generated content (bulletin posts, partner posts). Shows the offending content + member name + action buttons. Permission key: \`can_manage_members\`.
 
 ### Badges
-The badge library + per-member assignment. Each club creates its own badges (e.g. "Hole In One", "Tournament Champion 2025") with a name, color, and Lucide icon. Assign to a member from the Directory detail panel or here. Members see their badges on their Trophy Case + membership card. Permission key: \`can_manage_members\`.
+The badge library + per-member assignment. Each club creates its own badges (e.g. "Hole In One", "Tournament Champion 2025") with a name, color, and Lucide icon. Assign to a member from here. Members see their badges on their Trophy Case + membership card. Permission key: \`can_manage_members\`.
 
 ### Guest Settings & QR
 **Manager only.** Configure guest access rules: how long guest access lasts (per-club default), max uses per guest, the access mode (\`data_only\` / \`read_only\` / \`full_temporary\`). Includes a printable QR code that, when scanned at the clubhouse, takes a guest through self-registration.
 
 ### Manage Staff
-**Manager only.** Promote a member to club_admin, demote a club_admin back to member, and configure each club_admin's permissions (the checkbox grid of \`can_manage_events\`, \`can_post_news\`, etc.). Only the manager controls staff — club_admins can't elevate themselves or peers.
+**Manager only.** Promote a member to club_admin, demote a club_admin back to member, and configure each club_admin's permissions (the checkbox grid of \`can_manage_events\`, \`can_post_news\`, etc.). Note: staff promote/demote can also be done from inside the People → PersonEditModal Actions section (recommended path — it's audited and centralized). This section remains for permission-grid editing of an existing club_admin's checkboxes.
 
 ## 12. Club Settings area *(manager only)*
 
@@ -315,15 +366,48 @@ Push subscription is per-device; users grant the browser permission once and the
 5. **Save** — auto-computed Daily Status reflects this from now on
 
 ### Onboard a new member via magic link
-1. Sidebar → **People** → **Manage Members**
-2. **+ Add Member** → fill the form, hit save
-3. On the member detail panel, **Send Magic Link** — emails them a one-click signup link
+1. Sidebar → **People**
+2. **+ Add Person** → pick **Add a Member**
+3. Fill the form (name + member # are required; email is what the magic link goes to). Hit **Add Member**.
+4. Tap the row that just appeared. In the modal, click **Send Magic Link** — emails them a one-click sign-in link that lands at \`{slug}.groundslive.com\`.
 
-### Bulk-import a member roster
-1. Sidebar → **People** → **Manage Members**
-2. **Import CSV** — picker accepts a CSV with name/email/phone/etc. headers
-3. Preview shows mapping; confirm and the import runs
-4. Bulk magic-link invites are queued automatically
+### Add a guest
+1. Sidebar → **People**
+2. **+ Add Person** → pick **Add a Guest**
+3. Fill name + email (required), plus visit type (\`public_play\`, \`member_guest\`, \`tournament_guest\`, \`event_guest\`) and access level (\`data_only\`, \`read_only\`, \`full_temporary\`). Defaults: \`public_play\` + \`read_only\` + status \`active\`.
+4. **Add Guest** — guest gets the configured access immediately. Send Magic Link from the same modal if you want them to receive a sign-in email.
+
+### Bulk-import a member roster (CSV)
+1. Sidebar → **People** → **Import CSV** button (next to + Add Person)
+2. Paste the CSV in the textarea. First row = column headers. Required: \`name\`, \`membership_number\`. Optional: \`email\`, \`tier\`, \`member_since\`, \`hcp\`, \`locker\`, \`cart\`, \`parking\`.
+3. **Import** — new rows are added as **Pending** (auto-activate when they sign in with the matching email). Existing membership numbers are updated, not duplicated.
+
+### Convert a guest to a member
+- Fast path: row kebab (⋮) → **Convert Guest → Member**.
+- Modal path: tap the row → open the **Actions** section → **Convert Guest → Member**.
+- Both confirm first. A new \`members\` row is created at \`tier='standard'\`, \`status='active'\`. The guest record stays in place as history. Audited.
+
+### Demote a member to guest (e.g. snowbird, lapsed dues)
+1. Sidebar → **People** → tap the member's row
+2. Scroll to **Actions** → **Demote Member → Guest**
+3. Confirm — the \`members\` row is marked \`inactive\` (history preserved). A \`guests\` row is created/reactivated with \`read_only\` access. Audited.
+
+### Promote / demote staff
+1. Sidebar → **People** → tap the person's row
+2. Scroll to **Actions** section. Available rows depend on current role:
+   - Member, not staff → "Promote to Admin" (always) + "Promote to Manager" (manager-only)
+   - club_admin → "Promote Admin → Manager" (manager-only), "Remove Staff Role"
+   - club_manager → "Demote Manager → Admin" (manager-only), "Remove Staff Role"
+3. Confirm. The user_role row is created/updated/deleted. Audited in \`people_audit_log\`.
+
+### See the audit trail for a specific person *(manager only)*
+1. Sidebar → **People** → tap the person's row
+2. Scroll to the bottom of the modal → click **▸ ACTIVITY HISTORY**
+3. Expanded view shows up to the last 50 events with: action label, status diff (if any), timestamp, and the name of who performed it. Empty state ("No recorded activity yet.") means nothing has been logged for this person.
+
+### Award a badge to a member
+1. Sidebar → **People** → tap the member's row
+2. (Badge assignment UI is reached from the row detail — for now, badge management lives under **People → Badges**.) Open the badge from the library and assign to the member there. *(Badge assignment from inside PersonEditModal is on the roadmap.)*
 
 ### Reply to a food order
 1. Sidebar → **Dining** → **Food Orders**
@@ -336,11 +420,10 @@ Push subscription is per-device; users grant the browser permission once and the
 2. Click the order
 3. Click **Mark Ready** — status flips to "Ready for Pickup", member is pushed
 
-### Award a badge to a member
-1. Sidebar → **People** → **Directory** (or **Manage Members**)
-2. Search the member, open their detail
-3. Scroll to the **Badges** section, click **+ Assign Badge**
-4. Pick from the club's badge library, optionally add a note, save
+### Award a badge to a member (detailed)
+1. Sidebar → **People** → **Badges**
+2. Find the badge, scroll to its assignment area
+3. Pick the member from the search list, optionally add a note, save
 
 ### Create a new badge in the library
 1. Sidebar → **People** → **Badges**

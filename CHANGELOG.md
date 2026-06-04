@@ -164,6 +164,34 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.11** — Refresh GroundsLive Admin AI manual for the v0.15.6–10 People work.
+
+  The admin AI chat (Claude Haiku 4.5, prompt-cached manual) was still
+  routing admins to "Manage Members" — a section that no longer exists.
+  Updated \`supabase/functions/admin-ai-chat/manual.ts\` to match reality:
+
+  - **Section 11 (People area)** fully rewritten. The People section is
+    now described as the single management surface (no more Directory or
+    Manage Members). New deep-dive on the PersonEditModal layout:
+    Identity / Membership details sections, dropdown chevron, magic-link
+    button states (filled brass for unverified vs outline for verified),
+    keyboard shortcuts, the Actions section (with every conditional
+    transition listed), and the manager-only Activity history pane.
+  - **Section 15 (Common admin tasks)** task recipes updated:
+    - "Onboard a new member via magic link" — now uses + Add Person flow
+    - "Bulk-import a member roster" — Import CSV button in People
+    - "Award a badge" — paths updated (no more Directory/Manage Members)
+  - **New task recipes**: Add a guest · Convert a guest to a member ·
+    Demote a member to guest · Promote / demote staff · See the audit
+    trail for a specific person.
+
+  **Deploy note:** Edge Function changes don't ship with \`git push\`.
+  Run \`npx supabase functions deploy admin-ai-chat\` (or use the
+  Supabase Dashboard → Functions → admin-ai-chat → Deploy) to push the
+  new manual content. Until then, admins asking the AI for help will
+  still get the v0.14.x answers about Manage Members. Member AI manual
+  needed no changes (it doesn't reference admin surfaces).
+
 - **v0.15.10** — Lifecycle actions moved into the modal; kebab trimmed to the fast lane.
 
   Marc: *"wouldn't it make more sense to move those actions into the same
