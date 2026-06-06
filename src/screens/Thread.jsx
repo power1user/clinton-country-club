@@ -170,36 +170,56 @@ export default function Thread({ params }) {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || !threadId || !session?.user?.id || sending) return;
+    // v0.15.12 — Diagnostic feedback when the guard blocks the send.
+    // Previously this returned silently, and on a stuck `sending` state
+    // (e.g. an earlier insert promise that never resolved) the user saw
+    // the message stay in the box with NO feedback at all. Surfacing a
+    // brief explanation here makes the failure visible.
+    if (!body) return;
+    if (!threadId || !session?.user?.id) {
+      setErr("Couldn't send — please reopen the conversation.");
+      return;
+    }
+    if (sending) {
+      setErr("Still sending the previous message…");
+      return;
+    }
     setSending(true); setErr(null);
     setDraft('');                          // optimistic clear
-    const { error } = await supabase.from('messages').insert({
-      thread_id: threadId,
-      sender_user_id: session.user.id,
-      body,
-      is_system: false,
-    });
-    setSending(false);
-    if (!error) {
+
+    // v0.15.12 — try/finally guarantees `setSending(false)` runs even if
+    // the insert throws or stalls. Before this fix, a network blip on a
+    // prior send could leave `sending=true` forever, silently disabling
+    // every future send tap on that thread.
+    let insertError = null;
+    try {
+      const { error } = await supabase.from('messages').insert({
+        thread_id: threadId,
+        sender_user_id: session.user.id,
+        body,
+        is_system: false,
+      });
+      insertError = error;
+    } catch (e) {
+      insertError = e;
+    } finally {
+      setSending(false);
+    }
+
+    if (!insertError) {
       // v0.10.16 — GA4: message_sent. Categorize by thread kind so
       // we can see DM volume vs clubhouse vs order chat separately.
-      // Reply vs first-send isn't distinguished here; the
-      // 'thread_reply' bucket per Marc's spec is folded into the
-      // kind ('dm' / 'clubhouse' / 'order') — the spec listed
-      // thread_reply as one of the valid message_type values, but
-      // every reply happens inside a thread of some kind, so the
-      // kind dimension carries the same signal more usefully.
       const kind = thread?.kind || 'thread_reply';
       trackEvent('message_sent', { message_type: kind });
-    }
-    if (error) {
+    } else {
       // Friendly error — Supabase errors can be cryptic ("new row violates
       // row-level security policy") so surface a generic line and keep the
       // raw message tucked behind it for debugging.
+      const msg = insertError.message || String(insertError);
       setErr(
-        error.message?.includes('row-level security')
+        msg.includes('row-level security')
           ? "You don't have permission to reply here."
-          : (error.message || "Couldn't send. Tap to retry.")
+          : (msg || "Couldn't send. Tap to retry.")
       );
       setDraft(body);                      // restore so user can retry
     }

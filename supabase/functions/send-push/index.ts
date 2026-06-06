@@ -1,22 +1,34 @@
-// send-push v9 — fan-out Web Push for thread messages, admin
-// broadcasts, AND support tickets (v0.13.2).
+// send-push v19 — fan-out Web Push for thread messages, admin
+// broadcasts, AND support tickets.
 //
 // History:
-//   · v6 (v0.10.9) — sender identity in title
+//   · v6 (v0.10.9)  — sender identity in title
 //   · v7 (v0.11.34) — notification_messages broadcast branch
 //   · v8 (v0.12.7)  — order-thread recipient resolution (skip sender filter)
 //   · v9 (v0.13.2)  — support_messages branch
+//   · v19 (v0.15.12) — clubhouse threads fan out to club staff
 //
-// v9 dispatch: branches on payload.table:
+// v19 fix (the bug Marc reported in v0.15.11): a clubhouse thread has
+// exactly ONE participant when the member first creates it — themselves.
+// `handleThreadMessage` was excluding the sender from `thread_participants`
+// (correct) and then returning `{sent: 0, reason: "no recipients"}` because
+// the only participant WAS the sender. Result: staff never got pushed about
+// a new member-initiated clubhouse thread until they happened to open the
+// admin Communications inbox and reply (which finally added them to
+// thread_participants). This is the "missing trigger when adding a new push
+// surface" gotcha from the web-push skill — clubhouse needs its own
+// recipient-resolution rule, not the default participants fallback.
+//
+// v19 resolution rule for clubhouse:
+//   recipients = thread_participants ∪ all staff at thread.club_id, minus sender
+// Staff = user_roles rows where club_id = thread.club_id and role in
+// ('club_manager', 'club_admin') PLUS every super_admin (club_id IS NULL).
+// Union dedupes if the sender is somehow both. Sender-exclusion still applies.
+//
+// v19 dispatch: branches on payload.table:
 //   · 'notifications' / 'notification_messages' → handleBroadcast
 //   · 'support_messages'                       → handleSupportTicket
 //   · (anything else / messages)               → handleThreadMessage
-//
-// support flow: every direction='in' support_messages row fans out
-// to every super_admin's push_subscriptions. Title is `Support ·
-// <from_name or from_addr>`. Body is subject + body preview. Tag =
-// `support:<thread_id>` so multiple messages in the same thread
-// dedupe on the lock screen.
 
 // @ts-ignore — Deno-only import
 import webpush from "npm:web-push@3.6.7";
@@ -78,6 +90,9 @@ async function fanOut(subs: any[], payloadStr: string, ttlSeconds: number) {
   return { sent, failed, total: results.length, errors };
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// Thread messages — v19 (adds clubhouse → staff fan-out)
+// ══════════════════════════════════════════════════════════════════════
 async function handleThreadMessage(msg: any) {
   if (!msg?.thread_id || !msg?.body) {
     return new Response(JSON.stringify({ ok: false, error: "missing fields", got: msg ? Object.keys(msg) : null }), { status: 400, headers: { "content-type": "application/json" } });
@@ -100,9 +115,41 @@ async function handleThreadMessage(msg: any) {
     senderName = senderRow?.name || null;
   }
 
+  // v19 — recipient resolution by thread kind.
+  //
+  // ORDER: customer-only push (skip participant lookup entirely). Use
+  // thread.created_by since the order's customer is the thread creator
+  // and that field is stable.
+  //
+  // CLUBHOUSE: union of (existing thread_participants) ∪ (all staff at
+  // thread.club_id) ∪ (every super_admin). Why union: when a member
+  // starts a new clubhouse thread, they're the only participant —
+  // pushing only to participants (minus sender) gives zero recipients.
+  // After staff replies, they're added to participants, but the FIRST
+  // message would still miss them without the staff fan-out. The union
+  // also covers the reverse case: when staff replies, every other
+  // participant (the member) gets pushed via the participants leg, and
+  // other staff who haven't joined the thread yet get pushed via the
+  // staff leg. Sender-exclusion still applies as a final filter so we
+  // never push a sender back to themselves.
+  //
+  // DM and everything else: participants minus sender (existing behavior).
   let recipientUserIds: string[] = [];
+  const clubId = (thread as any).club_id;
+
   if (thread.kind === "order") {
     if ((thread as any).created_by) recipientUserIds = [(thread as any).created_by];
+  } else if (thread.kind === "clubhouse" && clubId) {
+    const [{ data: participants }, { data: staff }, { data: supers }] = await Promise.all([
+      supabase.from("thread_participants").select("user_id").eq("thread_id", msg.thread_id),
+      supabase.from("user_roles").select("user_id").eq("club_id", clubId).in("role", ["club_manager", "club_admin"]),
+      supabase.from("user_roles").select("user_id").eq("role", "super_admin").is("club_id", null),
+    ]);
+    const ids = new Set<string>();
+    (participants || []).forEach((p: any) => { if (p.user_id) ids.add(p.user_id); });
+    (staff || []).forEach((s: any) => { if (s.user_id) ids.add(s.user_id); });
+    (supers || []).forEach((s: any) => { if (s.user_id) ids.add(s.user_id); });
+    recipientUserIds = Array.from(ids).filter((uid) => uid !== msg.sender_user_id);
   } else {
     const { data: participants } = await supabase
       .from("thread_participants")
@@ -110,15 +157,16 @@ async function handleThreadMessage(msg: any) {
       .eq("thread_id", msg.thread_id);
     recipientUserIds = (participants || []).map((p: any) => p.user_id).filter((uid: string) => uid && uid !== msg.sender_user_id);
   }
+
   if (recipientUserIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, reason: "no recipients" }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ sent: 0, reason: "no recipients", kind: thread.kind }), { headers: { "content-type": "application/json" } });
   }
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("id, user_id, endpoint, p256dh, auth")
     .in("user_id", recipientUserIds);
   if (!subs || subs.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions" }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions", recipient_count: recipientUserIds.length, kind: thread.kind }), { headers: { "content-type": "application/json" } });
   }
   const clubName = (thread as any).clubs?.name || "Your club";
   let title: string;
@@ -130,13 +178,21 @@ async function handleThreadMessage(msg: any) {
   if (thread.kind === "order" || thread.kind === "clubhouse") {
     title = `${clubName} · ${title}`;
   }
+  // For clubhouse, include the topic so the admin can tell Pro Shop
+  // from Restaurant at a glance on the lock screen.
+  if (thread.kind === "clubhouse" && (thread as any).subject) {
+    title = `${title} · ${(thread as any).subject}`;
+  }
   const bodyPreview = (msg.body || "").slice(0, 140);
   const notification = { title, body: bodyPreview, data: { threadId: thread.id, kind: thread.kind, url: "/" } };
   const payloadStr = JSON.stringify(notification);
   const result = await fanOut(subs, payloadStr, 4 * 60 * 60);
-  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ ...result, kind: thread.kind, recipient_count: recipientUserIds.length }), { headers: { "content-type": "application/json" } });
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// Broadcast — v7 behavior
+// ══════════════════════════════════════════════════════════════════════
 async function handleBroadcast(msg: any) {
   if (!msg?.club_id || !msg?.title) {
     return new Response(JSON.stringify({ ok: false, error: "missing fields", got: msg ? Object.keys(msg) : null }), { status: 400, headers: { "content-type": "application/json" } });
@@ -171,8 +227,9 @@ async function handleBroadcast(msg: any) {
   return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 }
 
-// NEW in v9 — every inbound support_messages row fans out to every
-// super_admin's push subscriptions.
+// ══════════════════════════════════════════════════════════════════════
+// Support tickets — v9 behavior
+// ══════════════════════════════════════════════════════════════════════
 async function handleSupportTicket(msg: any) {
   if (!msg?.thread_id) {
     return new Response(JSON.stringify({ ok: false, error: "missing thread_id" }), { status: 400, headers: { "content-type": "application/json" } });
@@ -214,11 +271,14 @@ async function handleSupportTicket(msg: any) {
   return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// HTTP dispatcher
+// ══════════════════════════════════════════════════════════════════════
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   if (url.searchParams.get("diag") === "1") {
     return new Response(JSON.stringify({
-      version: 9,
+      version: 19,
       vapidOk, vapidErr, vapidDiag,
       hasSupabaseUrl: !!SUPABASE_URL,
       hasServiceKey: !!SERVICE_KEY,

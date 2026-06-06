@@ -164,6 +164,69 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.12** — Fix Message Clubhouse: silent-send hang + no-push-to-admin.
+
+  Two bugs Marc reported on the member-side **Message Clubhouse** flow.
+  Both reproduced in the live DB (test threads from 03:22 UTC showed
+  threads + participants created correctly, but only 1 of 4 had any
+  follow-up messages — and even the successful one never pushed an
+  admin notification).
+
+  **Bug 1: "Tap Send — nothing happens, no error" (Thread.jsx)**
+
+  `send()` had a stuck-state hazard. The guard
+  `if (!body || !threadId || !session?.user?.id || sending) return;`
+  early-returned silently when `sending` was `true`. There was no
+  try/finally around the message insert, so any transient network
+  blip on a prior send would leave `sending=true` forever — every
+  subsequent tap fired the click handler but bailed at the guard, with
+  zero visible feedback. The Send button is a `<div>` (not a
+  `<button disabled>`), so it kept accepting taps the whole time.
+
+  Fix:
+  - Wrap the insert in `try/finally` so `setSending(false)` is guaranteed
+    to run, even if the promise throws or stalls.
+  - Surface explicit feedback when the guard blocks: `"Still sending the
+    previous message…"` or `"Couldn't send — please reopen the
+    conversation."` instead of silent no-op.
+
+  **Bug 2: No push notification to admin when a member messages the clubhouse (send-push v19)**
+
+  This is the canonical **"missing trigger when adding a new push
+  surface"** failure from the \`web-push\` skill — clubhouse threads
+  had been falling through to the default recipient-resolution branch.
+
+  In v18, \`handleThreadMessage\` for clubhouse threads did:
+  1. Load \`thread_participants\` for the thread.
+  2. Filter out the sender.
+  3. Fan out to whoever's left.
+
+  A new clubhouse thread has exactly ONE participant — the member
+  who just created it. The sender-exclusion filter then removes that
+  one entry, leaving zero recipients. Edge Function returned
+  \`{sent: 0, reason: "no recipients"}\` and no admin ever heard about
+  it.
+
+  Fix in send-push v19: clubhouse recipients =
+  \`thread_participants ∪ all staff at thread.club_id (club_manager +
+  club_admin) ∪ every super_admin (club_id IS NULL)\`, then
+  sender-exclude.
+  - Staff get pushed on a brand-new clubhouse thread, even though
+    they're not yet in \`thread_participants\`.
+  - Reverse direction (staff replies → member gets push) still works
+    via the participants leg of the union.
+  - Sender exclusion still applies as the final filter, so admins
+    who are also members of the club don't push themselves.
+  - Title format adds the topic for clubhouse pushes:
+    \`{club} · {sender} · {topic}\` — so the lock screen distinguishes
+    Pro Shop vs Restaurant at a glance.
+  - \`?diag=1\` now reports \`version: 19\`.
+
+  **Deploy:** send-push Edge Function redeployed via Supabase MCP
+  (project ref \`exddcpqfdkyxommkslag\`). Verified live: \`vapidOk: true\`,
+  \`version: 19\`. App changes ride the normal git push → Cloudflare
+  Workers auto-deploy.
+
 - **v0.15.11** — Refresh GroundsLive Admin AI manual for the v0.15.6–10 People work.
 
   The admin AI chat (Claude Haiku 4.5, prompt-cached manual) was still
