@@ -164,6 +164,65 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.18** — Post-audit cleanup: 4 CRITICAL DB safeguards + form-style dedup + dead-code purge + notes dot on People row.
+
+  Round 1 of the post-audit response. The remaining CRITICAL item from
+  the audit (schema drift on name/email duplicated across people /
+  members / guests) is big enough to deserve its own patch — that's
+  v0.15.19.
+
+  **Database** (migration `v0_15_18_audit_routing_softdelete_index_cleanups`):
+  - **Audit-log bypass closed.** `AFTER UPDATE OF status, tier ON members`
+    and `AFTER UPDATE OF status, access_level ON guests` triggers now
+    call `log_people_event` so direct-table edits (which RLS permits
+    from the form) get logged with action \`*_direct_update\` and
+    metadata \`{"via":"direct_table_update"}\`. The audit pane in the
+    People editor will now show every lifecycle change, not just RPC
+    ones. (Right now the people_audit_log only had 2 rows for ~9
+    members — clear evidence the bypass was happening.)
+  - **Phase 17 routing integrity guaranteed.** Two new triggers on
+    \`club_departments\`: \`AFTER UPDATE OF slug\` rewrites the slug
+    everywhere it appears in \`clubs.clubhouse_topic_routing\`;
+    \`AFTER DELETE\` strips the dead slug from every topic's array.
+    Renaming or deleting a department can no longer leave routing
+    pointing at nothing.
+  - **Clubs are soft-delete only.** New \`clubs.deleted_at\` column +
+    \`BEFORE DELETE ON clubs\` trigger that raises an exception with a
+    HINT telling the caller to use \`UPDATE clubs SET deleted_at =
+    now()\` instead. One accidental super_admin click can no longer
+    cascade-wipe a tenant's members, messages, food orders, audit
+    log, push subs, etc. irreversibly.
+  - **`all_people_at_club` RPC** now returns \`has_notes\` (computed
+    server-side from members.notes and guests.notes). The new People
+    row dot reads this — no extra round-trip per row.
+  - **`has_permission` hardened** with \`coalesce((permissions->>p_key)::boolean, false)\`
+    so a malformed jsonb value doesn't throw.
+  - **Duplicate index** \`idx_admin_preferences_user_club_key\` dropped;
+    the unique constraint covered the same shape.
+
+  **Client cleanups:**
+  - **`src/lib/formStyles.jsx`** — single source of truth for
+    labelStyle, inputStyle, selectStyle, FormRow, Field, SectionLabel.
+    AdminPanel.jsx, AllPeopleAdmin.jsx, DepartmentsAdmin.jsx all
+    import from it. Eliminates 6 redundant copies AND fixes a latent
+    \`background:\` shorthand bug in AdminPanel.jsx (same root cause
+    as the v0.15.7 → v0.15.8 mobile-chevron disappearance — that
+    file still had the old shorthand version sitting on it).
+  - **Dead code purged** in AllPeopleAdmin.jsx: \`actChangeStatus\`,
+    \`actPromote\`, \`actDemoteStaff\`, \`actConvertGuestToMember\`,
+    \`actDemoteMemberToGuest\`, \`runModalAction\`, \`PersonActionRow\`,
+    \`actionBusy\`, \`firstInputRef\`. All became orphans when the
+    v0.15.16 pill-modal redesign retired the flat Actions section
+    but were "kept for safety" — audit confirmed nothing's calling
+    them.
+  - **Header comment trimmed** in AllPeopleAdmin.jsx (the verbose
+    v0.15.1–6 change list — CHANGELOG.md does that better).
+  - **People row notes dot.** Brass dot next to a person's name in
+    the People list when staff have written notes on their record.
+    Click the row → see the notes in the modal as before.
+
+  No Edge Function changes in this patch.
+
 - **v0.15.17** — Phone back-button: unwind mobile admin nav levels too (not just modals).
 
   v0.15.15 added \`useModalBackClose\` so pressing Back inside an open

@@ -1,73 +1,25 @@
-// AllPeopleAdmin — v0.15.6 unified people view with full CRUD.
+// AllPeopleAdmin — unified people view with full CRUD.
 //
 // One screen for every person with any relation to the club (member,
 // guest, or staff). Toolbar gives you Add Person + Import CSV; click a
-// row to edit; the kebab menu (⋮) covers status/role transitions.
+// row to edit; status + role pills in the edit card handle every
+// lifecycle transition with a confirm + audited reason.
 //
-// History:
-//   v0.15.1 — Read-only list.
-//   v0.15.2–4 — Per-row kebab actions (convert, promote, demote,
-//               status, send magic link).
-//   v0.15.5 — Filter pills + dropdown chevron styling + Member↔Guest
-//               symmetry.
-//   v0.15.6 — Real consolidation: edit modal + add-person picker +
-//               CSV import live INSIDE this view. The old Manage
-//               Members section is gone — this is the one place to
-//               manage people now.
+// Major design history lives in CHANGELOG.md (v0.15.6 introduced this
+// view; v0.15.16 redesigned the edit card around clickable pills).
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 import {
+  inputStyle, selectStyle, FormRow, Field, SectionLabel,
+} from '../../lib/formStyles.jsx';   // v0.15.18 — shared form primitives
+import {
   StatusPill, RolePill, StatusChangeModal, RoleChangeModal,
   STATUS_COLOR, ROLE_COLOR,
 } from './PersonPillModals.jsx';
-
-// ── Form helpers (kept inline so this file is self-contained
-//    after we delete the old MembersAdmin in AdminPanel.jsx). ──
-const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-// v0.15.8 — `backgroundColor` instead of the `background` shorthand
-// so we don't clobber the chevron SVG that index.css paints into
-// every <select>'s background-image. (The shorthand expands to
-// `background-image: none` and silently kills the icon on mobile.)
-const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, backgroundColor: G.card, outline: 'none', boxSizing: 'border-box' };
-const selectStyle = { ...inputStyle };
-function FormRow({ children }) {
-  return <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>{children}</div>;
-}
-// v0.15.7 — Field now renders a red asterisk for required props and
-// surfaces a per-field error message right below the input so the
-// user doesn't have to scroll to the bottom of the modal to see what
-// went wrong.
-function Field({ label, required, error, children }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={labelStyle}>
-        {label}
-        {required && <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>}
-      </label>
-      {children}
-      {error && (
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-// v0.15.7 — Subtle section header used to group the member form
-// into "Identity" and "Membership details" so the 8 fields don't
-// read as one undifferentiated wall.
-function SectionLabel({ children }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
-      <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>{children}</span>
-      <div style={{ flex: 1, height: 1, background: G.border }} />
-    </div>
-  );
-}
 function formatLastSeen(iso) {
   if (!iso) return null;
   try {
@@ -344,8 +296,20 @@ export default function AllPeopleAdmin() {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.name || '(unnamed)'}
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name || '(unnamed)'}</span>
+                    {/* v0.15.18 — Notes dot. Brass circle next to the
+                        name when members.notes or guests.notes is
+                        non-empty (computed server-side by
+                        all_people_at_club). Tells the admin "there's
+                        something written here" at a glance; clicking
+                        the row opens the modal where the note lives. */}
+                    {p.has_notes && (
+                      <span
+                        title="This person has staff notes"
+                        style={{ width: 6, height: 6, borderRadius: '50%', background: G.brass, flexShrink: 0 }}
+                      />
+                    )}
                   </p>
                   <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.email}{p.phone ? ` · ${p.phone}` : ''}
@@ -538,7 +502,6 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   const [notice, setNotice] = useState(null);
   const [loadingRow, setLoadingRow] = useState(!isAdd);
   const [fieldErrors, setFieldErrors] = useState({});     // v0.15.7 — per-field inline validation
-  const firstInputRef = useRef(null);                     // v0.15.7 — auto-focus on open (now unused; see v0.15.8 note)
 
   // v0.15.9 — Activity history. Manager-only (per Marc — club_admins
   // don't see this even though their RLS may permit reading the rows;
@@ -553,7 +516,8 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   // to re-fire, refreshing the modal's view after a lifecycle action.
   // Avoids unmounting/remounting (which would wipe unsaved form edits).
   const [loadVersion, setLoadVersion] = useState(0);
-  const [actionBusy, setActionBusy] = useState(false);
+  // v0.15.18 — `actionBusy` was used by the retired v0.15.10 Actions
+  // section IIFE. Pill modals manage their own busy state internally.
 
   // v0.15.16 — Status / Role pill sub-modals + the "More details"
   // collapsible (closed by default to declutter the form).
@@ -725,9 +689,10 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   // soft keyboard slid up immediately when the editor opened, blocking
   // the record from view before the admin could read it. The admin
   // now has to tap into a field to start typing — that's the expected
-  // behavior on a record-browsing form. The `firstInputRef` is left
-  // attached but unused in case we want to bring focus back behind a
-  // "(hover: hover)" media-query gate in a future patch.
+  // behavior on a record-browsing form.
+  // v0.15.18 — The retained `firstInputRef` was also deleted here;
+  // bring it back behind a `(hover: hover)` media query if we ever
+  // want auto-focus back on desktop only.
 
   // When user toggles kind on a dual-record person, repopulate form
   // from the cached row so we don't lose unsaved typing on the other.
@@ -850,59 +815,12 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     onSaved?.();
   };
 
-  // v0.15.10 — Lifecycle action handlers, moved up from the row kebab.
-  // Pattern: call SECURITY DEFINER RPC, then refresh both the modal
-  // (bumping loadVersion → re-runs the load + audit useEffects) and
-  // the parent list (so the kebab/chips reflect the new state).
-  // postKind: optional kind to auto-switch to after success, so e.g.
-  // after Convert Guest → Member the form lands on the new member row
-  // instead of staying on the now-stale guest record.
-  const runModalAction = async ({ rpc, args, confirm, postKind, errPrefix }) => {
-    if (confirm && !window.confirm(confirm)) return;
-    setActionBusy(true); setErr(null); setNotice(null);
-    const { error } = await supabase.rpc(rpc, args);
-    setActionBusy(false);
-    if (error) { setErr(`${errPrefix || 'Action failed'}: ${error.message}`); return; }
-    if (postKind) setKind(postKind);
-    if (onActionComplete) await onActionComplete();
-    setLoadVersion(v => v + 1);
-  };
-
-  const actConvertGuestToMember = () => runModalAction({
-    rpc: 'convert_guest_to_member',
-    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_tier: 'standard', p_status: 'active' },
-    confirm: `Convert ${person.name} from guest to member?\n\nA new member row is created. Their guest record stays as history.`,
-    postKind: 'member',
-    errPrefix: "Couldn't convert",
-  });
-
-  const actDemoteMemberToGuest = () => runModalAction({
-    rpc: 'demote_member_to_guest',
-    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_access_level: 'read_only' },
-    confirm: `Demote ${person.name} from member to guest?\n\nTheir member row is marked inactive (kept for history). A guest row is created/reactivated with read_only access. Audited.`,
-    postKind: 'guest',
-    errPrefix: "Couldn't demote",
-  });
-
-  const actChangeStatus = (toStatus) => runModalAction({
-    rpc: 'change_member_status',
-    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_to_status: toStatus },
-    errPrefix: "Couldn't change status",
-  });
-
-  const actPromote = (role) => runModalAction({
-    rpc: 'promote_member_to_staff',
-    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id, p_role: role },
-    confirm: `Promote ${person.name} to ${role === 'club_manager' ? 'Manager' : 'Admin'}?\n\nThey'll gain admin access. Audited in people_audit_log.`,
-    errPrefix: "Couldn't promote",
-  });
-
-  const actDemoteStaff = () => runModalAction({
-    rpc: 'demote_staff_to_member',
-    args: { p_auth_user_id: person.auth_user_id, p_club_id: club.id },
-    confirm: `Remove ${person.name}'s staff role?\n\nThey lose all admin permissions at this club. Audited.`,
-    errPrefix: "Couldn't remove staff role",
-  });
+  // v0.15.18 — v0.15.10's lifecycle action handlers (actConvertGuestToMember,
+  // actDemoteMemberToGuest, actChangeStatus, actPromote, actDemoteStaff)
+  // plus their `runModalAction` helper were retired in v0.15.16 when the
+  // identity-strip pill modals (StatusChangeModal + RoleChangeModal in
+  // PersonPillModals.jsx) took over. They were deliberately left in v0.15.16
+  // as dead code "for safety"; v0.15.18 removes them.
 
   // v0.15.16 — Photo upload from the avatar click. Mirrors the
   // ProfilePhotoCard pattern (resize + compress + upload to club-assets
@@ -1079,7 +997,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
             <SectionLabel>Identity</SectionLabel>
             <FormRow>
               <Field label="Full name" required error={fieldErrors.name}>
-                <input ref={firstInputRef} value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
+                <input value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
               </Field>
             </FormRow>
             <FormRow>
@@ -1162,7 +1080,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
             <SectionLabel>Identity</SectionLabel>
             <FormRow>
               <Field label="Full name" required error={fieldErrors.name}>
-                <input ref={firstInputRef} value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
+                <input value={form.name} onChange={e => set('name', e.target.value)} style={inputStyle} />
               </Field>
             </FormRow>
             <FormRow>
@@ -1505,27 +1423,9 @@ function formatAuditTime(iso) {
   } catch { return ''; }
 }
 
-// v0.15.10 — Tappable row used by the modal's Actions section.
-// Looks like an iOS settings row: label on the left, chevron on the
-// right, faint divider above (except first child). Danger variant
-// flips the label to G.clsDot.
-function PersonActionRow({ label, onClick, danger, busy, isFirst }) {
-  return (
-    <div onClick={busy ? undefined : onClick} data-tap
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 14px',
-        borderTop: isFirst ? 'none' : `1px solid ${G.border}`,
-        cursor: busy ? 'wait' : 'pointer',
-        opacity: busy ? 0.5 : 1,
-      }}>
-      <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: danger ? G.clsDot : G.text, fontWeight: 500 }}>
-        {label}
-      </span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
-  );
-}
+// v0.15.18 — PersonActionRow (the iOS-settings-row component used by
+// v0.15.10's flat Actions section) deleted along with the rest of the
+// retired Actions code. Pill modals replaced this surface.
 
 function AuditEventRow({ a }) {
   const label = AUDIT_ACTION_LABEL[a.action] || a.action?.replace(/_/g, ' ') || 'Event';

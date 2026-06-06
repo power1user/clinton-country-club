@@ -22,9 +22,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useModalBackClose } from '../../hooks/useModalBackClose.js';
+import { labelStyle, inputStyle } from '../../lib/formStyles.jsx';   // v0.15.18 — shared primitives
 
-const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, backgroundColor: G.card, outline: 'none', boxSizing: 'border-box' };
+// v0.15.18 — Form primitives (labelStyle, inputStyle) moved to
+// src/lib/formStyles.js — single source of truth for the whole admin.
 
 // v0.15.14 — Slug helpers are internal now. Generate from name (kebab,
 // alphanum only); given a pool of existing slugs to avoid, auto-suffix.

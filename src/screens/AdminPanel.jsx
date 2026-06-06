@@ -2729,6 +2729,12 @@ function fmt12(t) {
 }
 
 // ─── Shared form styles ────────────────────────────────────────────────────
-const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
-const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' };
-const selectStyle = { ...inputStyle };
+// v0.15.18 — moved to src/lib/formStyles.js so we have a single source
+// of truth across the admin. The old inline version (kept here through
+// v0.15.17) had a latent `background:` shorthand bug — same root cause
+// as the v0.15.7 → v0.15.8 dropdown-chevron disappearance on mobile.
+// The canonical module uses `backgroundColor` correctly. Importing as
+// module-locals + re-exporting so any file that imports these names
+// from AdminPanel.jsx keeps working without churn.
+import { labelStyle, inputStyle, selectStyle } from '../lib/formStyles.jsx';
+export { labelStyle, inputStyle, selectStyle };
