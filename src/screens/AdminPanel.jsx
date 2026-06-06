@@ -396,6 +396,76 @@ export default function AdminPanel() {
     setLastSection({ areaId: area, sectionId: sec });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDesktop, area, sec]);
+
+  // v0.15.17 — Phone back-button unwinds the mobile admin drill-down
+  // (areas → sections → section content) before letting the browser
+  // navigate out of admin entirely. Previously back at any depth
+  // popped the surrounding URL, kicking the user clear of admin.
+  //
+  // Strategy: when the user drills deeper (sets area or sec from
+  // null), push a marker history entry. When popstate fires, undo
+  // one level. When the user goes back programmatically (an onBack
+  // button or admin-nav clearing the level), pop the corresponding
+  // history entry so the stack stays sane.
+  //
+  // Coordinates with useModalBackClose via the `modalOpen` sentinel
+  // in history.state — if a modal pushed the entry, we let its hook
+  // handle the popstate and we don't touch (area, sec). Desktop with
+  // its persistent sidebar doesn't need this; gated on !isDesktop.
+  const lastAreaRef = useRef(area);
+  const lastSecRef  = useRef(sec);
+  const navPopRef   = useRef(false); // true when popstate triggered the most recent state change
+  useEffect(() => {
+    if (isDesktop) { lastAreaRef.current = area; lastSecRef.current = sec; return; }
+    const prevArea = lastAreaRef.current;
+    const prevSec  = lastSecRef.current;
+    // If the change came from popstate, don't re-push history (we'd loop).
+    if (navPopRef.current) {
+      navPopRef.current = false;
+      lastAreaRef.current = area;
+      lastSecRef.current  = sec;
+      return;
+    }
+    // Drilling deeper into a section: push.
+    if (!prevSec && sec) {
+      window.history.pushState({ adminNav: 'sec' }, '');
+    }
+    // Drilling into an area (and no section is set): push.
+    else if (!prevArea && area && !sec) {
+      window.history.pushState({ adminNav: 'area' }, '');
+    }
+    // Going shallower programmatically (Back button in the UI): pop one entry.
+    else if (prevSec && !sec) {
+      if (window.history.state?.adminNav === 'sec') window.history.back();
+    }
+    else if (prevArea && !area && !sec) {
+      if (window.history.state?.adminNav === 'area') window.history.back();
+    }
+    lastAreaRef.current = area;
+    lastSecRef.current  = sec;
+  }, [isDesktop, area, sec]);
+
+  // Phone back / popstate listener — only matters on mobile.
+  useEffect(() => {
+    if (isDesktop) return;
+    const onPop = () => {
+      // Modal hook handles its own popstate via the modalOpen sentinel.
+      // After the modal hook's cleanup pops, state.modalOpen would no
+      // longer be set, but the modal's popstate handler runs FIRST
+      // (added later in mount order). We just need to make sure we
+      // only unwind admin nav when (a) modal isn't active and (b) we
+      // actually have nav state to unwind.
+      if (window.history.state?.modalOpen) return;
+      navPopRef.current = true;
+      if (lastSecRef.current)        setSec(null);
+      else if (lastAreaRef.current)  setArea(null);
+      // If both are null already, the browser navigates out of admin
+      // naturally — that's the expected exit path.
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [isDesktop]);
+
   const [query, setQuery] = useState('');   // admin hub search
   const activeArea    = AREAS.find(a => a.id === area);
   const activeSection = ALL_SECTIONS.find(s => s.id === sec);

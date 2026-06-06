@@ -164,6 +164,32 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.17** — Phone back-button: unwind mobile admin nav levels too (not just modals).
+
+  v0.15.15 added \`useModalBackClose\` so pressing Back inside an open
+  modal would close the modal. Marc caught the gap immediately:
+  pressing Back from inside a section (no modal open) still kicked
+  the user out of admin entirely, because the mobile admin's
+  three-level drill (Areas → Sections → Section content) was pure
+  React state with no history entries to unwind.
+
+  Fix: AdminPanel.jsx now pushes a marker history entry every time
+  the user drills *deeper* (area null → set, or sec null → set).
+  A popstate listener on the same component undoes one level when
+  the browser back fires. Coordinates with \`useModalBackClose\` via
+  the existing \`history.state.modalOpen\` sentinel — if a modal
+  owns the current history entry, we let its hook handle the pop and
+  don't touch the admin nav state.
+
+  The programmatic onBack buttons inside the mobile admin shell
+  (Section → list, Area → areas) also pop a matching history entry
+  so the browser stack stays sane. A \`navPopRef\` guards against
+  re-pushing history when popstate triggered the state change in the
+  first place (would otherwise loop).
+
+  Desktop unaffected — \`isDesktop\` early-returns from the history
+  effect since the persistent sidebar doesn't drill.
+
 - **v0.15.16** — PersonEditModal redesign: identity strip + clickable status/role pills + Notes + photo upload + audit reasons.
 
   This is the big "re-imagine the edit card" patch Marc asked for. Direction
