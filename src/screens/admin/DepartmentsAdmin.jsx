@@ -1,16 +1,22 @@
-// DepartmentsAdmin — v0.15.13 (Phase 17 — department-based notification routing).
+// DepartmentsAdmin — v0.15.14 (Phase 17 — department-based notification routing).
 //
 // Per-club catalog of named departments (Dining, Pro Shop, Course,
 // Front Desk by default). Staff get assigned to one or more via the
-// PersonEditModal Actions section. Clubhouse-thread pushes route
+// PersonEditModal Departments section. Clubhouse-thread pushes route
 // from `clubs.clubhouse_topic_routing` (topic → department slug) to
 // `user_departments` (department → people).
 //
-// This screen lets the manager add / rename / delete / reorder
-// departments. Manager-only (gated upstream in AdminPanel routing —
-// the section sets `managerOnly: true`).
+// v0.15.14 changes (Marc's feedback on v0.15.13):
+//   1. Row click now opens a DETAIL modal that shows the actual staff
+//      assigned to the department (the chevron's affordance promised
+//      a drill-in; before it just popped a rename modal).
+//   2. SLUG is hidden from the UI everywhere. Auto-generated from name,
+//      auto-de-duped on collision (silent `-2`, `-3` suffix). Names must
+//      be unique per club (case-insensitive) with a friendly inline
+//      error. Slugs remain in the DB schema (the topic-routing map
+//      references them) — they're just behind-the-scenes plumbing now.
 //
-// Member-count column is informational. Click a row → edit modal.
+// Manager-only — gated upstream in AdminPanel routing.
 
 import { useEffect, useMemo, useState } from 'react';
 import { G } from '../../theme.js';
@@ -19,19 +25,28 @@ import { supabase } from '../../lib/supabase.js';
 const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, backgroundColor: G.card, outline: 'none', boxSizing: 'border-box' };
 
-// Auto-slug helper: kebab-case, alphanumeric only.
+// v0.15.14 — Slug helpers are internal now. Generate from name (kebab,
+// alphanum only); given a pool of existing slugs to avoid, auto-suffix.
 function slugify(s) {
   return (s || '').toLowerCase().trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40);
 }
+function uniqueSlug(name, existingSlugs) {
+  const base = slugify(name) || 'dept';
+  if (!existingSlugs.includes(base)) return base;
+  let n = 2;
+  while (existingSlugs.includes(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
 
 export default function DepartmentsAdmin({ club }) {
   const [rows, setRows]       = useState([]);
   const [counts, setCounts]   = useState({}); // { department_id: number }
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null); // department row or { mode: 'add' }
+  const [adding, setAdding]   = useState(false); // controls the simple "Add" modal
+  const [detail, setDetail]   = useState(null);  // row → detail modal
   const [err, setErr]         = useState(null);
 
   const load = async () => {
@@ -57,9 +72,9 @@ export default function DepartmentsAdmin({ club }) {
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [club?.id]);
 
-  // v0.15.13 — Realtime so a manager editing in one tab sees changes
-  // mirrored in another. Cheap subscription; we just reload on any
-  // INSERT/UPDATE/DELETE in club_departments for this club.
+  // Realtime so a manager editing in one tab sees changes mirrored
+  // in another. Also picks up user_departments changes (which drive
+  // the member-count column).
   useEffect(() => {
     if (!club?.id) return;
     const ch = supabase
@@ -77,7 +92,6 @@ export default function DepartmentsAdmin({ club }) {
     const j = dir === 'up' ? i - 1 : i + 1;
     if (j < 0 || j >= rows.length) return;
     const a = rows[i], b = rows[j];
-    // Swap sort_order values
     await Promise.all([
       supabase.from('club_departments').update({ sort_order: b.sort_order }).eq('id', a.id),
       supabase.from('club_departments').update({ sort_order: a.sort_order }).eq('id', b.id),
@@ -90,17 +104,21 @@ export default function DepartmentsAdmin({ club }) {
     [counts]
   );
 
+  // List of existing names + slugs for collision checks in the modals.
+  const existingNames = rows.map(r => r.name.toLowerCase());
+  const existingSlugs = rows.map(r => r.slug);
+
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px', lineHeight: 1.55 }}>
         Departments are the staff groups that receive routed clubhouse-message notifications.
-        Map topics to departments under <strong>Club Settings &rarr; Clubhouse Topic Routing</strong>,
-        and assign staff to departments from each person&rsquo;s Edit modal on the People screen.
+        Tap any department to see who&rsquo;s in it. Map topics to departments under{' '}
+        <strong>Club Settings &rarr; Clubhouse Topic Routing</strong>.
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
         <div
-          onClick={() => setEditing({ mode: 'add' })}
+          onClick={() => setAdding(true)}
           data-tap
           style={{ padding: '8px 14px', background: G.green, borderRadius: 4, cursor: 'pointer' }}
         >
@@ -133,49 +151,64 @@ export default function DepartmentsAdmin({ club }) {
                 borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
                 gap: 10,
               }}>
-                {/* Reorder controls */}
+                {/* Reorder controls — stop propagation so clicking these
+                    doesn't also fire the row's "open detail" click. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
-                  <div onClick={() => move(dep, 'up')}   data-tap style={{ width: 22, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.3 : 1 }} title="Move up">
+                  <div onClick={(e) => { e.stopPropagation(); move(dep, 'up');   }} data-tap style={{ width: 22, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.3 : 1 }} title="Move up">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2.5"><polyline points="6 15 12 9 18 15" /></svg>
                   </div>
-                  <div onClick={() => move(dep, 'down')} data-tap style={{ width: 22, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: i === rows.length - 1 ? 'not-allowed' : 'pointer', opacity: i === rows.length - 1 ? 0.3 : 1 }} title="Move down">
+                  <div onClick={(e) => { e.stopPropagation(); move(dep, 'down'); }} data-tap style={{ width: 22, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: i === rows.length - 1 ? 'not-allowed' : 'pointer', opacity: i === rows.length - 1 ? 0.3 : 1 }} title="Move down">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
                 </div>
 
-                {/* Identity (clickable to edit) */}
-                <div onClick={() => setEditing(dep)} data-tap style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>
-                    {dep.name}
-                  </p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', letterSpacing: '0.06em' }}>
-                    <code style={{ background: G.bg, padding: '1px 5px', borderRadius: 2 }}>{dep.slug}</code>
-                  </p>
-                </div>
+                {/* The rest of the row — clicking anywhere on this surface opens detail. */}
+                <div
+                  onClick={() => setDetail(dep)}
+                  data-tap
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>
+                      {dep.name}
+                    </p>
+                    {/* v0.15.14 — slug code chip removed; users no longer see it */}
+                  </div>
 
-                {/* Member count */}
-                <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                  <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text }}>{count}</span>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>assigned</p>
-                </div>
+                  <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                    <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 16, fontWeight: 700, color: G.text }}>{count}</span>
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: 0, letterSpacing: '0.06em', textTransform: 'uppercase' }}>assigned</p>
+                  </div>
 
-                {/* Edit chevron */}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ flexShrink: 0 }}><polyline points="9 18 15 12 9 6" /></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ flexShrink: 0 }}><polyline points="9 18 15 12 9 6" /></svg>
+                </div>
               </div>
             );
           })}
         </div>
       )}
 
-      {editing && (
-        <DepartmentEditModal
-          mode={editing.mode === 'add' ? 'add' : 'edit'}
-          department={editing.mode === 'add' ? null : editing}
+      {/* Add modal — name only; slug auto-generated */}
+      {adding && (
+        <AddDepartmentModal
           club={club}
-          existingSlugs={rows.filter(r => r.id !== editing?.id).map(r => r.slug)}
-          memberCount={editing.id ? (counts[editing.id] || 0) : 0}
-          onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); load(); }}
+          existingNames={existingNames}
+          existingSlugs={existingSlugs}
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); load(); }}
+        />
+      )}
+
+      {/* Detail modal — drills into a department, shows members, allows rename + delete */}
+      {detail && (
+        <DepartmentDetailModal
+          department={detail}
+          club={club}
+          memberCount={counts[detail.id] || 0}
+          existingNames={existingNames.filter(n => n !== detail.name.toLowerCase())}
+          existingSlugs={existingSlugs.filter(s => s !== detail.slug)}
+          onClose={() => setDetail(null)}
+          onSaved={() => { setDetail(null); load(); }}
         />
       )}
     </div>
@@ -183,64 +216,32 @@ export default function DepartmentsAdmin({ club }) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// DepartmentEditModal — bottom-sheet add/edit, mirrors PersonEditModal
-// styling so the People area surfaces feel like a family.
+// AddDepartmentModal — minimal add UI. Name only.
 // ───────────────────────────────────────────────────────────────
-function DepartmentEditModal({ mode, department, club, existingSlugs, memberCount, onClose, onSaved }) {
-  const isAdd = mode === 'add';
-  const [name, setName] = useState(department?.name || '');
-  const [slug, setSlug] = useState(department?.slug || '');
-  const [slugTouched, setSlugTouched] = useState(!isAdd);  // edit mode: don't auto-overwrite an existing slug
+function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSaved }) {
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
 
-  const onName = (v) => {
-    setName(v);
-    if (!slugTouched) setSlug(slugify(v));
-  };
-  const onSlug = (v) => {
-    setSlug(slugify(v));
-    setSlugTouched(true);
-  };
-
-  // Validation: name + slug required, slug must be unique within club,
-  // slug must be non-trivial (>=2 chars), no whitespace.
-  const trimmedName = name.trim();
-  const slugClash = !!slug && existingSlugs.includes(slug);
-  const slugTooShort = slug.length < 2;
-  const isValid = !!trimmedName && !slugClash && !slugTooShort && !busy;
+  const trimmed = name.trim();
+  const nameClash = !!trimmed && existingNames.includes(trimmed.toLowerCase());
+  const isValid = !!trimmed && !nameClash && !busy;
 
   const save = async () => {
     if (!isValid) return;
     setBusy(true); setErr(null);
-    const row = {
+    const slug = uniqueSlug(trimmed, existingSlugs);
+    const { error } = await supabase.from('club_departments').insert({
       club_id: club.id,
-      name: trimmedName,
+      name: trimmed,
       slug,
-      sort_order: department?.sort_order ?? 1000, // new departments go to the bottom by default
-    };
-    const { error } = isAdd
-      ? await supabase.from('club_departments').insert(row)
-      : await supabase.from('club_departments').update({ name: row.name, slug: row.slug, updated_at: new Date().toISOString() }).eq('id', department.id);
+      sort_order: 1000,
+    });
     setBusy(false);
     if (error) { setErr(error.message); return; }
     onSaved?.();
   };
 
-  const remove = async () => {
-    if (!department?.id) return;
-    const confirmMsg = memberCount > 0
-      ? `Delete the "${department.name}" department?\n\n${memberCount} person${memberCount === 1 ? ' is' : 's are'} currently assigned to it. Their assignment row${memberCount === 1 ? '' : 's'} will be removed automatically. The topic routing map will still reference the slug — re-route topics afterwards if needed.`
-      : `Delete the "${department.name}" department?`;
-    if (!window.confirm(confirmMsg)) return;
-    setBusy(true);
-    const { error } = await supabase.from('club_departments').delete().eq('id', department.id);
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    onSaved?.();
-  };
-
-  // Keyboard shortcuts — match PersonEditModal: ESC closes, Ctrl/⌘+Enter saves
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
@@ -249,88 +250,267 @@ function DepartmentEditModal({ mode, department, club, existingSlugs, memberCoun
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isValid, name, slug]);
+  }, [isValid, name]);
 
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>
-            {isAdd ? 'Add Department' : 'Edit Department'}
-          </h3>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>Add Department</h3>
           <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </div>
         </div>
 
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>
             Name
             <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
           </label>
           <input
             value={name}
-            onChange={e => onName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             placeholder="e.g. Pro Shop, Course Maintenance, Tennis Pro"
+            autoFocus
             style={inputStyle}
           />
-          {!trimmedName && name.length > 0 && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>Required.</p>
-          )}
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>
-            Slug
-            <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
-          </label>
-          <input
-            value={slug}
-            onChange={e => onSlug(e.target.value)}
-            placeholder="auto-generated from the name"
-            style={inputStyle}
-          />
-          {slugClash && (
+          {nameClash && (
             <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-              This slug is already used by another department at this club.
+              There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
             </p>
           )}
-          {!slugClash && slugTooShort && slug.length > 0 && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-              At least 2 characters.
-            </p>
-          )}
-          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '4px 0 0', fontStyle: 'italic' }}>
-            The slug is the stable identifier used in topic routing. Rename the department freely; changing the slug also re-routes anything pointing here.
-          </p>
         </div>
 
         {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <div onClick={isValid ? save : undefined} data-tap
-            style={{
-              flex: 1, padding: 12,
-              background: isValid ? G.green : G.border,
-              borderRadius: 3, textAlign: 'center',
-              cursor: isValid ? 'pointer' : 'not-allowed',
-              opacity: busy ? 0.6 : 1,
-            }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: isValid ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-              {busy ? 'Saving…' : (isAdd ? 'Add Department' : 'Save')}
-            </span>
-          </div>
+        <div onClick={isValid ? save : undefined} data-tap
+          style={{
+            padding: 12,
+            background: isValid ? G.green : G.border,
+            borderRadius: 3, textAlign: 'center',
+            cursor: isValid ? 'pointer' : 'not-allowed',
+            opacity: busy ? 0.6 : 1,
+          }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: isValid ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+            {busy ? 'Adding…' : 'Add Department'}
+          </span>
         </div>
-
-        {!isAdd && (
-          <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete department</span>
-          </div>
-        )}
 
         <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
           ESC to close · Ctrl/⌘+Enter to save
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// DepartmentDetailModal — drill-in view from the row click. Shows
+// who's assigned, lets the manager remove individuals from the dept,
+// rename the department inline, or delete the whole thing.
+// ───────────────────────────────────────────────────────────────
+function DepartmentDetailModal({ department, club, memberCount, existingNames, existingSlugs, onClose, onSaved }) {
+  // Embedded rename state — starts in display mode, "edit" toggles to input.
+  const [renaming, setRenaming]   = useState(false);
+  const [name, setName]           = useState(department.name);
+  const [renaming_busy, setRBusy] = useState(false);
+  // Member list
+  const [members, setMembers]     = useState([]);  // [{user_id, name, ...}]
+  const [loading, setLoading]     = useState(true);
+  const [removingId, setRemovingId] = useState(null);
+  const [err, setErr]             = useState(null);
+
+  const trimmed = name.trim();
+  const nameClash = !!trimmed && existingNames.includes(trimmed.toLowerCase());
+  const renameDirty = trimmed && trimmed !== department.name;
+  const canRename = renameDirty && !nameClash && !renaming_busy;
+
+  const loadMembers = async () => {
+    setLoading(true);
+    // user_departments → resolve names via members table + user_roles
+    const { data: assignments } = await supabase
+      .from('user_departments')
+      .select('user_id, created_at')
+      .eq('department_id', department.id)
+      .eq('club_id', club.id);
+    const ids = (assignments || []).map(a => a.user_id);
+    if (ids.length === 0) { setMembers([]); setLoading(false); return; }
+    const [{ data: m }, { data: roles }] = await Promise.all([
+      supabase.from('members').select('user_id, name, photo_url').eq('club_id', club.id).in('user_id', ids),
+      supabase.from('user_roles').select('user_id, role, display_name').in('user_id', ids),
+    ]);
+    const nameMap = {};
+    const roleLabel = {};
+    (m || []).forEach(r => { nameMap[r.user_id] = r.name; });
+    (roles || []).forEach(r => {
+      if (!nameMap[r.user_id]) nameMap[r.user_id] = r.display_name;
+      const lbl = r.role === 'club_manager' ? 'Manager' : r.role === 'club_admin' ? 'Admin' : r.role === 'super_admin' ? 'Super Admin' : null;
+      if (lbl && !roleLabel[r.user_id]) roleLabel[r.user_id] = lbl;
+    });
+    setMembers(ids.map(uid => ({
+      user_id: uid,
+      name: nameMap[uid] || `(${uid.slice(0,8)}…)`,
+      role: roleLabel[uid] || null,
+    })));
+    setLoading(false);
+  };
+
+  useEffect(() => { loadMembers(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [department.id, club?.id]);
+
+  const saveRename = async () => {
+    if (!canRename) return;
+    setRBusy(true); setErr(null);
+    // Slug strategy on rename: keep the existing slug stable so the
+    // topic-routing map keeps working. Only re-slug if the existing
+    // slug is no longer a sensible match for the new name AND the
+    // generated new slug doesn't collide — but to keep this simple and
+    // safe, we keep the slug as-is and only update the display name.
+    // (If a manager really wants the slug rebuilt, they can delete +
+    // re-add the department, which is a deliberate action.)
+    const { error } = await supabase
+      .from('club_departments')
+      .update({ name: trimmed, updated_at: new Date().toISOString() })
+      .eq('id', department.id);
+    setRBusy(false);
+    if (error) { setErr(error.message); return; }
+    setRenaming(false);
+    onSaved?.();
+  };
+
+  const removeMember = async (uid) => {
+    if (removingId) return;
+    setRemovingId(uid); setErr(null);
+    const { error } = await supabase
+      .from('user_departments')
+      .delete()
+      .eq('user_id', uid)
+      .eq('club_id', club.id)
+      .eq('department_id', department.id);
+    setRemovingId(null);
+    if (error) { setErr(error.message); return; }
+    loadMembers();
+  };
+
+  const remove = async () => {
+    const confirmMsg = memberCount > 0
+      ? `Delete the "${department.name}" department?\n\n${memberCount} person${memberCount === 1 ? ' is' : 's are'} currently assigned to it. Their assignment row${memberCount === 1 ? '' : 's'} will be removed automatically. Any topic routing that points to this department will fall back to "all staff" until you re-route it.`
+      : `Delete the "${department.name}" department?`;
+    if (!window.confirm(confirmMsg)) return;
+    const { error } = await supabase.from('club_departments').delete().eq('id', department.id);
+    if (error) { setErr(error.message); return; }
+    onSaved?.();
+  };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (renaming) { setRenaming(false); setName(department.name); }
+        else onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renaming]);
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        {/* Header — name with inline rename pencil */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {renaming ? (
+              <div>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  autoFocus
+                  style={{ ...inputStyle, fontSize: 17, fontFamily: '"Playfair Display",serif', fontWeight: 700 }}
+                />
+                {nameClash && (
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
+                    There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <div onClick={canRename ? saveRename : undefined} data-tap
+                    style={{ padding: '6px 12px', background: canRename ? G.green : G.border, borderRadius: 3, cursor: canRename ? 'pointer' : 'not-allowed', opacity: renaming_busy ? 0.6 : 1 }}>
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: canRename ? '#F2EDE0' : G.muted, fontWeight: 600 }}>
+                      {renaming_busy ? 'Saving…' : 'Save'}
+                    </span>
+                  </div>
+                  <div onClick={() => { setRenaming(false); setName(department.name); }} data-tap
+                    style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 500 }}>Cancel</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{department.name}</h3>
+                <div onClick={() => setRenaming(true)} data-tap title="Rename"
+                  style={{ padding: 4, cursor: 'pointer' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+
+        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+        {/* Member list */}
+        <div style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, margin: '6px 0 6px' }}>
+          Assigned · {members.length}
+        </div>
+
+        {loading ? (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: '14px 0' }}>Loading…</p>
+        ) : members.length === 0 ? (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+              Nobody&rsquo;s assigned to this department yet. Open a staff person from <strong>People</strong> and toggle this department on in their <strong>Departments</strong> chip row.
+            </p>
+          </div>
+        ) : (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            {members.map((m, i) => (
+              <div key={m.user_id} style={{
+                display: 'flex', alignItems: 'center', padding: '12px 14px',
+                borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+                gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>{m.name}</p>
+                  {m.role && (
+                    <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{m.role}</p>
+                  )}
+                </div>
+                <div
+                  onClick={() => removeMember(m.user_id)}
+                  data-tap
+                  title="Remove from department"
+                  style={{ padding: '6px 10px', border: `1px solid ${G.border}`, borderRadius: 14, cursor: removingId === m.user_id ? 'wait' : 'pointer', opacity: removingId === m.user_id ? 0.6 : 1, flexShrink: 0 }}
+                >
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, fontWeight: 600 }}>
+                    {removingId === m.user_id ? 'Removing…' : 'Remove'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer — delete department */}
+        <div onClick={remove} data-tap style={{ marginTop: 18, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete department</span>
+        </div>
       </div>
     </div>
   );

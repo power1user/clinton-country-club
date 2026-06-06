@@ -1068,6 +1068,71 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
           );
         })()}
 
+        {/* v0.15.14 — Departments renders BEFORE Actions now (was below
+            it in v0.15.13). Department assignments are a high-frequency
+            action; Actions hosts destructive moves (Promote / Demote /
+            Remove Staff Role) that should require deliberate scrolling
+            past the common case. Note: showDepartments is gated to
+            staff, so non-staff people skip straight to Actions where
+            "Promote to Admin/Manager" lives. */}
+        {showDepartments && (
+          <>
+            <SectionLabel>Departments</SectionLabel>
+            {allDepartments.length === 0 ? (
+              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+                  No departments defined yet at this club. Set them up under{' '}
+                  <strong>People &rarr; Departments</strong> first; staff can then be assigned here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {allDepartments.map(dep => {
+                    const on = assignedDeptIds.has(dep.id);
+                    return (
+                      <div
+                        key={dep.id}
+                        onClick={() => toggleDepartment(dep)}
+                        data-tap
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 14,
+                          background: on ? G.green : 'transparent',
+                          border: `1px solid ${on ? G.green : G.border}`,
+                          cursor: deptBusy ? 'wait' : 'pointer',
+                          opacity: deptBusy ? 0.6 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {on && (
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                        <span style={{
+                          fontFamily: '"Lora",serif',
+                          fontSize: 12,
+                          color: on ? '#F2EDE0' : G.text,
+                          fontWeight: on ? 600 : 400,
+                        }}>
+                          {dep.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', fontStyle: 'italic' }}>
+                  Clubhouse pushes are routed by topic &rarr; department. See{' '}
+                  <strong>Club Settings &rarr; Clubhouse Topic Routing</strong>.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
         {/* v0.15.10 — Actions section: every lifecycle transition that
             used to live in the row kebab. Conditional gates mirror the
             kebab's old logic: status moves only when the person is in
@@ -1123,69 +1188,6 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
             </>
           );
         })()}
-
-        {/* v0.15.13 — Departments. Multi-select chip row; click a chip to
-            toggle assignment. Only renders for current staff (gate up
-            top). Empty-catalog state surfaces a link hint pointing the
-            manager at the new Departments admin section. */}
-        {showDepartments && (
-          <>
-            <SectionLabel>Departments</SectionLabel>
-            {allDepartments.length === 0 ? (
-              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px' }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
-                  No departments defined yet at this club. Set them up under{' '}
-                  <strong>People &rarr; Departments</strong> first; staff can then be assigned here.
-                </p>
-              </div>
-            ) : (
-              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {allDepartments.map(dep => {
-                    const on = assignedDeptIds.has(dep.id);
-                    return (
-                      <div
-                        key={dep.id}
-                        onClick={() => toggleDepartment(dep)}
-                        data-tap
-                        title={dep.slug}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 14,
-                          background: on ? G.green : 'transparent',
-                          border: `1px solid ${on ? G.green : G.border}`,
-                          cursor: deptBusy ? 'wait' : 'pointer',
-                          opacity: deptBusy ? 0.6 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        {on && (
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                        <span style={{
-                          fontFamily: '"Lora",serif',
-                          fontSize: 12,
-                          color: on ? '#F2EDE0' : G.text,
-                          fontWeight: on ? 600 : 400,
-                        }}>
-                          {dep.name}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', fontStyle: 'italic' }}>
-                  Clubhouse pushes are routed by topic &rarr; department. See{' '}
-                  <strong>Club Settings &rarr; Clubhouse Topic Routing</strong>.
-                </p>
-              </div>
-            )}
-          </>
-        )}
 
         {!isAdd && isSuperAdmin && (kind === 'member' ? memberId : guestId) && (
           <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>

@@ -164,6 +164,50 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.14** — Departments UX polish (per Marc's first-touch feedback on v0.15.13).
+
+  Three usability gaps that surfaced the moment Marc opened v0.15.13:
+
+  **1. Chevron on each department row was a lie.** It looked clickable
+  but the row's onClick only opened a rename-only modal — and the
+  chevron was outside that click target anyway, so it literally did
+  nothing. Marc expected drilling in to see WHO was assigned.
+
+  Fix: rebuilt the click target. Tapping anywhere on the row now opens
+  a **Department Detail** bottom-sheet showing:
+  - Name with an inline rename pencil
+  - Live list of assigned staff (with role chip — Manager / Admin / Super Admin)
+  - Per-row "Remove" to detach someone from this department
+  - "Delete department" at the bottom (preserves the old delete affordance)
+
+  **2. Slug exposed to users.** v0.15.13 surfaced the slug as a code
+  chip on each row and as an editable field on the form. Slugs are
+  internal plumbing (the topic-routing map references them), users
+  don't need to see them, and the term "slug" itself is confusing.
+
+  Fix: slug field gone from the UI entirely. Auto-generated from name
+  on add. On rename, the existing slug stays stable so the topic-routing
+  map keeps pointing at the right place — only the display name changes.
+  Names must be unique per club (case-insensitive); a duplicate name
+  surfaces an inline "There's already a department named X" error. If a
+  generated slug ever collides (rare — only when two names slugify the
+  same way), the system silently appends \`-2\`, \`-3\`, etc. The DB still
+  has the slug column; users never see it.
+
+  **3. Department section sat BELOW destructive Actions.** In v0.15.13's
+  PersonEditModal the order was Form → Save → Actions (Promote / Demote /
+  Remove Staff Role) → Departments → Delete → Audit. Marc's instinct:
+  department assignments happen daily; promote/demote/remove are rare;
+  forcing managers to scroll past dangerous controls to reach the common
+  case is bad UX, especially early on while staff are still settling in.
+
+  Fix: swapped the render order. New order is Form → Save → **Departments
+  → Actions** → Delete → Audit. Pure JSX shuffle. No data or schema
+  changes.
+
+  Backend / send-push: untouched. Same v20 routing logic. Pure
+  client-side polish.
+
 - **v0.15.13** — Phase 17: department-based clubhouse notification routing.
 
   Marc's call after the v0.15.12 fix verified push fan-out worked: instead
