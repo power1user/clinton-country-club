@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { useFlag } from './hooks/useFlag.js';
@@ -44,7 +44,14 @@ import ProShop from './screens/ProShop.jsx';
 import MyInquiries from './screens/MyInquiries.jsx';
 import LessonRequest from './screens/LessonRequest.jsx';
 import OnboardingGuide from './screens/OnboardingGuide.jsx';
-import AdminPanel from './screens/AdminPanel.jsx';
+// v0.15.21 — Admin shell is lazy-loaded. Members never touch admin code,
+// so why force them to download it on first paint? The dynamic import
+// here causes Vite to emit AdminPanel + everything it pulls in (which
+// transitively includes admin/sections.jsx, all admin section components,
+// AllPeopleAdmin, DepartmentsAdmin, ClubhouseRoutingAdmin, MemberTiersAdmin,
+// PersonPillModals, etc.) as a separate chunk. The chunk only downloads
+// when someone navigates to `myclub/admin`.
+const AdminPanel = lazy(() => import('./screens/AdminPanel.jsx'));
 import Settings from './screens/Settings.jsx';
 import Support from './screens/Support.jsx';
 import TermsGate from './screens/TermsGate.jsx';
@@ -211,7 +218,22 @@ function ScreenRenderer() {
       onTouchEnd={onTouchEnd}
       style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}
     >
-      <Comp params={current.params} />
+      {/* v0.15.21 — Suspense wraps every screen render. For eager
+          imports this is a no-op (the component is already loaded);
+          for lazy ones (currently just AdminPanel) it shows a tiny
+          fallback while the chunk downloads on first admin entry.
+          The fallback intentionally matches the in-screen "loading"
+          look from other surfaces (Lora italic + muted color) so it
+          doesn't read as a separate UI. */}
+      <Suspense fallback={
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted }}>
+            Loading…
+          </p>
+        </div>
+      }>
+        <Comp params={current.params} />
+      </Suspense>
       {isRoot && <BottomNav />}
       {/* v0.14.5 — floating GroundsLive AI bubble. Self-gates on
           isFeatureOn(club, 'member_ai') so this renders null when the

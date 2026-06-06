@@ -164,6 +164,27 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.21** — Code-split admin from member bundle.
+
+  AdminPanel + every admin-only screen it pulls in (sections.jsx,
+  AllPeopleAdmin, DepartmentsAdmin, ClubhouseRoutingAdmin,
+  MemberTiersAdmin, PersonPillModals, etc.) now load via
+  `React.lazy()` instead of the eager `import` at the top of
+  App.jsx. The route registry resolves the lazy component the same
+  way; a Suspense wrapper at the screen-render site shows a small
+  "Loading…" fallback during the one-time chunk download.
+
+  **Build impact** (Vite output, gzipped):
+  - **Before:** single `index.js` chunk at **457 KB gzipped** (1.87 MB minified).
+  - **After:** `index.js` at **350 KB** (1.37 MB) + a separate
+    `AdminPanel.js` at **110 KB** (508 KB).
+  - **Members never download the admin chunk on first paint** —
+    saves ~24% of the initial JS payload, more on slow connections.
+
+  No functional change for admins — the chunk loads the first time
+  someone navigates to `myclub/admin`, then caches via the SW.
+  Subsequent admin sessions are instant.
+
 - **v0.15.20** — Club-configurable membership tiers.
 
   Until now the Tier dropdown in the People edit form was a hardcoded
