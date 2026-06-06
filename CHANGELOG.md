@@ -164,6 +164,38 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.15** — Two concrete fixes from Marc's first-pass departments feedback.
+
+  **1. Add Staff button inside the Department Detail modal.** Before
+  this patch, the only way to assign someone to a department was to
+  open *that person's* edit modal and toggle the department chip. From
+  the department's perspective, you could only *remove* people who were
+  already in. Now there's a **+ Add Staff** button at the top of the
+  Assigned list. Clicking opens a picker showing every staff person at
+  the club (club_manager + club_admin + super_admins) who isn't already
+  in this department, with their role chip. One tap to add. Picker
+  dedupes across club-staff and super-admin (super_admins who also
+  hold a club role only appear once).
+
+  **2. Phone back-button closes the open modal instead of exiting admin.**
+  This was a real bug across the whole admin app. Modals are React
+  state, not history-routed, so pressing Back on mobile popped the
+  surrounding URL — usually launching the user out of the entire admin
+  section. New shared hook \`useModalBackClose(isOpen, onClose)\` in
+  \`src/hooks/useModalBackClose.js\`:
+
+  - On open: pushes a marker history entry.
+  - On popstate (user pressed back): fires \`onClose\`.
+  - On programmatic close (X / save / cancel): pops the marker entry
+    so the back stack stays clean.
+  - A ref tracks which path triggered the close so we don't over-pop
+    on the popstate path.
+
+  Applied to: PersonEditModal, AddPersonPicker, PeopleCsvImportModal,
+  AddDepartmentModal, DepartmentDetailModal, the new
+  AddStaffToDepartmentModal, and the Preview-routing modal in
+  ClubhouseRoutingAdmin. All consistent behavior on mobile now.
+
 - **v0.15.14** — Departments UX polish (per Marc's first-touch feedback on v0.15.13).
 
   Three usability gaps that surfaced the moment Marc opened v0.15.13:

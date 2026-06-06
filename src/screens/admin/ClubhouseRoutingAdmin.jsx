@@ -23,6 +23,7 @@
 import { useEffect, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
+import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 
 // Match TOPICS in screens/MessageClubhouse.jsx. If those change there,
 // also bump this list (or move topics into a shared module).
@@ -42,6 +43,9 @@ export default function ClubhouseRoutingAdmin({ club }) {
   const [err, setErr]                 = useState(null);
   const [previewFor, setPreviewFor]   = useState(null);  // topic id we're previewing
   const [preview, setPreview]         = useState(null);  // { count, names: [...], fallback: bool }
+
+  // v0.15.15 — phone back-button closes the preview modal.
+  useModalBackClose(!!previewFor, () => { setPreviewFor(null); setPreview(null); });
 
   const load = async () => {
     if (!club?.id) return;

@@ -19,6 +19,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
+import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 
 // ── Form helpers (kept inline so this file is self-contained
 //    after we delete the old MembersAdmin in AdminPanel.jsx). ──
@@ -474,6 +475,7 @@ function ActionItem({ onClick, busy, danger, children }) {
 // AddPersonPicker — quick chooser modal before the edit form.
 // ───────────────────────────────────────────────────────────────
 function AddPersonPicker({ onPickMember, onPickGuest, onClose }) {
+  useModalBackClose(true, onClose);
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: G.bg, border: `1px solid ${G.border}`, borderRadius: 6, padding: 22, width: 'min(380px, 90%)' }}>
@@ -509,6 +511,9 @@ const ACCESS_LEVEL_OPTIONS = ['data_only','read_only','full_temporary'];
 const GUEST_STATUS_OPTIONS = ['active','pending_authentication','expired'];
 
 function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose, onSaved, onActionComplete }) {
+  // v0.15.15 — phone back-button closes the modal instead of exiting admin.
+  useModalBackClose(true, onClose);
+
   // v0.15.6 — when a person has both records, let the admin toggle
   // which side they're editing without leaving the modal.
   const initialKind = mode === 'add-guest' ? 'guest'
@@ -1333,6 +1338,7 @@ function initialFormFor(kind, row, person) {
 // individually via "+ Add Person → Guest".
 // ───────────────────────────────────────────────────────────────
 function PeopleCsvImportModal({ club, onClose, onSaved }) {
+  useModalBackClose(true, onClose);
   const [csvText, setCsvText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);

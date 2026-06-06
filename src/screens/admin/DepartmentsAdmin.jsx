@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
+import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 
 const labelStyle = { fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: 5 };
 const inputStyle = { width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, backgroundColor: G.card, outline: 'none', boxSizing: 'border-box' };
@@ -219,6 +220,7 @@ export default function DepartmentsAdmin({ club }) {
 // AddDepartmentModal — minimal add UI. Name only.
 // ───────────────────────────────────────────────────────────────
 function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSaved }) {
+  useModalBackClose(true, onClose);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -310,6 +312,7 @@ function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSav
 // rename the department inline, or delete the whole thing.
 // ───────────────────────────────────────────────────────────────
 function DepartmentDetailModal({ department, club, memberCount, existingNames, existingSlugs, onClose, onSaved }) {
+  useModalBackClose(true, onClose);
   // Embedded rename state — starts in display mode, "edit" toggles to input.
   const [renaming, setRenaming]   = useState(false);
   const [name, setName]           = useState(department.name);
@@ -319,6 +322,9 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
   const [loading, setLoading]     = useState(true);
   const [removingId, setRemovingId] = useState(null);
   const [err, setErr]             = useState(null);
+  // v0.15.15 — Add-staff picker. Opens a sub-modal listing all staff
+  // at this club who AREN'T already in this department.
+  const [addingStaff, setAddingStaff] = useState(false);
 
   const trimmed = name.trim();
   const nameClash = !!trimmed && existingNames.includes(trimmed.toLowerCase());
@@ -465,9 +471,18 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
 
         {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
-        {/* Member list */}
-        <div style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, margin: '6px 0 6px' }}>
-          Assigned · {members.length}
+        {/* Member list — header row with section label + Add Staff button */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '6px 0 8px' }}>
+          <div style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>
+            Assigned · {members.length}
+          </div>
+          <div
+            onClick={() => setAddingStaff(true)}
+            data-tap
+            style={{ padding: '6px 12px', background: G.green, borderRadius: 14, cursor: 'pointer' }}
+          >
+            <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 600 }}>+ Add Staff</span>
+          </div>
         </div>
 
         {loading ? (
@@ -511,6 +526,145 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
         <div onClick={remove} data-tap style={{ marginTop: 18, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
           <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete department</span>
         </div>
+      </div>
+
+      {/* v0.15.15 — Add-staff picker, rendered as a sibling so it
+          stacks on top of the detail modal without interfering with
+          the back-button close on the parent. */}
+      {addingStaff && (
+        <AddStaffToDepartmentModal
+          department={department}
+          club={club}
+          alreadyAssignedUserIds={members.map(m => m.user_id)}
+          onClose={() => setAddingStaff(false)}
+          onAdded={() => { setAddingStaff(false); loadMembers(); onSaved?.(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// AddStaffToDepartmentModal — picker showing every staff person at
+// the club who isn't already in this department. Click to add.
+// Inclusive of: club_manager, club_admin, and super_admins (who can
+// be assigned to a department even though their role is club-wide).
+// ───────────────────────────────────────────────────────────────
+function AddStaffToDepartmentModal({ department, club, alreadyAssignedUserIds, onClose, onAdded }) {
+  useModalBackClose(true, onClose);
+  const [candidates, setCandidates] = useState([]); // [{user_id, name, role}]
+  const [loading, setLoading]       = useState(true);
+  const [addingId, setAddingId]     = useState(null);
+  const [err, setErr]               = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true); setErr(null);
+      // Pool of staff user_ids: club-scoped + super_admins
+      const [{ data: clubStaff }, { data: supers }] = await Promise.all([
+        supabase.from('user_roles')
+          .select('user_id, role, display_name')
+          .eq('club_id', club.id)
+          .in('role', ['club_manager', 'club_admin']),
+        supabase.from('user_roles')
+          .select('user_id, role, display_name')
+          .eq('role', 'super_admin')
+          .is('club_id', null),
+      ]);
+      if (cancelled) return;
+      const assigned = new Set(alreadyAssignedUserIds);
+      const seenUid  = new Set(); // dedupe across club + super
+      const roleLabel = (r) => r === 'club_manager' ? 'Manager' : r === 'club_admin' ? 'Admin' : 'Super Admin';
+      const pool = [];
+      [...(clubStaff || []), ...(supers || [])].forEach(r => {
+        if (!r.user_id || assigned.has(r.user_id) || seenUid.has(r.user_id)) return;
+        seenUid.add(r.user_id);
+        pool.push({ user_id: r.user_id, role: roleLabel(r.role), display_name: r.display_name });
+      });
+      // Resolve human names from members table at this club, fall back to display_name
+      const ids = pool.map(p => p.user_id);
+      let names = {};
+      if (ids.length) {
+        const { data: members } = await supabase
+          .from('members').select('user_id, name').eq('club_id', club.id).in('user_id', ids);
+        (members || []).forEach(m => { names[m.user_id] = m.name; });
+      }
+      if (cancelled) return;
+      setCandidates(pool.map(p => ({
+        ...p,
+        name: names[p.user_id] || p.display_name || `(${p.user_id.slice(0, 8)}…)`,
+      })).sort((a, b) => a.name.localeCompare(b.name)));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department.id, club?.id]);
+
+  const add = async (cand) => {
+    if (addingId) return;
+    setAddingId(cand.user_id); setErr(null);
+    const { error } = await supabase.from('user_departments').insert({
+      user_id: cand.user_id,
+      club_id: club.id,
+      department_id: department.id,
+    });
+    setAddingId(null);
+    if (error) { setErr(error.message); return; }
+    onAdded?.();
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 30 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>
+            Add staff to {department.name}
+          </h3>
+          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </div>
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 14px' }}>
+          Pick one or more people to add. They keep their existing role and any other department assignments.
+        </p>
+
+        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+        {loading ? (
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: '14px 0' }}>Loading…</p>
+        ) : candidates.length === 0 ? (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px' }}>
+            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+              Everyone with staff access at this club is already in <strong>{department.name}</strong>. Promote
+              more members to staff under <strong>People</strong> if you want more options here.
+            </p>
+          </div>
+        ) : (
+          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+            {candidates.map((c, i) => (
+              <div key={c.user_id} style={{
+                display: 'flex', alignItems: 'center', padding: '12px 14px',
+                borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+                gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>{c.name}</p>
+                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{c.role}</p>
+                </div>
+                <div
+                  onClick={() => add(c)}
+                  data-tap
+                  style={{ padding: '6px 12px', background: addingId === c.user_id ? G.border : G.green, borderRadius: 14, cursor: addingId ? 'wait' : 'pointer', opacity: addingId && addingId !== c.user_id ? 0.4 : 1, flexShrink: 0 }}
+                >
+                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 600 }}>
+                    {addingId === c.user_id ? 'Adding…' : 'Add'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
