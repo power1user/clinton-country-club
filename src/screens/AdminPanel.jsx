@@ -35,6 +35,7 @@ import Badge from '../components/Badge.jsx';
 import * as LucideIcons from 'lucide-react';
 import { useViewport } from '../hooks/useViewport.js';
 import { useAdminPreference } from '../hooks/useAdminPreference.js';
+import { MODAL_CLEANUP_IN_FLIGHT } from '../hooks/useModalBackClose.js';   // v0.15.23 — read in popstate handler to ignore modal-cleanup pops
 import AdminLayoutDesktop from './admin/AdminLayoutDesktop.jsx';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
@@ -454,12 +455,18 @@ export default function AdminPanel() {
   useEffect(() => {
     if (isDesktop) return;
     const onPop = () => {
-      // Modal hook handles its own popstate via the modalOpen sentinel.
-      // After the modal hook's cleanup pops, state.modalOpen would no
-      // longer be set, but the modal's popstate handler runs FIRST
-      // (added later in mount order). We just need to make sure we
-      // only unwind admin nav when (a) modal isn't active and (b) we
-      // actually have nav state to unwind.
+      // v0.15.23 — Two ways this admin handler must NOT react:
+      // (1) If the popstate is from a still-open modal popping itself
+      //     in response to a real user back gesture, the modal hook
+      //     handles the close; we don't unwind admin nav.
+      // (2) If a modal closed PROGRAMMATICALLY (Save / X / Cancel),
+      //     useModalBackClose calls history.back() to pop its marker.
+      //     That fires popstate too — but it's not a user gesture.
+      //     v0.15.17 was unwinding `sec` on this synthetic back, which
+      //     was the "after saving, mobile boots me to the section
+      //     list" bug. The MODAL_CLEANUP_IN_FLIGHT flag from the hook
+      //     tells us to bail.
+      if (MODAL_CLEANUP_IN_FLIGHT) return;
       if (window.history.state?.modalOpen) return;
       navPopRef.current = true;
       if (lastSecRef.current)        setSec(null);

@@ -164,6 +164,62 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.23** — Fix mobile back-button + save-kicks-out-of-admin regressions (the popstate handler conflict).
+
+  Marc reported three things after v0.15.22: (1) the notes dot didn't
+  appear on the People row after he "added a note"; (2) saving a member
+  edit on mobile booted him out of admin entirely; (3) the phone back
+  button — which v0.15.17 had fixed — had regressed.
+
+  All three trace back to a v0.15.17 design oversight in how the
+  modal-close hook (v0.15.15 `useModalBackClose`) and the admin-nav
+  history handler (v0.15.17 AdminPanel popstate) coordinate.
+
+  **The bug.** When a modal closes PROGRAMMATICALLY (Save / X / Cancel
+  button), `useModalBackClose`'s cleanup calls `window.history.back()`
+  to pop the marker entry it pushed on open. That history pop fires
+  `popstate` — which the AdminPanel handler v0.15.17 was interpreting
+  as a user back-gesture and using to unwind one nav level (clear
+  `sec`). So every Save on mobile was silently navigating the user up
+  from the section content to the section-list. On a mobile shell
+  with sliding screens, that read as "I'm out of admin."
+
+  This also explains the notes-dot complaint by extension: every modal
+  Save was disorienting, so Marc's instinct was to dismiss the modal
+  with the phone back button. But back-button on an open modal triggers
+  the modal's onClose (which discards unsaved form changes) — it does
+  NOT save. The note was typed and dropped.
+
+  **Fix (v0.15.23).** Module-level sentinel `MODAL_CLEANUP_IN_FLIGHT`
+  exported from `useModalBackClose.js`. The hook flips it to `true`
+  before calling `history.back()` in its programmatic-close path and
+  back to `false` on the next macrotask. AdminPanel's popstate handler
+  imports the sentinel and bails out early when it's set:
+
+  ```js
+  const onPop = () => {
+    if (MODAL_CLEANUP_IN_FLIGHT) return;  // ← new
+    if (window.history.state?.modalOpen) return;
+    navPopRef.current = true;
+    if (lastSecRef.current)        setSec(null);
+    else if (lastAreaRef.current)  setArea(null);
+  };
+  ```
+
+  ES module `let` exports update live on the import side, so this is
+  a clean cross-file signaling channel without a global window
+  variable. Self-clearing keeps it from poisoning subsequent real
+  back gestures.
+
+  **What was confirmed at the DB layer:** Direct UPDATE to
+  `members.notes` works perfectly — RLS allows, the column exists,
+  the audit triggers don't block. So once the modal-conflict is
+  fixed and Marc taps the **Save** button (not the back button) on
+  the People edit modal, the note will land and the dot will show
+  up on the People row.
+
+  No Edge Function or schema changes in this patch.
+
 - **v0.15.22** — File extraction round 1: NotificationsAdmin + NewsAdminFull out of sections.jsx.
 
   Following the audit recommendation + Marc's "do it incrementally while
