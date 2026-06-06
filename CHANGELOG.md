@@ -164,6 +164,39 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.22** — File extraction round 1: NotificationsAdmin + NewsAdminFull out of sections.jsx.
+
+  Following the audit recommendation + Marc's "do it incrementally while
+  we're testing" call. `sections.jsx` is 6,080-line "barrel" file holding
+  every admin section component. Each round of extraction pulls 1–2 of
+  the heaviest exports out into their own files, with sections.jsx
+  re-exporting so existing imports stay stable.
+
+  **This round:**
+  - `NotificationsAdmin` + its internal helpers (`urgencyColor`,
+    `ComposeNotificationModal`) → `src/screens/admin/NotificationsAdmin.jsx`
+    (155 lines, self-contained).
+  - `NewsAdminFull` + its internal helpers (`NEWS_CATEGORIES`,
+    `computeDefaultExpires`, `isoToDateInput`, `NewsEditor`) →
+    `src/screens/admin/NewsAdmin.jsx` (310 lines, self-contained).
+
+  **Impact:**
+  - `sections.jsx` 6,080 → 5,639 lines (−441).
+  - `sections.jsx` adds two `export { ... } from '...'` re-export lines
+    so existing `import { NotificationsAdmin, NewsAdminFull } from
+    './admin/sections.jsx'` callers work unchanged.
+  - Bundle output is byte-identical (admin chunk still 507 KB / 110 KB
+    gzipped) — Vite was already tree-shaking these correctly; the
+    refactor is pure file organization.
+  - Internal helpers stay private to the new files. Nothing external
+    was importing them anyway.
+
+  **Future rounds:** EventsAdmin (with EventEditor + recurrence helpers,
+  ~800 lines), MemberGuideAdmin (with MemberGuideEditor, ~650 lines),
+  FoodOrdersAdmin (~330 lines), FacilitiesAdmin (~190 lines), GuestList
+  + ClubhouseQR + GuestSettingsCard (~500 lines together as a Guest
+  block). Pick them off as we touch each surface.
+
 - **v0.15.21** — Code-split admin from member bundle.
 
   AdminPanel + every admin-only screen it pulls in (sections.jsx,
