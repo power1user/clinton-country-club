@@ -546,6 +546,15 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   const [loadVersion, setLoadVersion] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
 
+  // v0.15.13 — Departments. Manager-only edit; visible only when the
+  // person is staff at this club (departments are a staff-routing
+  // concept). When the person isn't staff yet, the section is hidden
+  // entirely — promote them via Actions first, then assign departments.
+  const [allDepartments, setAllDepartments]         = useState([]);  // catalog at this club
+  const [assignedDeptIds, setAssignedDeptIds]       = useState(new Set());
+  const [deptBusy, setDeptBusy]                     = useState(false);
+  const showDepartments = isManager && !isAdd && !!person?.auth_user_id && person?.is_staff;
+
   // Clearing the field's error as the user types kills the red text the
   // moment they fix it; otherwise it lingers until they hit Save again.
   const set = (k, v) => {
@@ -626,6 +635,69 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     })();
     return () => { cancelled = true; };
   }, [showAuditSection, club?.id, person?.auth_user_id, loadVersion]);
+
+  // v0.15.13 — Load department catalog + this person's assignments.
+  // Two parallel queries, set both states atomically when ready.
+  useEffect(() => {
+    if (!showDepartments || !club?.id) {
+      setAllDepartments([]);
+      setAssignedDeptIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [allRes, mineRes] = await Promise.all([
+        supabase.from('club_departments')
+          .select('id, name, slug, sort_order')
+          .eq('club_id', club.id)
+          .order('sort_order', { ascending: true }),
+        supabase.from('user_departments')
+          .select('department_id')
+          .eq('club_id', club.id)
+          .eq('user_id', person.auth_user_id),
+      ]);
+      if (cancelled) return;
+      setAllDepartments(allRes.data || []);
+      setAssignedDeptIds(new Set((mineRes.data || []).map(r => r.department_id)));
+    })();
+    return () => { cancelled = true; };
+  }, [showDepartments, club?.id, person?.auth_user_id, loadVersion]);
+
+  // v0.15.13 — Toggle a department assignment with optimistic UI.
+  // Avoids a full reload — we just patch the Set on success and roll
+  // it back on error. Realtime listeners on the parent list will
+  // pick up the change for downstream views.
+  const toggleDepartment = async (dep) => {
+    if (deptBusy) return;
+    const has = assignedDeptIds.has(dep.id);
+    setDeptBusy(true);
+    // Optimistic
+    setAssignedDeptIds(prev => {
+      const next = new Set(prev);
+      if (has) next.delete(dep.id); else next.add(dep.id);
+      return next;
+    });
+    const { error } = has
+      ? await supabase.from('user_departments').delete()
+          .eq('user_id', person.auth_user_id)
+          .eq('club_id', club.id)
+          .eq('department_id', dep.id)
+      : await supabase.from('user_departments').insert({
+          user_id: person.auth_user_id,
+          club_id: club.id,
+          department_id: dep.id,
+        });
+    setDeptBusy(false);
+    if (error) {
+      // Roll back the optimistic update
+      setAssignedDeptIds(prev => {
+        const next = new Set(prev);
+        if (has) next.add(dep.id); else next.delete(dep.id);
+        return next;
+      });
+      setErr(`Couldn't ${has ? 'remove' : 'add'} department: ${error.message}`);
+    }
+  };
 
   // v0.15.8 — Removed the v0.15.7 auto-focus useEffect. On mobile the
   // soft keyboard slid up immediately when the editor opened, blocking
@@ -1051,6 +1123,69 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
             </>
           );
         })()}
+
+        {/* v0.15.13 — Departments. Multi-select chip row; click a chip to
+            toggle assignment. Only renders for current staff (gate up
+            top). Empty-catalog state surfaces a link hint pointing the
+            manager at the new Departments admin section. */}
+        {showDepartments && (
+          <>
+            <SectionLabel>Departments</SectionLabel>
+            {allDepartments.length === 0 ? (
+              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '12px 14px' }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+                  No departments defined yet at this club. Set them up under{' '}
+                  <strong>People &rarr; Departments</strong> first; staff can then be assigned here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {allDepartments.map(dep => {
+                    const on = assignedDeptIds.has(dep.id);
+                    return (
+                      <div
+                        key={dep.id}
+                        onClick={() => toggleDepartment(dep)}
+                        data-tap
+                        title={dep.slug}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 14,
+                          background: on ? G.green : 'transparent',
+                          border: `1px solid ${on ? G.green : G.border}`,
+                          cursor: deptBusy ? 'wait' : 'pointer',
+                          opacity: deptBusy ? 0.6 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {on && (
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                        <span style={{
+                          fontFamily: '"Lora",serif',
+                          fontSize: 12,
+                          color: on ? '#F2EDE0' : G.text,
+                          fontWeight: on ? 600 : 400,
+                        }}>
+                          {dep.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', fontStyle: 'italic' }}>
+                  Clubhouse pushes are routed by topic &rarr; department. See{' '}
+                  <strong>Club Settings &rarr; Clubhouse Topic Routing</strong>.
+                </p>
+              </div>
+            )}
+          </>
+        )}
 
         {!isAdd && isSuperAdmin && (kind === 'member' ? memberId : guestId) && (
           <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>

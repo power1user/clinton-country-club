@@ -164,6 +164,69 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.13** — Phase 17: department-based clubhouse notification routing.
+
+  Marc's call after the v0.15.12 fix verified push fan-out worked: instead
+  of "all staff get every clubhouse ping", let the manager define
+  **departments** at the club (Dining, Pro Shop, Course, Front Desk by
+  default), assign staff to one or more, and route each clubhouse topic
+  to the relevant department(s). Set it up right at the start of the
+  multi-tenant scale-out rather than bolting it on later.
+
+  **Schema (migration \`phase17_departments_and_clubhouse_routing\`):**
+  - \`club_departments(id, club_id, name, slug, sort_order, ...)\` — per-club
+    catalog of named departments.
+  - \`user_departments(user_id, club_id, department_id)\` junction —
+    many-to-many between staff and departments.
+  - \`clubs.clubhouse_topic_routing\` jsonb — \`{ "Topic Name": ["dept-slug", ...] }\`.
+  - RLS: staff can read their club's departments + assignments; manager
+    can write.
+  - **Backfill:** every existing club gets the 4 default departments;
+    every existing \`club_manager\` / \`club_admin\` is auto-assigned to all
+    of them so day-one routing doesn't drop messages.
+  - **Default routing:** Pro Shop → Pro Shop, Restaurant → Dining,
+    Tee Times → Pro Shop, Course → Course, General → Front Desk.
+
+  **Admin UI (3 new surfaces):**
+  - **People → Departments** (manager-only) — list, add, rename, delete,
+    reorder. Each row shows assigned-member count.
+  - **PersonEditModal → Departments section** — multi-select chip row,
+    visible only for staff. Optimistic toggle, rolls back on error. Empty
+    state links to People → Departments if no catalog exists yet.
+  - **Club Settings → Clubhouse Topic Routing** — per-topic chip
+    multi-select against the department catalog. Includes a "Preview
+    routing" button that runs the same recipient resolution send-push
+    will do, without sending — shows the would-be push list. (Marc's
+    smoke-test affordance.)
+
+  **send-push v20:**
+  - Clubhouse branch in \`handleThreadMessage\` rewritten: resolves
+    \`routing[subject]\` → dept slugs → \`user_departments\` → user_ids.
+    Always unions with thread participants + super_admins. Falls back
+    to "all staff at the club" if routing is unset OR resolves to zero
+    new users (better noisy than silent).
+  - Response JSON now includes \`routing_mode\`:
+    - \`"departments"\` — routed via configured dept mapping
+    - \`"fallback_all_staff_no_routing"\` — topic not in routing map
+    - \`"fallback_all_staff_empty_dept"\` — mapping exists but no staff
+      assigned, fell back
+  - Title format unchanged from v19: \`{club} · {sender} · {topic}\`.
+  - \`?diag=1\` reports \`version: 20\`.
+
+  **Deploy:**
+  - Migration applied to project \`exddcpqfdkyxommkslag\` via Supabase MCP.
+  - send-push v20 deployed via MCP. Verified live (\`{"version": 20, "vapidOk": true}\`).
+  - App ships via the normal git push → Cloudflare Workers auto-deploy.
+
+  **Test plan after deploy** (per Marc's explicit ask — smoke-test every
+  topic before declaring this done):
+  - Open **Club Settings → Clubhouse Topic Routing** and use "Preview
+    routing" on each of the 5 topics. Confirm the recipient list looks
+    right for the configured mapping.
+  - From a member account, message the clubhouse on each topic. Confirm
+    a push arrives on the right person's device — and NOT on people in
+    other departments (excluding super_admins, who always get everything).
+
 - **v0.15.12** — Fix Message Clubhouse: silent-send hang + no-push-to-admin.
 
   Two bugs Marc reported on the member-side **Message Clubhouse** flow.

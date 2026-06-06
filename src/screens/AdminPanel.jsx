@@ -23,6 +23,8 @@ import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
 // per-person fields in people table; per-club relations stay
 // in members/guests/user_roles).
 import AllPeopleAdmin from './admin/AllPeopleAdmin.jsx';
+import DepartmentsAdmin from './admin/DepartmentsAdmin.jsx';
+import ClubhouseRoutingAdmin from './admin/ClubhouseRoutingAdmin.jsx';
 // v0.14.9 — Floating Admin AI bubble for the MOBILE shell. Desktop
 // gets its own mount inside AdminLayoutDesktop.
 import AdminAIBubble from '../components/AdminAIBubble.jsx';
@@ -216,6 +218,11 @@ const AREAS = [
       // v0.9.20: renamed to clarify this is settings + QR, not the
       // guest list (which now lives in the Directory card above).
       { id: 'guests',      permKey: 'can_manage_members', l: 'Guest Settings & QR', d: 'Access rules, expiration, clubhouse QR code',        icon: IconPeople, managerOnly: true },
+      // v0.15.13 — Phase 17 (departments). Named departments per club
+      // (Dining, Pro Shop, Course, Front Desk by default). Staff assign
+      // to one or more; clubhouse pushes route via the topic→department
+      // map under Club Settings. Manager-only.
+      { id: 'departments', permKey: 'can_manage_staff',   l: 'Departments',       d: 'Name the staff groups that receive routed notifications', icon: IconShield, managerOnly: true },
       { id: 'staff',       permKey: 'can_manage_staff',   l: 'Manage Staff',      d: 'Roles + permissions (admin / manager / super)',        icon: IconShield, managerOnly: true },
     ],
   },
@@ -238,6 +245,11 @@ const AREAS = [
       // resolve from this list.
       { id: 'facilities',    permKey: 'can_edit_course_status', l: 'Facilities',        d: 'Rename, reorder, add/remove facilities',                 icon: IconCog,      managerOnly: true },
       { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,      managerOnly: true },
+      // v0.15.13 — Phase 17 (departments). Each clubhouse topic routes
+      // to one or more departments; staff in those depts get the push.
+      // Lives under Club Settings because it's a per-club config decision,
+      // not a per-person decision (those live under People).
+      { id: 'clubhouseRouting',                          l: 'Clubhouse Topic Routing', d: 'Which departments get notified per topic',  icon: IconBell,    managerOnly: true },
       // v0.9.2: Facility configuration moved here from Golf Course.
       // Weekly hours / dawn / dusk / members_only / one-off date
       // overrides are setup decisions a manager makes once, not
@@ -304,6 +316,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'lessonpros'     && <LessonProsAdmin />}
       {sec === 'people_all'     && <PeopleAdmin club={club} />}
       {sec === 'people_unified' && <AllPeopleAdmin />}
+      {sec === 'departments'    && isManager && <DepartmentsAdmin club={club} />}
       {sec === 'badges'         && <BadgesAdmin club={club} />}
       {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
       {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
@@ -316,6 +329,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
       {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
       {sec === 'features'       && isManager && <FeaturesAdmin />}
+      {sec === 'clubhouseRouting' && isManager && <ClubhouseRoutingAdmin club={club} />}
       {sec === 'guests'         && isManager && <GuestManagementAdmin />}
       {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
       {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}

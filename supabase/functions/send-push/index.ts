@@ -1,4 +1,4 @@
-// send-push v19 — fan-out Web Push for thread messages, admin
+// send-push v20 — fan-out Web Push for thread messages, admin
 // broadcasts, AND support tickets.
 //
 // History:
@@ -7,25 +7,32 @@
 //   · v8 (v0.12.7)  — order-thread recipient resolution (skip sender filter)
 //   · v9 (v0.13.2)  — support_messages branch
 //   · v19 (v0.15.12) — clubhouse threads fan out to club staff
+//   · v20 (v0.15.13) — clubhouse threads route by topic → departments → users
 //
-// v19 fix (the bug Marc reported in v0.15.11): a clubhouse thread has
-// exactly ONE participant when the member first creates it — themselves.
-// `handleThreadMessage` was excluding the sender from `thread_participants`
-// (correct) and then returning `{sent: 0, reason: "no recipients"}` because
-// the only participant WAS the sender. Result: staff never got pushed about
-// a new member-initiated clubhouse thread until they happened to open the
-// admin Communications inbox and reply (which finally added them to
-// thread_participants). This is the "missing trigger when adding a new push
-// surface" gotcha from the web-push skill — clubhouse needs its own
-// recipient-resolution rule, not the default participants fallback.
+// v20 — Phase 17 department-based routing for clubhouse.
 //
-// v19 resolution rule for clubhouse:
-//   recipients = thread_participants ∪ all staff at thread.club_id, minus sender
-// Staff = user_roles rows where club_id = thread.club_id and role in
-// ('club_manager', 'club_admin') PLUS every super_admin (club_id IS NULL).
-// Union dedupes if the sender is somehow both. Sender-exclusion still applies.
+// Before v20, every clubhouse message pushed to every staff member at
+// the club (v19). That doesn't scale once a club has 30 people on
+// staff — the kitchen doesn't need every Pro Shop ping. v20 reads the
+// new `clubs.clubhouse_topic_routing` jsonb mapping (topic → dept
+// slugs[]), resolves those slugs to department rows for the club,
+// joins `user_departments` to get the assigned staff, and fans out
+// only to that subset.
 //
-// v19 dispatch: branches on payload.table:
+// Resolution rule for clubhouse (v20):
+//   1. Look up clubs.clubhouse_topic_routing[thread.subject] → string[] of dept slugs
+//   2. If unset or [] → fallback: all club_manager + club_admin staff (the v19 path)
+//   3. Otherwise: club_departments by (club_id, slug) → ids → user_departments → user_ids
+//   4. Always union with super_admins (club_id IS NULL)
+//   5. Always union with existing thread_participants (so a member<->staff
+//      back-and-forth keeps working even if the member isn't in any dept)
+//   6. Sender exclusion as final filter
+//
+// Response shape adds `routing_mode: 'departments' | 'fallback_all_staff'`
+// so the smoke-test preview tool + Edge Function logs can see which
+// path fired without instrumenting per-call.
+//
+// v20 dispatch: branches on payload.table:
 //   · 'notifications' / 'notification_messages' → handleBroadcast
 //   · 'support_messages'                       → handleSupportTicket
 //   · (anything else / messages)               → handleThreadMessage
@@ -91,15 +98,17 @@ async function fanOut(subs: any[], payloadStr: string, ttlSeconds: number) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Thread messages — v19 (adds clubhouse → staff fan-out)
+// Thread messages — v20 (adds clubhouse → topic → departments routing)
 // ══════════════════════════════════════════════════════════════════════
 async function handleThreadMessage(msg: any) {
   if (!msg?.thread_id || !msg?.body) {
     return new Response(JSON.stringify({ ok: false, error: "missing fields", got: msg ? Object.keys(msg) : null }), { status: 400, headers: { "content-type": "application/json" } });
   }
+  // v20 — also pull clubhouse_topic_routing so the clubhouse branch
+  // below has the topic → dept slugs map in hand.
   const { data: thread } = await supabase
     .from("threads")
-    .select("id, kind, subject, club_id, created_by, clubs(name)")
+    .select("id, kind, subject, club_id, created_by, clubs(name, clubhouse_topic_routing)")
     .eq("id", msg.thread_id)
     .single();
   if (!thread) return new Response(JSON.stringify({ ok: false, error: "thread not found", thread_id: msg.thread_id }), { status: 404, headers: { "content-type": "application/json" } });
@@ -115,40 +124,76 @@ async function handleThreadMessage(msg: any) {
     senderName = senderRow?.name || null;
   }
 
-  // v19 — recipient resolution by thread kind.
+  // v20 — recipient resolution by thread kind.
   //
-  // ORDER: customer-only push (skip participant lookup entirely). Use
-  // thread.created_by since the order's customer is the thread creator
-  // and that field is stable.
+  // ORDER: customer-only push (skip participant lookup entirely).
   //
-  // CLUBHOUSE: union of (existing thread_participants) ∪ (all staff at
-  // thread.club_id) ∪ (every super_admin). Why union: when a member
-  // starts a new clubhouse thread, they're the only participant —
-  // pushing only to participants (minus sender) gives zero recipients.
-  // After staff replies, they're added to participants, but the FIRST
-  // message would still miss them without the staff fan-out. The union
-  // also covers the reverse case: when staff replies, every other
-  // participant (the member) gets pushed via the participants leg, and
-  // other staff who haven't joined the thread yet get pushed via the
-  // staff leg. Sender-exclusion still applies as a final filter so we
-  // never push a sender back to themselves.
+  // CLUBHOUSE: department-based routing per topic.
+  //   1. routing[subject] = ["dept-slug", ...]
+  //   2. If unset OR empty → fallback to all club_manager+club_admin staff
+  //   3. Otherwise resolve slugs → dept ids → user_departments → user_ids
+  //   4. Always union with super_admins + existing thread_participants
+  //   5. Sender exclusion as final filter
+  // Tracks `routingMode` so callers can tell which path fired (visible
+  // in the response JSON + Edge Function logs).
   //
-  // DM and everything else: participants minus sender (existing behavior).
+  // DM and everything else: participants minus sender.
   let recipientUserIds: string[] = [];
+  let routingMode: string | null = null;
   const clubId = (thread as any).club_id;
 
   if (thread.kind === "order") {
     if ((thread as any).created_by) recipientUserIds = [(thread as any).created_by];
   } else if (thread.kind === "clubhouse" && clubId) {
-    const [{ data: participants }, { data: staff }, { data: supers }] = await Promise.all([
-      supabase.from("thread_participants").select("user_id").eq("thread_id", msg.thread_id),
-      supabase.from("user_roles").select("user_id").eq("club_id", clubId).in("role", ["club_manager", "club_admin"]),
-      supabase.from("user_roles").select("user_id").eq("role", "super_admin").is("club_id", null),
-    ]);
+    const routing = (thread as any).clubs?.clubhouse_topic_routing || {};
+    const topic = thread.subject || "";
+    const mappedSlugs: string[] = Array.isArray(routing[topic]) ? routing[topic] : [];
+
     const ids = new Set<string>();
+
+    // Always: thread participants (so back-and-forth keeps working).
+    const { data: participants } = await supabase
+      .from("thread_participants").select("user_id")
+      .eq("thread_id", msg.thread_id);
     (participants || []).forEach((p: any) => { if (p.user_id) ids.add(p.user_id); });
-    (staff || []).forEach((s: any) => { if (s.user_id) ids.add(s.user_id); });
+
+    // Always: super_admins.
+    const { data: supers } = await supabase
+      .from("user_roles").select("user_id")
+      .eq("role", "super_admin").is("club_id", null);
     (supers || []).forEach((s: any) => { if (s.user_id) ids.add(s.user_id); });
+
+    let routedCount = 0;
+    if (mappedSlugs.length > 0) {
+      // Resolve slugs → dept ids → user_ids in two queries.
+      const { data: depts } = await supabase
+        .from("club_departments").select("id")
+        .eq("club_id", clubId).in("slug", mappedSlugs);
+      const deptIds = (depts || []).map((d: any) => d.id);
+      if (deptIds.length > 0) {
+        const { data: assigned } = await supabase
+          .from("user_departments").select("user_id")
+          .eq("club_id", clubId).in("department_id", deptIds);
+        (assigned || []).forEach((a: any) => {
+          if (a.user_id) { ids.add(a.user_id); routedCount++; }
+        });
+      }
+      routingMode = routedCount > 0 ? "departments" : "fallback_all_staff_empty_dept";
+    } else {
+      routingMode = "fallback_all_staff_no_routing";
+    }
+
+    // Fallback path: if department routing resolved zero NEW users
+    // beyond participants+supers, OR if there's no routing for the
+    // topic, push to all club_manager+club_admin staff so nothing
+    // silently drops. Better noisy than missed.
+    if (routingMode !== "departments") {
+      const { data: staff } = await supabase
+        .from("user_roles").select("user_id")
+        .eq("club_id", clubId).in("role", ["club_manager", "club_admin"]);
+      (staff || []).forEach((s: any) => { if (s.user_id) ids.add(s.user_id); });
+    }
+
     recipientUserIds = Array.from(ids).filter((uid) => uid !== msg.sender_user_id);
   } else {
     const { data: participants } = await supabase
@@ -159,14 +204,14 @@ async function handleThreadMessage(msg: any) {
   }
 
   if (recipientUserIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, reason: "no recipients", kind: thread.kind }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ sent: 0, reason: "no recipients", kind: thread.kind, routing_mode: routingMode }), { headers: { "content-type": "application/json" } });
   }
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("id, user_id, endpoint, p256dh, auth")
     .in("user_id", recipientUserIds);
   if (!subs || subs.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions", recipient_count: recipientUserIds.length, kind: thread.kind }), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ sent: 0, reason: "no subscriptions", recipient_count: recipientUserIds.length, kind: thread.kind, routing_mode: routingMode }), { headers: { "content-type": "application/json" } });
   }
   const clubName = (thread as any).clubs?.name || "Your club";
   let title: string;
@@ -187,7 +232,7 @@ async function handleThreadMessage(msg: any) {
   const notification = { title, body: bodyPreview, data: { threadId: thread.id, kind: thread.kind, url: "/" } };
   const payloadStr = JSON.stringify(notification);
   const result = await fanOut(subs, payloadStr, 4 * 60 * 60);
-  return new Response(JSON.stringify({ ...result, kind: thread.kind, recipient_count: recipientUserIds.length }), { headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ ...result, kind: thread.kind, recipient_count: recipientUserIds.length, routing_mode: routingMode }), { headers: { "content-type": "application/json" } });
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -278,7 +323,7 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   if (url.searchParams.get("diag") === "1") {
     return new Response(JSON.stringify({
-      version: 19,
+      version: 20,
       vapidOk, vapidErr, vapidDiag,
       hasSupabaseUrl: !!SUPABASE_URL,
       hasServiceKey: !!SERVICE_KEY,
