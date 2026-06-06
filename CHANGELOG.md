@@ -164,6 +164,48 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.19** — Bidirectional sync: people ↔ members + people ↔ guests. + members.phone column.
+
+  Audit response, round 2 — the schema-drift CRITICAL item. Pure option
+  (a) from the audit (drop name/email/phone/zip from members+guests +
+  refactor every read to JOIN through people) is ~4–8 hours of mechanical
+  refactoring touching ~30 files; the regression risk is real. v0.15.19
+  ships the safer hybrid (a'): triggers that mirror writes bidirectionally.
+  Drift is impossible from this point on regardless of which side gets
+  the write. The "drop the duplicate columns" cleanup is deferred to a
+  future v0.15.2X patch (tracked).
+
+  **Migration `v0_15_19_people_bidirectional_sync_triggers`:**
+  - **Latent bug fix.** Added \`members.phone\` column — v0.15.16
+    surfaced a Phone input on the member edit form but never created
+    the column. The save path had been silently dropping phone for
+    member edits since v0.15.16. (Caught while writing the sync
+    trigger which references it.)
+  - Three new triggers:
+    - \`trg_mirror_member_to_people\` — AFTER INSERT OR UPDATE OF
+      name/email/phone/user_id on members. If user_id is set, mirrors
+      to the matching people row.
+    - \`trg_mirror_guest_to_people\` — same pattern with zip added.
+    - \`trg_mirror_people_to_member_guest\` — AFTER UPDATE OF
+      name/email/phone/zip on people, mirrors to every matching
+      members AND guests row.
+  - **Recursion guard.** A transaction-local GUC \`app.suppress_sync\`
+    is set ON before each cross-table UPDATE and OFF after. The
+    reciprocal trigger checks it on the second leg and bails out.
+    \`set_config(..., true)\` scopes the setting to the transaction
+    so it doesn't leak across sessions.
+  - Pre-signup members (\`members.user_id IS NULL\`) don't sync — no
+    people row to target. The existing Phase 16 magic-link link
+    handles people-row creation on first sign-in.
+  - All five lifecycle RPCs (change_member_status etc.) continue to
+    work as before — they call log_people_event but don't touch
+    name/email/phone/zip, so the sync triggers don't fire from them.
+
+  **Deferred to v0.15.2X (logged):** drop the duplicate columns from
+  members + guests and refactor all reads to JOIN through people.
+  Hold this until the sync triggers have been stable in production
+  for a while.
+
 - **v0.15.18** — Post-audit cleanup: 4 CRITICAL DB safeguards + form-style dedup + dead-code purge + notes dot on People row.
 
   Round 1 of the post-audit response. The remaining CRITICAL item from
