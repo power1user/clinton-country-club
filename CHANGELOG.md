@@ -164,6 +164,90 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.16** — PersonEditModal redesign: identity strip + clickable status/role pills + Notes + photo upload + audit reasons.
+
+  This is the big "re-imagine the edit card" patch Marc asked for. Direction
+  C (status + role as clickable pills at top, each opening a sub-modal with
+  confirm + reason) plus all four extras (identity strip, photo upload,
+  notes field, group-by-frequency).
+
+  **Schema** (migration `v0_15_16_notes_columns_and_reason_param`):
+  - `members.notes` + `guests.notes` text columns — staff-only working
+    pad for "snowbird, away Dec–Mar" / "wedding guest, Saturday only"
+    style notes. RLS unchanged (staff read+write).
+  - All five lifecycle RPCs grew an optional `p_reason text DEFAULT NULL`
+    parameter: `change_member_status`, `promote_member_to_staff`,
+    `demote_staff_to_member`, `demote_member_to_guest`,
+    `convert_guest_to_member`. The reason gets folded into the
+    `people_audit_log.metadata` jsonb via `jsonb_strip_nulls` so empty
+    reasons don't pollute the log. Surfaces in the Activity History
+    section already-built in v0.15.9 — the audit trail now captures
+    the *why*.
+
+  **PersonEditModal identity strip (top of the card):**
+  - 72px avatar — initials fallback + brass camera badge when uploadable.
+    Clicking the avatar opens a file picker, resizes/compresses
+    client-side (~800px max edge, JPEG q=0.85), uploads to
+    `club-assets/{club_id}/members/{user_id}/avatar-{ts}.jpg`, writes
+    `photo_url` to members. Manager + member-mode only.
+  - Bold name (Playfair, 19px).
+  - Sub-line: `#{member_number} · joined {year} · last seen {when}`
+    — pulled from the data we already had, just surfaced.
+  - **Status pill** (Active green / Pending amber / Inactive grey,
+    color-coded). Clickable for managers → opens the status-change
+    sub-modal.
+  - **Role pill** (Member / Guest / Admin / Manager / Super Admin).
+    Clickable for managers → opens the role-change sub-modal.
+  - The phone X button moved up next to the name to balance the
+    visual weight of the avatar.
+
+  **Status-change sub-modal (`PersonPillModals.StatusChangeModal`):**
+  - Lists Active / Pending / Inactive with a one-line consequence each.
+  - Radio-style selection, current status disabled and marked.
+  - Optional "Reason (audited)" textarea.
+  - Explicit "Apply: {status}" Confirm button — the v0.15.10 one-tap
+    misfire hazard is gone.
+
+  **Role-change sub-modal (`PersonPillModals.RoleChangeModal`):**
+  - Builds the list of legal transitions based on current role × the
+    acting user's manager scope:
+    - Guest only → Convert to Member
+    - Member, non-staff → Promote to Admin / Promote to Manager
+      (manager-only) / Demote to Guest
+    - Admin → Promote → Manager (mgr-only) / Remove staff role
+    - Manager → Demote → Admin (mgr-only) / Remove staff role
+  - Each option color-coded by tone (safe/caution/danger) and labeled
+    with the consequence in plain English.
+  - Same audit-reason field + explicit Confirm.
+  - Calls the existing RPCs with the new `p_reason` parameter.
+  - "No transitions available" empty state for non-manager viewers.
+
+  **Form restructure** (Direction C's grouping):
+  - Identity section: name *, member # *, **tier** (moved up — frequently
+    edited), email, phone (new field surfaced).
+  - Membership section: member_since.
+  - Status dropdown REMOVED — lives in the pill at top.
+  - "▸ More details" expander, collapsed by default: handicap, locker,
+    cart, parking (rarely edited day-to-day).
+  - **Notes (staff-only)**: textarea writing to `members.notes` /
+    `guests.notes`.
+
+  **Old Actions section retired** — all those flat tap rows
+  (Promote / Demote / Mark Status / Remove Staff) are now reached
+  through the identity-strip pills with proper confirms. The
+  `actChangeStatus` / `actPromote` / etc. handlers are deliberately
+  kept in place for now (dead code, no runtime impact) so a future
+  patch can clean them up alongside any remaining references.
+
+  **Mobile + desktop responsive:**
+  - All sub-modals use the same bottom-sheet pattern (max-height 92%,
+    overflow-y auto) as the parent.
+  - Identity strip uses flex-wrap on the pills so they stack neatly
+    on narrow phone widths and sit inline on wider.
+  - Avatar size + spacing scale via existing CSS rather than
+    media-queries — works at both 390px phone-frame and the full
+    desktop admin width.
+
 - **v0.15.15** — Two concrete fixes from Marc's first-pass departments feedback.
 
   **1. Add Staff button inside the Department Detail modal.** Before

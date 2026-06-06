@@ -20,6 +20,10 @@ import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useModalBackClose } from '../../hooks/useModalBackClose.js';
+import {
+  StatusPill, RolePill, StatusChangeModal, RoleChangeModal,
+  STATUS_COLOR, ROLE_COLOR,
+} from './PersonPillModals.jsx';
 
 // ── Form helpers (kept inline so this file is self-contained
 //    after we delete the old MembersAdmin in AdminPanel.jsx). ──
@@ -551,6 +555,16 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   const [loadVersion, setLoadVersion] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
 
+  // v0.15.16 — Status / Role pill sub-modals + the "More details"
+  // collapsible (closed by default to declutter the form).
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showRoleModal, setShowRoleModal]     = useState(false);
+  const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
+  // v0.15.16 — Avatar photo upload. busy state lights up the avatar
+  // ring while uploading; err surfaces below the strip on failure.
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoUrlOverride, setPhotoUrlOverride] = useState(null); // optimistic preview
+
   // v0.15.13 — Departments. Manager-only edit; visible only when the
   // person is staff at this club (departments are a staff-routing
   // concept). When the person isn't staff yet, the section is hidden
@@ -573,14 +587,17 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     let cancelled = false;
     const load = async () => {
       setLoadingRow(true);
+      // v0.15.16 — also pull `phone` (now surfaced on Identity row) and
+      // `notes` (new free-form staff-only column added in migration
+      // v0_15_16_notes_columns_and_reason_param).
       const memberQ = person.is_member
         ? supabase.from('members')
-            .select('id, name, membership_number, email, tier, member_since, hcp, locker, cart, parking, status, photo_url')
+            .select('id, name, membership_number, email, phone, tier, member_since, hcp, locker, cart, parking, status, photo_url, notes')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id).maybeSingle()
         : Promise.resolve({ data: null });
       const guestQ = person.is_guest
         ? supabase.from('guests')
-            .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at')
+            .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, notes')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id)
             .order('created_at', { ascending: false }).limit(1)
         : Promise.resolve({ data: [] });
@@ -753,6 +770,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
         name: form.name.trim(),
         membership_number: form.membership_number.trim(),
         email: form.email.trim() || null,
+        phone: (form.phone || '').trim() || null,
         tier: form.tier || null,
         member_since: form.member_since || null,
         hcp: form.hcp || null,
@@ -760,6 +778,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
         cart: form.cart || null,
         parking: form.parking || null,
         status: form.status,
+        notes: (form.notes || '').trim() || null,
       };
       const { error } = isAdd
         ? await supabase.from('members').insert(row)
@@ -778,6 +797,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
         status:       form.status       || 'active',
         visit_date:   form.visit_date   || new Date().toISOString().slice(0, 10),
         expires_at:   form.expires_at   || null,
+        notes:        (form.notes || '').trim() || null,
       };
       const { error } = isAdd
         ? await supabase.from('guests').insert(row)
@@ -884,17 +904,153 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     errPrefix: "Couldn't remove staff role",
   });
 
+  // v0.15.16 — Photo upload from the avatar click. Mirrors the
+  // ProfilePhotoCard pattern (resize + compress + upload to club-assets
+  // + update members.photo_url). Storage RLS allows any club staff to
+  // write under `{club_id}/...` so admins can upload photos for their
+  // members. Only fires for member edit mode (not add, not guests).
+  const handlePhotoUpload = async (file) => {
+    if (!file || photoBusy || kind !== 'member' || !memberId || !person?.auth_user_id) return;
+    setPhotoBusy(true); setErr(null);
+    try {
+      // Resize to ~800px max edge, JPEG q=0.85.
+      const img = await createImageBitmap(file);
+      const ratio = Math.min(800 / img.width, 800 / img.height, 1);
+      const w = Math.max(1, Math.round(img.width  * ratio));
+      const h = Math.max(1, Math.round(img.height * ratio));
+      let blob;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        const off = new OffscreenCanvas(w, h);
+        off.getContext('2d').drawImage(img, 0, 0, w, h);
+        blob = await off.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+      } else {
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      }
+      img.close?.();
+
+      // Path uses the TARGET user's id (not auth.uid()) — storage RLS
+      // `club_assets_staff_insert` permits any club staff to write
+      // anywhere under their club's folder.
+      const folder = `${club.id}/members/${person.auth_user_id}`;
+      const path   = `${folder}/avatar-${Date.now()}.jpg`;
+
+      // Best-effort cleanup of old files.
+      try {
+        const { data: existing } = await supabase.storage.from('club-assets').list(folder, { limit: 50 });
+        if (existing?.length) {
+          await supabase.storage.from('club-assets').remove(existing.map(f => `${folder}/${f.name}`));
+        }
+      } catch {/* non-fatal */}
+
+      const { error: upErr } = await supabase.storage.from('club-assets')
+        .upload(path, blob, { cacheControl: '3600', contentType: 'image/jpeg' });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
+      const url = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: dbErr } = await supabase.from('members')
+        .update({ photo_url: url })
+        .eq('id', memberId);
+      if (dbErr) throw dbErr;
+
+      setPhotoUrlOverride(url);
+      setMemberRow(prev => prev ? { ...prev, photo_url: url } : prev);
+      if (onActionComplete) await onActionComplete();
+    } catch (e) {
+      setErr(e?.message || "Couldn't upload photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const title = isAdd
     ? (kind === 'member' ? 'Add Member' : 'Add Guest')
     : (kind === 'member' ? 'Edit Member' : 'Edit Guest');
 
+  // v0.15.16 — Identity-strip values. Photo from memberRow or overridden
+  // by an in-progress upload. Pills use the live form values (so they
+  // update if a sub-modal applies a change and the parent reloads).
+  const photoUrl = photoUrlOverride
+                 ?? memberRow?.photo_url
+                 ?? person?.photo_url
+                 ?? null;
+  const displayName  = (form.name || person?.name || '').trim() || 'Unnamed';
+  const memberNumberStr = form.membership_number ? `#${form.membership_number}` : null;
+  const joinedStr = (form.member_since && form.member_since.length === 4) ? `joined ${form.member_since}` : null;
+  const lastSeenStr = formatLastSeen(person?.last_seen_at);
+  const subline = [memberNumberStr, joinedStr, lastSeenStr && `last seen ${lastSeenStr}`].filter(Boolean).join(' · ');
+
+  // Pill values:
+  //   Status — only meaningful when we have a member record loaded
+  //   Role — derived from staff_role / is_staff / is_guest
+  const statusForPill = kind === 'member' ? (memberRow?.status || form.status) : (guestRow?.status || form.status);
+  const roleForPill = person?.is_staff
+    ? (person.staff_role === 'club_manager' ? 'club_manager' : 'club_admin')
+    : person?.is_member ? 'member'
+    : person?.is_guest  ? 'guest'
+    : null;
+
+  const initials = (displayName || '?').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase();
+  const canEditStatus = isManager && kind === 'member' && !isAdd && memberId;
+  const canEditRole   = isManager && !isAdd && !!person?.auth_user_id;
+  const canUploadPhoto = isManager && kind === 'member' && !isAdd && memberId && person?.auth_user_id;
+
   return (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{title}</h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+
+        {/* v0.15.16 — Identity strip. Replaces the v0.15.6 "Edit Member"
+            title bar with an info-dense top section:
+              avatar (clickable for photo upload, manager+member only)
+              + name (big)
+              + meta sub-line (member # · joined Y · last seen)
+              + status pill (clickable → change)
+              + role pill (clickable → change)
+            On narrow widths the pills wrap below the name; on wider
+            they sit inline with it. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+          <PersonAvatarWithUpload
+            photoUrl={photoUrl}
+            initials={initials}
+            busy={photoBusy}
+            canUpload={canUploadPhoto}
+            onUpload={handlePhotoUpload}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 19, fontWeight: 700, color: G.text, margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {isAdd ? (kind === 'member' ? 'Add Member' : 'Add Guest') : displayName}
+              </h3>
+              <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </div>
+            </div>
+            {!isAdd && subline && (
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {subline}
+              </p>
+            )}
+            {!isAdd && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {kind === 'member' && (
+                  <StatusPill
+                    status={statusForPill}
+                    onClick={() => setShowStatusModal(true)}
+                    disabled={!canEditStatus}
+                  />
+                )}
+                {roleForPill && (
+                  <RolePill
+                    role={roleForPill}
+                    onClick={() => setShowRoleModal(true)}
+                    disabled={!canEditRole}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -930,39 +1086,76 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
               <Field label="Member #" required error={fieldErrors.membership_number}>
                 <input value={form.membership_number} onChange={e => set('membership_number', e.target.value)} style={inputStyle} />
               </Field>
-              <Field label="Email">
-                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} placeholder="invite address" />
-              </Field>
-            </FormRow>
-
-            <SectionLabel>Membership details</SectionLabel>
-            <FormRow>
               <Field label="Tier">
                 <select value={form.tier} onChange={e => set('tier', e.target.value)} style={selectStyle}>
                   {TIER_OPTIONS.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="Status">
-                <select value={form.status} onChange={e => set('status', e.target.value)} style={selectStyle}>
-                  {MEMBER_STATUS_OPTIONS.map(s => <option key={s} value={s}>{cap(s)}</option>)}
-                </select>
+            </FormRow>
+            <FormRow>
+              <Field label="Email">
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} placeholder="invite address" />
+              </Field>
+              <Field label="Phone">
+                <input value={form.phone} onChange={e => set('phone', e.target.value)} style={inputStyle} />
               </Field>
             </FormRow>
             <FormRow>
               <Field label="Member since"><input value={form.member_since} onChange={e => set('member_since', e.target.value)} style={inputStyle} placeholder="Year" /></Field>
-              <Field label="Handicap"><input value={form.hcp} onChange={e => set('hcp', e.target.value)} style={inputStyle} placeholder="14.2" /></Field>
-            </FormRow>
-            <FormRow>
-              <Field label="Locker"><input value={form.locker} onChange={e => set('locker', e.target.value)} style={inputStyle} /></Field>
-              <Field label="Cart"><input value={form.cart} onChange={e => set('cart', e.target.value)} style={inputStyle} /></Field>
-            </FormRow>
-            <FormRow>
-              <Field label="Parking"><input value={form.parking} onChange={e => set('parking', e.target.value)} style={inputStyle} /></Field>
-              {/* second column left blank so Parking aligns with the others
-                  instead of stretching full width — matches the visual
-                  rhythm of the rows above. */}
+              {/* Status was a dropdown here in v0.15.6–v0.15.15. v0.15.16
+                  moved it to the clickable pill in the identity strip,
+                  with a confirm sub-modal — too easy to misfire as a
+                  bare dropdown. The slot is left empty for visual
+                  rhythm with the row above. */}
               <div style={{ flex: 1 }} />
             </FormRow>
+
+            {/* v0.15.16 — "More details" collapsed by default. Locker /
+                cart / parking / handicap are rarely edited in a typical
+                session; they shouldn't take up the visual real estate
+                of the main edit body. */}
+            <div
+              onClick={() => setMoreDetailsOpen(o => !o)}
+              data-tap
+              style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '14px 0 6px' }}
+            >
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 700, lineHeight: 1 }}>
+                {moreDetailsOpen ? '▾' : '▸'}
+              </span>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700 }}>
+                More details
+              </span>
+            </div>
+            {moreDetailsOpen && (
+              <>
+                <FormRow>
+                  <Field label="Handicap"><input value={form.hcp} onChange={e => set('hcp', e.target.value)} style={inputStyle} placeholder="14.2" /></Field>
+                  <Field label="Locker"><input value={form.locker} onChange={e => set('locker', e.target.value)} style={inputStyle} /></Field>
+                </FormRow>
+                <FormRow>
+                  <Field label="Cart"><input value={form.cart} onChange={e => set('cart', e.target.value)} style={inputStyle} /></Field>
+                  <Field label="Parking"><input value={form.parking} onChange={e => set('parking', e.target.value)} style={inputStyle} /></Field>
+                </FormRow>
+              </>
+            )}
+
+            {/* v0.15.16 — Free-form staff notes. NOT shown to the
+                member; this is a private per-club working pad. RLS on
+                members ensures only staff can write notes. */}
+            <SectionLabel>Notes (staff-only)</SectionLabel>
+            <textarea
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder='e.g. "Snowbird, away Dec–Mar" · "Prefers afternoon tee times"'
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '10px 12px',
+                border: `1px solid ${G.border}`, borderRadius: 3,
+                fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
+                backgroundColor: G.card, outline: 'none', resize: 'vertical',
+                marginBottom: 6,
+              }}
+            />
           </>
         ) : (
           <>
@@ -1007,6 +1200,22 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
               </Field>
               <div style={{ flex: 1 }} />
             </FormRow>
+
+            {/* v0.15.16 — Free-form staff notes for guests too. */}
+            <SectionLabel>Notes (staff-only)</SectionLabel>
+            <textarea
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder='e.g. "Wedding guest — Saturday only" · "Drives a green cart"'
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '10px 12px',
+                border: `1px solid ${G.border}`, borderRadius: 3,
+                fontFamily: '"Lora",serif', fontSize: 13, color: G.text,
+                backgroundColor: G.card, outline: 'none', resize: 'vertical',
+                marginBottom: 6,
+              }}
+            />
           </>
         )}
 
@@ -1073,13 +1282,11 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
           );
         })()}
 
-        {/* v0.15.14 — Departments renders BEFORE Actions now (was below
-            it in v0.15.13). Department assignments are a high-frequency
-            action; Actions hosts destructive moves (Promote / Demote /
-            Remove Staff Role) that should require deliberate scrolling
-            past the common case. Note: showDepartments is gated to
-            staff, so non-staff people skip straight to Actions where
-            "Promote to Admin/Manager" lives. */}
+        {/* v0.15.16 — Departments is the only sub-section in this slot
+            now. v0.15.10's Actions list (Promote / Demote / Remove
+            Staff Role / Status moves) was retired in favor of the
+            clickable status + role pills in the identity strip above,
+            each of which opens a sub-modal with confirm + reason. */}
         {showDepartments && (
           <>
             <SectionLabel>Departments</SectionLabel>
@@ -1138,62 +1345,6 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
           </>
         )}
 
-        {/* v0.15.10 — Actions section: every lifecycle transition that
-            used to live in the row kebab. Conditional gates mirror the
-            kebab's old logic: status moves only when the person is in
-            the relevant kind, staff promote/demote rules respect
-            manager-vs-admin scope. Each action calls a SECURITY DEFINER
-            RPC, refreshes the modal, and refreshes the parent list. */}
-        {!isAdd && person && (() => {
-          const actions = [];
-          if (person.is_guest && !person.is_member) {
-            actions.push({ label: 'Convert Guest → Member', onClick: actConvertGuestToMember });
-          }
-          if (person.is_member && person.member_status !== 'inactive') {
-            actions.push({ label: 'Demote Member → Guest', onClick: actDemoteMemberToGuest });
-          }
-          if (person.is_member && person.member_status !== 'active') {
-            actions.push({ label: 'Mark Member Active',  onClick: () => actChangeStatus('active') });
-          }
-          if (person.is_member && person.member_status !== 'pending') {
-            actions.push({ label: 'Mark Member Pending', onClick: () => actChangeStatus('pending') });
-          }
-          if (person.is_member && person.member_status !== 'inactive') {
-            actions.push({ label: 'Mark Member Inactive', onClick: () => actChangeStatus('inactive') });
-          }
-          if (person.is_member && !person.is_staff) {
-            actions.push({ label: 'Promote to Admin', onClick: () => actPromote('club_admin') });
-            if (isManager) actions.push({ label: 'Promote to Manager', onClick: () => actPromote('club_manager') });
-          }
-          if (person.is_staff && person.staff_role === 'club_admin' && isManager) {
-            actions.push({ label: 'Promote Admin → Manager', onClick: () => actPromote('club_manager') });
-          }
-          if (person.is_staff && person.staff_role === 'club_manager' && isManager) {
-            actions.push({ label: 'Demote Manager → Admin', onClick: () => actPromote('club_admin') });
-          }
-          if (person.is_staff) {
-            actions.push({ label: 'Remove Staff Role', onClick: actDemoteStaff, danger: true });
-          }
-          if (!actions.length) return null;
-          return (
-            <>
-              <SectionLabel>Actions</SectionLabel>
-              <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
-                {actions.map((a, i) => (
-                  <PersonActionRow
-                    key={i}
-                    label={a.label}
-                    onClick={a.onClick}
-                    danger={a.danger}
-                    busy={actionBusy}
-                    isFirst={i === 0}
-                  />
-                ))}
-              </div>
-            </>
-          );
-        })()}
-
         {!isAdd && isSuperAdmin && (kind === 'member' ? memberId : guestId) && (
           <div onClick={remove} data-tap style={{ marginTop: 10, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete {kind} record</span>
@@ -1229,7 +1380,103 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
           </div>
         )}
       </div>
+
+      {/* v0.15.16 — Pill-driven sub-modals. Render as siblings of the
+          main modal body so they stack on top via z-index. Each one
+          handles its own back-button + body-click-to-dismiss. After
+          a successful apply, we refresh the parent list AND bump
+          loadVersion to re-fetch the modal's own underlying rows. */}
+      {showStatusModal && (
+        <StatusChangeModal
+          person={person}
+          club={club}
+          currentStatus={memberRow?.status || form.status}
+          onClose={() => setShowStatusModal(false)}
+          onApplied={async () => {
+            setShowStatusModal(false);
+            if (onActionComplete) await onActionComplete();
+            setLoadVersion(v => v + 1);
+          }}
+        />
+      )}
+      {showRoleModal && (
+        <RoleChangeModal
+          person={person}
+          club={club}
+          isManager={isManager}
+          onClose={() => setShowRoleModal(false)}
+          onApplied={async ({ postKind }) => {
+            setShowRoleModal(false);
+            if (postKind) setKind(postKind);
+            if (onActionComplete) await onActionComplete();
+            setLoadVersion(v => v + 1);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// v0.15.16 — Avatar with optional click-to-upload affordance. When
+// canUpload is true, the entire avatar becomes a tap target that
+// opens the file picker. Loading state during upload shows a faint
+// overlay so the manager sees something is happening on a slow
+// connection. Fallback initials + accent ring when no photo.
+function PersonAvatarWithUpload({ photoUrl, initials, busy, canUpload, onUpload }) {
+  const inputId = `person-avatar-upload-${Math.random().toString(36).slice(2, 9)}`;
+  const baseStyle = {
+    position: 'relative',
+    width: 72, height: 72, borderRadius: '50%',
+    background: photoUrl ? `center/cover url(${photoUrl})` : G.green,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    border: `2px solid ${G.border}`,
+    overflow: 'hidden',
+  };
+  const inner = !photoUrl && (
+    <span style={{ fontFamily: '"Playfair Display",serif', fontSize: 26, color: '#F2EDE0', fontWeight: 700 }}>
+      {initials}
+    </span>
+  );
+  const overlay = busy && (
+    <div style={{
+      position: 'absolute', inset: 0,
+      background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2EDE0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Uploading…</span>
+    </div>
+  );
+  if (!canUpload) {
+    return <div style={baseStyle}>{inner}</div>;
+  }
+  return (
+    <label htmlFor={inputId} style={{ ...baseStyle, cursor: busy ? 'wait' : 'pointer' }} title="Upload a photo for this member">
+      {inner}
+      {overlay}
+      {/* Subtle camera badge in the lower-right of the avatar */}
+      {!busy && (
+        <div style={{
+          position: 'absolute', bottom: 0, right: 0,
+          width: 22, height: 22, borderRadius: '50%',
+          background: G.brass, border: `2px solid ${G.bg}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2E5C0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+      )}
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        disabled={busy}
+        onChange={e => onUpload?.(e.target.files?.[0])}
+        style={{ display: 'none' }}
+      />
+    </label>
   );
 }
 
@@ -1309,6 +1556,7 @@ function initialFormFor(kind, row, person) {
       name:               row?.name              ?? person?.name  ?? '',
       membership_number:  row?.membership_number ?? '',
       email:              row?.email             ?? person?.email ?? '',
+      phone:              row?.phone             ?? person?.phone ?? '',  // v0.15.16 — phone surfaced on Identity row now
       tier:               row?.tier              ?? 'Full Member',
       member_since:       row?.member_since      ?? String(new Date().getFullYear()),
       hcp:                row?.hcp               ?? '',
@@ -1316,6 +1564,7 @@ function initialFormFor(kind, row, person) {
       cart:               row?.cart              ?? '',
       parking:            row?.parking           ?? '',
       status:             row?.status            ?? 'pending',
+      notes:              row?.notes             ?? '',                   // v0.15.16
     };
   }
   return {
@@ -1328,6 +1577,7 @@ function initialFormFor(kind, row, person) {
     status:       row?.status       ?? 'active',
     visit_date:   row?.visit_date   ?? new Date().toISOString().slice(0, 10),
     expires_at:   row?.expires_at   ?? '',
+    notes:        row?.notes        ?? '',                                // v0.15.16
   };
 }
 
