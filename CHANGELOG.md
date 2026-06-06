@@ -164,6 +164,22 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.24** — Drop NOT NULL on `guests.zip`.
+
+  Marc hit this trying to demote a pending member to guest from the
+  role-change pill: `null value in column "zip" of relation "guests"
+  violates not-null constraint`. The `demote_member_to_guest` RPC
+  pulls `v_person.zip` from the `people` table (where zip is
+  nullable) and inserts it into `guests.zip` (where it was NOT
+  NULL — created back when the only path to a guest row was the
+  public guest-register form, which always collected zip).
+
+  Phase 16 + Phase 17 added several new paths to creating a guest
+  row (lifecycle demotions, admin "Add Person → Add a Guest" flow,
+  future imports) — most of which won't have zip on file. Made the
+  column nullable. No data migration: existing rows all have values
+  because the constraint enforced that until now.
+
 - **v0.15.23** — Fix mobile back-button + save-kicks-out-of-admin regressions (the popstate handler conflict).
 
   Marc reported three things after v0.15.22: (1) the notes dot didn't
