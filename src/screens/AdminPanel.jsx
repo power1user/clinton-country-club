@@ -25,6 +25,7 @@ import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
 import AllPeopleAdmin from './admin/AllPeopleAdmin.jsx';
 import DepartmentsAdmin from './admin/DepartmentsAdmin.jsx';
 import ClubhouseRoutingAdmin from './admin/ClubhouseRoutingAdmin.jsx';
+import MemberTiersAdmin from './admin/MemberTiersAdmin.jsx';
 // v0.14.9 — Floating Admin AI bubble for the MOBILE shell. Desktop
 // gets its own mount inside AdminLayoutDesktop.
 import AdminAIBubble from '../components/AdminAIBubble.jsx';
@@ -245,6 +246,9 @@ const AREAS = [
       // resolve from this list.
       { id: 'facilities',    permKey: 'can_edit_course_status', l: 'Facilities',        d: 'Rename, reorder, add/remove facilities',                 icon: IconCog,      managerOnly: true },
       { id: 'features',                                  l: 'Feature Toggles',    d: 'Member-facing features on/off',                 icon: IconCog,      managerOnly: true },
+      // v0.15.20 — Per-club tier list (the values that appear in the
+      // Tier dropdown on member edit forms). Manager-only.
+      { id: 'membertiers',                               l: 'Membership Tiers',   d: 'The tier list used in member edit forms',       icon: IconCog,      managerOnly: true },
       // v0.15.13 — Phase 17 (departments). Each clubhouse topic routes
       // to one or more departments; staff in those depts get the push.
       // Lives under Club Settings because it's a per-club config decision,
@@ -330,6 +334,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
       {sec === 'features'       && isManager && <FeaturesAdmin />}
       {sec === 'clubhouseRouting' && isManager && <ClubhouseRoutingAdmin club={club} />}
+      {sec === 'membertiers'    && isManager && <MemberTiersAdmin club={club} />}
       {sec === 'guests'         && isManager && <GuestManagementAdmin />}
       {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
       {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}

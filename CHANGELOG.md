@@ -164,6 +164,39 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.20** — Club-configurable membership tiers.
+
+  Until now the Tier dropdown in the People edit form was a hardcoded
+  list of 5 strings (`['Full Member','Social Member','Junior Member',
+  'Honorary','Other']`) shared across every club. Clubs vary widely on
+  tier vocabulary — Equity / Social / Senior / Junior / Honorary /
+  Trial / etc. is common — so this needed to be per-club.
+
+  **Migration `v0_15_20_club_member_tiers`:**
+  - `clubs.member_tiers jsonb NOT NULL` with the previous hardcoded
+    list as the DEFAULT. Existing clubs get the defaults via the
+    ADD COLUMN clause; backfill statement is defensive in case any
+    club has a weird value.
+
+  **New admin section — Club Settings → Membership Tiers (manager-only):**
+  - List of the club's tier values with reorder controls.
+  - + Add Tier opens a bottom-sheet modal (name only, validates
+    uniqueness case-insensitively).
+  - Click a row → rename.
+  - Remove → confirms with a warning showing how many members are
+    currently on that tier (we don't auto-migrate their tier values
+    — the label string is just a free-form field).
+
+  **PersonEditModal:**
+  - Loads `clubs.member_tiers` on mount; the Tier dropdown reflects
+    the club's list instead of `TIER_OPTIONS`.
+  - Falls back to the default list if the club row is missing or
+    member_tiers is empty (defensive).
+  - The 'Full Member' default in `initialFormFor` and the CSV import
+    were intentionally kept — if a club renames "Full Member", the
+    dropdown still works but the default placeholder won't match
+    until the manager picks something else. Documented this in code.
+
 - **v0.15.19** — Bidirectional sync: people ↔ members + people ↔ guests. + members.phone column.
 
   Audit response, round 2 — the schema-drift CRITICAL item. Pure option

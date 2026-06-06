@@ -472,7 +472,12 @@ function AddPersonPicker({ onPickMember, onPickGuest, onClose }) {
 // add-guest, and edit. In edit mode it auto-loads the underlying
 // members/guests row. Save writes back to the right table.
 // ───────────────────────────────────────────────────────────────
-const TIER_OPTIONS = ['Full Member','Social Member','Junior Member','Honorary','Other'];
+// v0.15.20 — Tier options moved to clubs.member_tiers (per-club jsonb).
+// PersonEditModal fetches the club's list on mount. The constant
+// below is the FALLBACK shown if the club's row is missing or
+// member_tiers is empty (defensive — every club should have non-
+// empty defaults from the v0.15.20 migration).
+const DEFAULT_TIERS = ['Full Member','Social Member','Junior Member','Honorary','Other'];
 const MEMBER_STATUS_OPTIONS = ['active','pending','inactive'];
 const VISIT_TYPE_OPTIONS = ['public_play','member_guest','tournament_guest','event_guest'];
 const ACCESS_LEVEL_OPTIONS = ['data_only','read_only','full_temporary'];
@@ -528,6 +533,23 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   // ring while uploading; err surfaces below the strip on failure.
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoUrlOverride, setPhotoUrlOverride] = useState(null); // optimistic preview
+
+  // v0.15.20 — Per-club tier list. Loaded once on mount; fallback to
+  // DEFAULT_TIERS if the row is missing or the list is empty.
+  const [tierOptions, setTierOptions] = useState(DEFAULT_TIERS);
+  useEffect(() => {
+    if (!club?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('clubs').select('member_tiers').eq('id', club.id).single();
+      if (cancelled) return;
+      const list = Array.isArray(data?.member_tiers) && data.member_tiers.length
+        ? data.member_tiers
+        : DEFAULT_TIERS;
+      setTierOptions(list);
+    })();
+    return () => { cancelled = true; };
+  }, [club?.id]);
 
   // v0.15.13 — Departments. Manager-only edit; visible only when the
   // person is staff at this club (departments are a staff-routing
@@ -1006,7 +1028,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
               </Field>
               <Field label="Tier">
                 <select value={form.tier} onChange={e => set('tier', e.target.value)} style={selectStyle}>
-                  {TIER_OPTIONS.map(t => <option key={t}>{t}</option>)}
+                  {tierOptions.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
             </FormRow>
