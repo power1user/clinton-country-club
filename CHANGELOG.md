@@ -177,6 +177,34 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.5** — sections.jsx split, slice 1: Platform domain.
+
+  Audit round 1 finding #7 noted sections.jsx at 5,327 lines as "not
+  just large — a regression amplifier because permissions, UI, data
+  loading, mutations, modal behavior, and platform admin all live
+  close together." The fix: split by admin domain. v0.16.5 ships the
+  first slice — the entire Platform (super_admin-only) domain into
+  its own file `src/screens/admin/sections/platform.jsx` (~720 lines).
+
+  **Moved:** SuperAdminsAdmin, AllClubsAdmin, CreateClubModal (private
+  helper of AllClubs), ProvisionLogAdmin, DetailRow (private helper of
+  ProvisionLog).
+
+  **Dead code removed during the move:** PlatformSettingsAdmin and
+  PlatformMetricsAdmin (Phase 3 stubs that returned ComingSoonSection
+  placeholders, never referenced anywhere — confirmed via grep).
+  ComingSoonSection went with them.
+
+  **Re-exported** from sections.jsx so AdminPanel's existing imports
+  keep working without changes. The pattern matches v0.15.x's
+  earlier extractions of NotificationsAdmin and NewsAdmin.
+
+  **Result:** sections.jsx 5,639 → 4,845 lines (−794, −14%). Still big,
+  but it's a real shape-of-the-file improvement and establishes the
+  pattern. Future patches will split out the other domains
+  (Communications, Dining, Events, Golf Course, People, Pro Shop,
+  Club Settings, Support) — each one is a similar mechanical move.
+
 - **v0.16.4** — Admin auth centralization (audit round 1, finding #6).
 
   Before: every section in `AdminPanel.jsx` had auth-related metadata
