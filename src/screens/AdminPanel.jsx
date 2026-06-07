@@ -421,6 +421,13 @@ export default function AdminPanel() {
   const lastAreaRef = useRef(area);
   const lastSecRef  = useRef(sec);
   const navPopRef   = useRef(false); // true when popstate triggered the most recent state change
+  // v0.15.31 — set true right before we synthesize a history.back() to
+  // pop one of our own pushed nav markers (in-UI back arrow path). The
+  // popstate listener checks this and bails — without it, the synthetic
+  // popstate cascades into a SECOND setArea(null)/setSec(null) and the
+  // user gets bumped TWO levels back instead of one. Same belt-and-
+  // suspenders dance as MODAL_CLEANUP_IN_FLIGHT.
+  const navCleanupRef = useRef(false);
   useEffect(() => {
     if (isDesktop) { lastAreaRef.current = area; lastSecRef.current = sec; return; }
     const prevArea = lastAreaRef.current;
@@ -440,12 +447,23 @@ export default function AdminPanel() {
     else if (!prevArea && area && !sec) {
       window.history.pushState({ adminNav: 'area' }, '');
     }
-    // Going shallower programmatically (Back button in the UI): pop one entry.
+    // Going shallower programmatically (in-UI ‹ back arrow): pop one
+    // history entry to keep the stack in sync. The synthetic popstate
+    // this fires WOULD cascade through onPop and unwind another level
+    // — so flag it as cleanup before dispatching, clear on next tick.
     else if (prevSec && !sec) {
-      if (window.history.state?.adminNav === 'sec') window.history.back();
+      if (window.history.state?.adminNav === 'sec') {
+        navCleanupRef.current = true;
+        window.history.back();
+        setTimeout(() => { navCleanupRef.current = false; }, 0);
+      }
     }
     else if (prevArea && !area && !sec) {
-      if (window.history.state?.adminNav === 'area') window.history.back();
+      if (window.history.state?.adminNav === 'area') {
+        navCleanupRef.current = true;
+        window.history.back();
+        setTimeout(() => { navCleanupRef.current = false; }, 0);
+      }
     }
     lastAreaRef.current = area;
     lastSecRef.current  = sec;
@@ -476,6 +494,9 @@ export default function AdminPanel() {
       if (getModalOpenCount() > 0)    return;
       if (MODAL_CLEANUP_IN_FLIGHT)    return;
       if (window.history.state?.modalOpen) return;
+      // v0.15.31 — synthetic popstate from our own history.back() in the
+      // push-effect (in-UI back arrow path). Don't unwind another level.
+      if (navCleanupRef.current)      return;
       navPopRef.current = true;
       if (lastSecRef.current)        setSec(null);
       else if (lastAreaRef.current)  setArea(null);

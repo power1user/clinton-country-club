@@ -164,6 +164,23 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.31** — Fix the IN-UI back arrow cascading two levels at once.
+
+  v0.15.30 covered the modal cases but missed a separate bug in the
+  admin nav itself. The in-UI ‹ back arrow at the top of any section
+  page (Level 3) calls `setSec(null)`. The push-effect then synthesizes
+  a `history.back()` to keep the history stack in sync with the visible
+  UI. But that synthetic `history.back()` fires popstate, AdminPanel's
+  popstate listener sees `lastSec=null, lastArea='people'`, and unwinds
+  one MORE level via `setArea(null)`. Result: tapping ‹ once from a
+  section jumps two levels back (L3 → L1), and the very next back
+  gesture exits admin entirely — exactly the "back kicks me out of
+  admin" symptom on the People list.
+
+  Fix: `navCleanupRef` ref-flag set true right before each synthetic
+  `history.back()` in the push-effect, cleared via `setTimeout(0)`.
+  `onPop` checks it and bails — same pattern as `MODAL_CLEANUP_IN_FLIGHT`.
+
 - **v0.15.30** — REAL fix for the auth_user_id ambiguity + bulletproof the mobile back button.
 
   v0.15.29 didn't actually fix the ambiguity. Two issues:
