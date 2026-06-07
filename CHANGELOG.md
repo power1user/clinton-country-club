@@ -164,6 +164,55 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.27 / v0.15.28** — People list scales: CTE rewrite + pagination + server-side filter/search.
+
+  The two perf items from the bloat audit that mattered for scale.
+
+  **v0.15.27 — CTE rewrite of `all_people_at_club`.**
+
+  Old plan: for every person returned, fire ~4 sub-SELECTs (3 to build
+  the `relations` jsonb, 1 for `last_seen_at`). Classic N+1 in plpgsql.
+  Invisible at 10 rows; 200–500ms at 500; 2–4s at 5k.
+
+  New plan: pre-aggregate the relations and last-seen-at into two CTEs
+  via `jsonb_agg` + `GROUP BY`, then `LEFT JOIN` them into the main
+  query. One scan per contributing table instead of N. Same return
+  shape, no client changes needed.
+
+  **v0.15.28 — Pagination + server-side filter + server-side search.**
+
+  RPC signature is backwards compatible — every new param has a sensible
+  default that preserves v0.15.27 behavior. New params:
+
+  - `p_limit  int    DEFAULT 100` (clamped 1–500)
+  - `p_offset int    DEFAULT 0`
+  - `p_filter text   DEFAULT 'all'` — `'all'` | `'member'` | `'guest'` | `'staff'`
+  - `p_search text   DEFAULT NULL` — ILIKE substring against name, email, phone
+
+  Returns one extra column: `total_count` (the pre-pagination row count)
+  on every row of the response. Client uses this to drive the "Load more"
+  affordance and the "Showing N of M" line above the list.
+
+  **Client changes (AllPeopleAdmin.jsx):**
+  - `people` is now the visible page only, not the full club. The
+    client-side `useMemo`-based filter is gone — server filters.
+  - Search box debounced 250ms before firing the query. No keystroke
+    spam.
+  - Filter pill change → reset to page 0. Same for search change.
+  - "Load more (N remaining)" button appears below the list when
+    fetched count < total. Tap → append the next page.
+  - Filter pills no longer show per-pill counts (they'd be wrong with
+    server-side filtering since `people` is a single filtered page).
+    Total + visible count sit in a single italic line above the list.
+
+  **Combined impact:**
+  - 500 members: was ~200–500ms full-fetch; now ~30–50ms first page,
+    same shape after that.
+  - 5,000 members: was 2–4s full-fetch + slow render; now ~50–80ms
+    first page, manager scrolls through pages as needed.
+  - Payload drops proportionally — first page is 100 rows max
+    (~15-20KB) vs. full club every time.
+
 - **v0.15.25 / v0.15.26** — Performance + code-dedup follow-ups to the bloat audit.
 
   Two patches batched because they're independent and trivial to land

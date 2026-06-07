@@ -8,7 +8,7 @@
 // Major design history lives in CHANGELOG.md (v0.15.6 introduced this
 // view; v0.15.16 redesigned the edit card around clickable pills).
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
@@ -80,13 +80,26 @@ function RelationChip({ rel }) {
   );
 }
 
+// v0.15.28 — Server-side pagination + filter + search. Page size matches
+// the RPC default (100). The RPC clamps to 500 max regardless, so even
+// "Load all" requests stay bounded.
+const PAGE_SIZE = 100;
+
 export default function AllPeopleAdmin() {
   const { club, isManager, isSuperAdmin } = useAuth();
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [total, setTotal] = useState(0);
+  // v0.15.28 — debounced search so we don't fire a query on every keystroke
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(t);
+  }, [query]);
   const [actionFor, setActionFor] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [actionErr, setActionErr] = useState(null);
@@ -96,19 +109,39 @@ export default function AllPeopleAdmin() {
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [showCsv, setShowCsv] = useState(false);
 
-  const refresh = async () => {
+  // v0.15.28 — `fetchPage(offset)` is the only fetch path. offset=0 replaces
+  // the current list; offset>0 appends. Server filters + searches; the old
+  // client-side useMemo is gone.
+  const fetchPage = async (offset) => {
     if (!club?.id) return;
-    setLoading(true); setErr(null);
-    const { data, error } = await supabase.rpc('all_people_at_club', { p_club_id: club.id });
-    if (error) setErr(error.message);
-    else setPeople(data || []);
-    setLoading(false);
+    const isAppend = offset > 0;
+    if (isAppend) setLoadingMore(true); else setLoading(true);
+    setErr(null);
+    const { data, error } = await supabase.rpc('all_people_at_club', {
+      p_club_id: club.id,
+      p_limit:   PAGE_SIZE,
+      p_offset:  offset,
+      p_filter:  filter,
+      p_search:  debouncedQuery.trim() || null,
+    });
+    if (error) {
+      setErr(error.message);
+    } else {
+      const rows = data || [];
+      setTotal(rows[0]?.total_count ?? rows.length);
+      setPeople(prev => isAppend ? [...prev, ...rows] : rows);
+    }
+    if (isAppend) setLoadingMore(false); else setLoading(false);
   };
 
+  // Refresh = fetch from offset 0 (used by parent callbacks after edits).
+  const refresh = () => fetchPage(0);
+
+  // Reset to page 0 whenever club / filter / search changes.
   useEffect(() => {
-    refresh();
+    fetchPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.id]);
+  }, [club?.id, filter, debouncedQuery]);
 
   // ── Kebab action handlers (unchanged from v0.15.5) ─────────────
   const runAction = async (rpcName, args, personId, confirmMsg) => {
@@ -176,18 +209,10 @@ export default function AllPeopleAdmin() {
     setTimeout(() => setActionErr(null), 4000);
   };
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (people || []).filter(p => {
-      if (filter === 'member' && !p.is_member) return false;
-      if (filter === 'guest'  && !p.is_guest)  return false;
-      if (filter === 'staff'  && !p.is_staff)  return false;
-      if (!q) return true;
-      return (p.name || '').toLowerCase().includes(q)
-          || (p.email || '').toLowerCase().includes(q)
-          || (p.phone || '').includes(q);
-    });
-  }, [people, query, filter]);
+  // v0.15.28 — Server-side filter/search means `people` is already the
+  // visible set. Just memoize identity so downstream renderers don't
+  // see a new array reference each render.
+  const filtered = people;
 
   // v0.15.6 — choose which record to edit when a row is clicked.
   // Members win when a person is both (you'd typically be editing
@@ -223,13 +248,15 @@ export default function AllPeopleAdmin() {
         </div>
       </div>
 
-      {/* Filter pills */}
+      {/* Filter pills — v0.15.28 dropped per-pill counts (server-side
+          filter means `people` no longer contains the full club, so those
+          counts would be wrong). Total is shown above the list instead. */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {[
-          { id: 'all',    l: `All (${people.length})` },
-          { id: 'member', l: `Members (${people.filter(p => p.is_member).length})` },
-          { id: 'guest',  l: `Guests (${people.filter(p => p.is_guest).length})`   },
-          { id: 'staff',  l: `Staff (${people.filter(p => p.is_staff).length})`    },
+          { id: 'all',    l: 'All' },
+          { id: 'member', l: 'Members' },
+          { id: 'guest',  l: 'Guests' },
+          { id: 'staff',  l: 'Staff' },
         ].map(f => (
           <div key={f.id} onClick={() => setFilter(f.id)} data-tap
             style={{
@@ -259,6 +286,15 @@ export default function AllPeopleAdmin() {
           background: G.card, outline: 'none', marginBottom: 14,
         }}
       />
+
+      {/* v0.15.28 — Total count + page indicator above the list */}
+      {!loading && !err && total > 0 && (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 8px' }}>
+          {filtered.length === total
+            ? `${total} ${total === 1 ? 'person' : 'people'}`
+            : `Showing ${filtered.length} of ${total}`}
+        </p>
+      )}
 
       {loading ? (
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, padding: '20px 0' }}>
@@ -387,6 +423,26 @@ export default function AllPeopleAdmin() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* v0.15.28 — Load more. Visible when there are more rows on the
+          server than we've fetched, and we're not currently loading. */}
+      {!loading && !err && filtered.length > 0 && filtered.length < total && (
+        <div
+          onClick={loadingMore ? undefined : () => fetchPage(filtered.length)}
+          data-tap
+          style={{
+            marginTop: 10, padding: '10px 14px',
+            background: G.card, border: `1px solid ${G.border}`,
+            borderRadius: 4, textAlign: 'center',
+            cursor: loadingMore ? 'wait' : 'pointer',
+            opacity: loadingMore ? 0.6 : 1,
+          }}
+        >
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, fontWeight: 500 }}>
+            {loadingMore ? 'Loading…' : `Load more (${total - filtered.length} remaining)`}
+          </span>
         </div>
       )}
 
