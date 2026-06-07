@@ -177,6 +177,56 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.6** — Test scaffold + the first 56 focused tests (audit #8).
+
+  Vitest installed; `npm run test` (watch) and `npm run test:run`
+  (one-shot) scripts wired up. Focused on the highest-leverage
+  surfaces — the kind of regression that would be invisible in
+  manual smoke tests:
+
+  **`src/lib/permissions.test.js` — 16 tests.** `highestRole` and
+  `userHasPerm` pinned across the full role × permission matrix.
+  These mirror the SECURITY DEFINER `has_permission()` RPC in the
+  database (see baseline_helpers.sql) — if either drifts from the
+  other, defense-in-depth breaks. Covers: super_admin / manager
+  implicit-true, club_admin explicit-flag-only, falsy values
+  (0/"" /null treated as false), members never pass, unknown
+  roles never pass.
+
+  **`src/lib/adminAuth.test.js` — 16 tests.** `meetsRequirements`
+  (extracted from AdminPanel.jsx for testability). The SINGLE
+  predicate that decides what shows up in menus AND what
+  SectionContent renders. Tests every combination of
+  `managerOnly`, `permKey`, `areaSuperOnly` across all roles.
+  Catches the "managerOnly trumps permKey" subtlety and the
+  "areaSuperOnly is stricter than managerOnly" Platform gate.
+
+  **`supabase/functions/_shared/cors.test.js` — 24 tests.** The
+  v0.16.2 CORS allowlist pinned. Allowed origins (apex,
+  subdomains, localhost dev ports) all echo back exactly.
+  Disallowed origins fall back to `https://groundslive.com`.
+  Catches the obvious dodges (subdomain trick `evil.groundslive.com.evil.com`,
+  wrong protocol, wrong port). If anyone ever sets Allow-Origin
+  back to `*`, these break.
+
+  **`src/lib/adminAuth.js`** — small extraction of `meetsRequirements`
+  from AdminPanel.jsx into a standalone module. AdminPanel.jsx
+  re-exports it; behavior unchanged. Done so the predicate is
+  testable without loading the entire admin UI tree.
+
+  **Out of scope for this patch:** Edge Function auth-gate tests
+  (the `checkAdmin` / `requireSuperAdmin` helpers in
+  admin-ai-chat / check-club-health). They're written, but they
+  call `createClient` from `@supabase/supabase-js` with real env
+  vars — testing them requires a mock layer that's a separate
+  lift. Same for the send-push recipient-selection logic. Both
+  added as future work.
+
+  **Risk surface this scaffold covers right now**: the permission
+  matrix (client + DB must agree) and the CORS policy (must not
+  regress to wildcard). Both have a single source of truth, both
+  are now pinned by tests, both are easy to extend.
+
 - **v0.16.5** — sections.jsx split, slice 1: Platform domain.
 
   Audit round 1 finding #7 noted sections.jsx at 5,327 lines as "not

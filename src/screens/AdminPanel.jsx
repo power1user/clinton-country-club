@@ -37,6 +37,10 @@ import { useViewport } from '../hooks/useViewport.js';
 import { useAdminPreference } from '../hooks/useAdminPreference.js';
 import { MODAL_CLEANUP_IN_FLIGHT, getModalOpenCount } from '../hooks/useModalBackClose.js';   // v0.15.30 — counter primary, flag belt-and-suspenders
 import AdminLayoutDesktop from './admin/AdminLayoutDesktop.jsx';
+// v0.16.6 — pure predicate extracted so it's unit-testable without
+// loading the whole admin UI tree. Re-exported below for any caller
+// that imports it from AdminPanel.jsx.
+import { meetsRequirements as _meetsRequirements } from '../lib/adminAuth.js';
 
 // Two-level admin hub: area cards at the top, each opens a sub-hub of
 // its sections. Section IDs are unique across the whole tree so the
@@ -296,32 +300,11 @@ const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.i
 // Map by id for O(1) lookup from SectionContent
 const SECTIONS_BY_ID = Object.fromEntries(ALL_SECTIONS.map(s => [s.id, s]));
 
-// v0.16.4 — Single source of truth for "is this admin allowed to see /
-// render this section?" Used by both the menu visibility filter AND
-// the SectionContent guard (defense in depth — menu can be bypassed
-// via deep link; SectionContent must enforce independently).
-//
-// Requirements live on the section/area metadata in AREAS above:
-//   - section.permKey   — string permission key (mirrors RLS has_permission)
-//   - section.managerOnly — club_manager (or super_admin) required
-//   - area.superOnly    — super_admin required (propagated as areaSuperOnly)
-//
-// ctx must provide: isSuperAdmin, isManager, isAdmin, hasPerm.
-// `hasPerm` is the same function from useAuth that the rest of the
-// app uses; it MUST stay aligned with the DB has_permission() RPC.
-// See supabase/migrations/0001_phase18_baseline_helpers.sql.
-export function meetsRequirements(section, ctx) {
-  if (!section) return false;
-  // Floor: any admin role. Members/guests never see admin sections.
-  if (!ctx.isAdmin) return false;
-  // Area-level: Platform sections are super_admin-only.
-  if (section.areaSuperOnly && !ctx.isSuperAdmin) return false;
-  // Section-level managerOnly: must be club_manager (super_admin passes).
-  if (section.managerOnly && !ctx.isManager) return false;
-  // Section-level permKey: must hold the named permission.
-  if (section.permKey && !ctx.hasPerm(section.permKey)) return false;
-  return true;
-}
+// v0.16.4 (extracted to src/lib/adminAuth.js in v0.16.6 so it's
+// unit-testable). Single source of truth for "is this admin allowed
+// to see / render this section?" Used by both the menu visibility
+// filter AND the SectionContent guard.
+export const meetsRequirements = _meetsRequirements;
 
 // v0.16.4 — Centralized admin auth (audit #6).
 //
