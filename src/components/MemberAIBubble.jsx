@@ -203,11 +203,18 @@ export default function MemberAIBubble() {
           title="Hide AI">
           Hide
         </div>
+        {/* v0.15.32 — cream outline so the bubble pops against the
+            green DM bubbles in Thread.jsx. Without it, the AI bubble
+            visually merges with own-side message bubbles (both G.green)
+            when it floats over an active chat. Cream #F2EDE0 is the
+            same color used for the icon stroke + the design-system
+            pairing for green (per the v0.15.26 toggle-chip note). */}
         <div onClick={() => setOpen(true)} data-tap
           style={{
             background: G.green,
             width: 52, height: 52,
             borderRadius: '50%',
+            border: '2.5px solid #F2EDE0',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer',
             boxShadow: '0 6px 16px rgba(0,0,0,0.28)',

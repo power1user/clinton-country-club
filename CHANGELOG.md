@@ -164,6 +164,20 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.33** — Cream outline on the floating Member AI bubble.
+
+  Marc spotted: the MemberAIBubble closed-state floating button is a
+  green circle (`G.green`), and "own" message bubbles in Thread.jsx are
+  also `G.green`. When the AI bubble floats over an active DM or
+  clubhouse thread, it visually merges into the message bubbles below
+  — looks wrong / broken.
+
+  Fix: 2.5px cream `#F2EDE0` outline around the circle. Same cream as
+  the icon stroke inside; matches the design-system pairing for green
+  (per the v0.15.26 ToggleChip note: cream `#F2EDE0` pairs with green,
+  brass-cream `#F2E5C0` pairs with brass). Bubble now reads as a
+  distinct element no matter what's behind it.
+
 - **v0.15.32** — Smart relative timestamps on every message + notification.
 
   Marc spotted: chat bubbles in Thread.jsx and the admin-dashboard
