@@ -177,6 +177,54 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.3** — Pull live Supabase schema/RLS/Edge Functions into the repo.
+
+  Audit round 3 finding #6 ("operational risk: no local migrations").
+  The supabase/README.md openly admitted the entire Supabase side
+  was managed out-of-band via MCP/Dashboard with nothing in the repo
+  to review. The audit couldn't see the RLS policies, the SECURITY
+  DEFINER functions, or 6 of the 15 deployed Edge Functions —
+  including the public-surface `guest-register` (round 3 finding #4).
+
+  **Pulled into the repo this patch:**
+
+  - **6 missing Edge Functions** — `guest-register`, `guest-link`,
+    `guest-qr-token`, `provision-club-domain`, `docs`, `phase14-cf-finish`.
+    Reading the guest-register source incidentally answers the audit's
+    round-3 #4 question: it DOES validate the QR token (HMAC SHA-256 with
+    constant-time comparison), club status (tier + feature flag), and uses
+    a server-side canonical redirect (no open-redirect via client-posted
+    `redirect_to`). The remaining concern there is rate-limiting; queued
+    for v0.16.10's deep audit.
+  - **RLS helper functions** — `0001_phase18_baseline_helpers.sql`
+    contains verbatim `is_super_admin`, `is_staff_of`,
+    `is_member_or_staff_of`, `is_club_member`, `is_club_manager`,
+    `is_club_admin_at`, `is_active_guest`, `is_thread_participant`,
+    `has_permission`, `current_member_id`, `log_people_event`. The
+    actual security boundary every RLS policy depends on.
+  - **Migration history** — `APPLIED_MIGRATIONS.md` lists every one of
+    the 89 historical migrations with date + name, grouped by phase.
+  - **Baseline README** — `0000_phase18_baseline_README.md` enumerates
+    every table (50), policy count (156), and SECURITY DEFINER
+    function category (RLS helpers / lifecycle RPCs / triggers /
+    dashboard RPCs / AI usage rollups / other).
+  - **Workflow doc** — `MIGRATIONS.md` codifies the new rule: every
+    schema/RLS/function change ships as a numbered SQL file in
+    `supabase/migrations/` FIRST, then applied via MCP. No more
+    out-of-band changes.
+  - **Refreshed `supabase/README.md`** — current Edge Function table
+    (all 15), secrets matrix, audit-findings status grid.
+
+  **Intentionally NOT pulled verbatim:** per-table column definitions,
+  indexes, lifecycle RPC bodies, trigger bodies. The migration history
+  is the source of truth for "how the schema got here," and any one
+  function body is one `pg_get_functiondef` away. Dumping everything
+  would be ~3,000 lines that diverge from prod on the next migration —
+  not worth the maintenance burden.
+
+  **No schema changed this patch.** The DB is byte-identical to where
+  v0.16.2 left it; v0.16.3 is purely a repo-side documentation export.
+
 - **v0.16.2** — CORS narrowing across every browser-invoked Edge Function.
 
   Audit round 2 flagged the wildcard `Access-Control-Allow-Origin: *`
