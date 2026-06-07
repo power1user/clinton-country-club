@@ -177,6 +177,42 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.2** — CORS narrowing across every browser-invoked Edge Function.
+
+  Audit round 2 flagged the wildcard `Access-Control-Allow-Origin: *`
+  on every function. JWT auth on the function blocks the obvious
+  abuse (random origins can't forge a logged-in user's JWT), but a
+  wildcard CORS policy still widens the cross-site abuse surface for
+  any browser carrying a valid token.
+
+  Switched all 5 browser-invoked functions to the shared
+  `../_shared/cors.ts` helper (created in v0.16.1). The helper echoes
+  the request's Origin back if it matches the allowlist:
+  - `https://(?:[a-z0-9-]+\.)?groundslive\.com` — apex + every club's
+    subdomain (multi-tenant supported via subdomain pattern)
+  - `http://localhost:5173/5174/5175/4173` — Vite dev / preview
+
+  Non-matching origins get `Access-Control-Allow-Origin: https://groundslive.com`
+  echoed back — a single non-matching value that makes the browser
+  refuse to deliver the response to JS even if the request itself
+  succeeded.
+
+  Functions updated:
+  - `admin-ai-chat`
+  - `member-ai-chat`
+  - `submit-support-ticket`
+  - `send-support-reply`
+  - `manage-support-destinations`
+  - `check-club-health`
+
+  Worker-invoked functions (`send-push`, `receive-support-email`,
+  `get-support-destinations`) don't need CORS — they're called from
+  pg_net or Cloudflare workers, not browsers — so they weren't
+  touched.
+
+  **Deploy:** all 6 updated functions need to redeploy for the new
+  CORS policy to take effect.
+
 - **v0.16.1** — send-push secret gate + useAuth club-load error surface.
 
   Audit round 2 surfaced two more items that v0.16.0 didn't cover:

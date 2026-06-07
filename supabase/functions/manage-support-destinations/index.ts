@@ -20,6 +20,7 @@
 
 // @ts-ignore Deno-only
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL          = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY     = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -29,15 +30,11 @@ const CF_ACCOUNT_ID         = Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-};
-function json(payload: unknown, status = 200) {
+// v0.16.2 — CORS narrowed via ../_shared/cors.ts.
+function json(req: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "content-type": "application/json", ...CORS },
+    headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -93,10 +90,10 @@ async function cfDelete(destinationId: string): Promise<void> {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method === "OPTIONS") return preflight(req);
 
   const auth = await checkSuperAdmin(req.headers.get("authorization") || "");
-  if (!auth.ok) return json({ ok: false, error: auth.error }, 401);
+  if (!auth.ok) return json(req, { ok: false, error: auth.error }, 401);
 
   const url = new URL(req.url);
   const action = url.pathname.split("/").pop();
@@ -108,12 +105,10 @@ Deno.serve(async (req: Request) => {
         .from("support_destinations")
         .select("*")
         .order("added_at", { ascending: true });
-      return json({ ok: true, destinations: rows || [] });
+      return json(req, { ok: true, destinations: rows || [] });
     }
 
     // ── POST /sync ────────────────────────────────────────────────
-    // Reconcile DB with Cloudflare's actual destination list. Backfills
-    // cf_destination_id and flips verified_at on newly verified rows.
     if (req.method === "POST" && action === "sync") {
       const cfRows = await cfList();
       let updated = 0;
@@ -123,7 +118,7 @@ Deno.serve(async (req: Request) => {
           .select("id, cf_destination_id, verified_at")
           .eq("email", cf.email.toLowerCase())
           .maybeSingle();
-        if (!existing) continue; // CF has a destination we don't track — ignore
+        if (!existing) continue;
         const patch: any = {};
         if (!existing.cf_destination_id) patch.cf_destination_id = cf.tag || cf.id;
         if (cf.verified && !existing.verified_at) patch.verified_at = new Date().toISOString();
@@ -132,7 +127,7 @@ Deno.serve(async (req: Request) => {
           updated++;
         }
       }
-      return json({ ok: true, synced: updated, cf_count: cfRows.length });
+      return json(req, { ok: true, synced: updated, cf_count: cfRows.length });
     }
 
     // ── POST (create) ─────────────────────────────────────────────
@@ -140,46 +135,44 @@ Deno.serve(async (req: Request) => {
       const body = await req.json().catch(() => ({}));
       const email = String(body?.email || "").trim().toLowerCase();
       const name  = String(body?.name  || "").trim();
-      if (!email || !name) return json({ ok: false, error: "email + name required" }, 400);
+      if (!email || !name) return json(req, { ok: false, error: "email + name required" }, 400);
 
-      // 1. Cloudflare register
       let cfId: string;
       try {
         const cfRes = await cfCreate(email);
         cfId = cfRes.tag || cfRes.id;
       } catch (e: any) {
-        return json({ ok: false, error: `Cloudflare API: ${e.message || e}` }, 502);
+        return json(req, { ok: false, error: `Cloudflare API: ${e.message || e}` }, 502);
       }
 
-      // 2. DB insert
       const { data: inserted, error: ierr } = await admin
         .from("support_destinations")
         .insert({ email, name, active: true, cf_destination_id: cfId, added_by: auth.user_id, verified_at: null })
         .select("*")
         .single();
-      if (ierr) return json({ ok: false, error: ierr.message }, 500);
-      return json({ ok: true, destination: inserted });
+      if (ierr) return json(req, { ok: false, error: ierr.message }, 500);
+      return json(req, { ok: true, destination: inserted });
     }
 
     // ── DELETE { id } ─────────────────────────────────────────────
     if (req.method === "DELETE") {
       const body = await req.json().catch(() => ({}));
       const id = body?.id;
-      if (!id) return json({ ok: false, error: "id required" }, 400);
+      if (!id) return json(req, { ok: false, error: "id required" }, 400);
       const { data: row } = await admin
         .from("support_destinations")
         .select("cf_destination_id")
         .eq("id", id)
         .maybeSingle();
       if (row?.cf_destination_id) {
-        try { await cfDelete(row.cf_destination_id); } catch (_) { /* tolerate — we still want to remove from DB */ }
+        try { await cfDelete(row.cf_destination_id); } catch (_) { /* tolerate */ }
       }
       await admin.from("support_destinations").delete().eq("id", id);
-      return json({ ok: true });
+      return json(req, { ok: true });
     }
 
-    return json({ ok: false, error: "unknown action" }, 400);
+    return json(req, { ok: false, error: "unknown action" }, 400);
   } catch (e: any) {
-    return json({ ok: false, error: String(e?.message || e) }, 500);
+    return json(req, { ok: false, error: String(e?.message || e) }, 500);
   }
 });

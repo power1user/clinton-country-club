@@ -25,6 +25,7 @@
 
 // @ts-ignore — Deno-only import
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -113,8 +114,10 @@ async function checkOne(slug: string): Promise<Record<string, unknown>> {
 }
 
 Deno.serve(async (req: Request) => {
+  // v0.16.2 — CORS narrowed via ../_shared/cors.ts.
+  if (req.method === "OPTIONS") return preflight(req);
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders(req) });
   }
 
   // v0.16.0 — must be super_admin (audit finding #2).
@@ -122,7 +125,7 @@ Deno.serve(async (req: Request) => {
   if (!gate.ok) {
     return new Response(JSON.stringify({ ok: false, error: gate.error }), {
       status: gate.status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -136,7 +139,7 @@ Deno.serve(async (req: Request) => {
   if (error) {
     return new Response(JSON.stringify({ ok: false, error: error.message }), {
       status: 500,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -156,6 +159,6 @@ Deno.serve(async (req: Request) => {
   };
 
   return new Response(JSON.stringify({ ok: true, summary, results }, null, 2), {
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 });

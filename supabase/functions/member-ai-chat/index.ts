@@ -18,6 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.1";
 // @ts-ignore Deno-only
 import Anthropic from "npm:@anthropic-ai/sdk@0.39.0";
 import { MEMBER_MANUAL } from "./manual.ts";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -33,14 +34,10 @@ const PRICE_OUTPUT_USD_PER_M       = 5.00;
 const MAX_TOKENS_REPLY             = 768;
 const MAX_TOOL_ITERATIONS          = 5;
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-};
-function json(payload: unknown, status = 200) {
+// v0.16.2 — CORS narrowed via ../_shared/cors.ts.
+function json(req: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
-    status, headers: { "content-type": "application/json", ...CORS },
+    status, headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -311,38 +308,38 @@ function computeCostCents(usage: any) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method === "OPTIONS") return preflight(req);
 
   // v0.16.0 — GET was unauthenticated and exposed service version,
   // model name, manual size, tool count, and Anthropic-key presence.
   // Audit finding #4: don't respond to anon GET at all.
   if (req.method === "GET") {
-    return json({ ok: false, error: "method not allowed" }, 405);
+    return json(req, { ok: false, error: "method not allowed" }, 405);
   }
 
-  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (req.method !== "POST") return json(req, { ok: false, error: "method not allowed" }, 405);
 
   if (!ANTHROPIC_KEY) {
-    return json({ ok: false, error: "ANTHROPIC_API_KEY not configured" }, 503);
+    return json(req, { ok: false, error: "ANTHROPIC_API_KEY not configured" }, 503);
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+  try { body = await req.json(); } catch { return json(req, { ok: false, error: "bad json" }, 400); }
 
   const history        = Array.isArray(body?.messages) ? body.messages : [];
   const conversationId = body?.conversation_id ? String(body.conversation_id) : null;
   const clubId         = body?.club_id ? String(body.club_id) : null;
 
   if (history.length === 0) {
-    return json({ ok: false, error: "messages array required" }, 400);
+    return json(req, { ok: false, error: "messages array required" }, 400);
   }
 
   const gate = await authAndGate(req.headers.get("authorization") || "", clubId);
-  if (!gate.ok) return json({ ok: false, error: gate.error }, gate.status);
+  if (!gate.ok) return json(req, { ok: false, error: gate.error }, gate.status);
 
   const messages = buildMessages(history);
   if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
-    return json({ ok: false, error: "last message must be from the user" }, 400);
+    return json(req, { ok: false, error: "last message must be from the user" }, 400);
   }
 
   const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
@@ -436,10 +433,10 @@ Deno.serve(async (req: Request) => {
   }
 
   if (errMsg) {
-    return json({ ok: false, error: errMsg }, 502);
+    return json(req, { ok: false, error: errMsg }, 502);
   }
 
-  return json({
+  return json(req, {
     ok: true,
     reply,
     stop_reason: stopReason,

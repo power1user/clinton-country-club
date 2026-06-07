@@ -37,6 +37,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.1";
 // @ts-ignore Deno-only
 import Anthropic from "npm:@anthropic-ai/sdk@0.39.0";
 import { ADMIN_MANUAL } from "./manual.ts";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -55,14 +56,12 @@ const PRICE_CACHED_INPUT_USD_PER_M = 0.10;   // cache reads (10% of regular)
 const PRICE_OUTPUT_USD_PER_M       = 5.00;
 const MAX_TOKENS_REPLY             = 1024;   // Phase 15 ceiling — most help answers fit
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-};
-function json(payload: unknown, status = 200) {
+// v0.16.2 — CORS narrowed from `*` to the groundslive-origin allowlist
+// via the shared helper. See ../_shared/cors.ts. `json` takes req so
+// it can echo the correct Allow-Origin for the calling browser.
+function json(req: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
-    status, headers: { "content-type": "application/json", ...CORS },
+    status, headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -176,7 +175,7 @@ function computeCostCents(usage: any) {
 }
 
 // ── Diagnostic mode ───────────────────────────────────────────────
-async function runDiag() {
+async function runDiag(req: Request) {
   const present = ANTHROPIC_KEY.length > 0;
   const looksRight = ANTHROPIC_KEY.startsWith("sk-ant-");
   let pingOk = false;
@@ -194,7 +193,7 @@ async function runDiag() {
       pingError = e?.message || String(e);
     }
   }
-  return json({
+  return json(req, {
     ok: pingOk,
     diag: {
       anthropic_key_present: present,
@@ -210,7 +209,7 @@ async function runDiag() {
 
 // ── Main handler ──────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method === "OPTIONS") return preflight(req);
 
   // v0.16.0 — Diagnostic was unauthenticated. Even though it only
   // exposes presence flags (not values), that's still reconnaissance:
@@ -221,37 +220,37 @@ Deno.serve(async (req: Request) => {
   if (req.method === "GET" && url.searchParams.get("diag") === "1") {
     const gate = await checkAdmin(req.headers.get("authorization") || "", null);
     if (!gate.ok || !gate.is_super) {
-      return json({ ok: false, error: "super_admin required" }, 403);
+      return json(req, { ok: false, error: "super_admin required" }, 403);
     }
-    return runDiag();
+    return runDiag(req);
   }
 
-  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (req.method !== "POST") return json(req, { ok: false, error: "method not allowed" }, 405);
 
   if (!ANTHROPIC_KEY) {
-    return json({
+    return json(req, {
       ok: false,
       error: "ANTHROPIC_API_KEY not configured. Add it to Supabase Edge Function secrets and redeploy.",
     }, 503);
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+  try { body = await req.json(); } catch { return json(req, { ok: false, error: "bad json" }, 400); }
 
   const history        = Array.isArray(body?.messages) ? body.messages : [];
   const conversationId = body?.conversation_id ? String(body.conversation_id) : null;
   const clubId         = body?.club_id ? String(body.club_id) : null;
 
   if (history.length === 0) {
-    return json({ ok: false, error: "messages array required (at least one user turn)" }, 400);
+    return json(req, { ok: false, error: "messages array required (at least one user turn)" }, 400);
   }
 
   const authCheck = await checkAdmin(req.headers.get("authorization") || "", clubId);
-  if (!authCheck.ok) return json({ ok: false, error: authCheck.error }, 401);
+  if (!authCheck.ok) return json(req, { ok: false, error: authCheck.error }, 401);
 
   const messages = buildMessages(history);
   if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
-    return json({ ok: false, error: "last message must be from the user" }, 400);
+    return json(req, { ok: false, error: "last message must be from the user" }, 400);
   }
 
   // ── Call Anthropic ────────────────────────────────────────────
@@ -323,10 +322,10 @@ Deno.serve(async (req: Request) => {
   }
 
   if (errMsg) {
-    return json({ ok: false, error: errMsg, anthropic_request_id: anthropicRequestId }, 502);
+    return json(req, { ok: false, error: errMsg, anthropic_request_id: anthropicRequestId }, 502);
   }
 
-  return json({
+  return json(req, {
     ok: true,
     reply,
     stop_reason: stopReason,

@@ -19,6 +19,7 @@
 
 // @ts-ignore Deno-only
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -28,14 +29,10 @@ const RESEND_FROM       = Deno.env.get("RESEND_FROM_ADDRESS") || "support@ground
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-function json(payload: unknown, status = 200) {
+// v0.16.2 — CORS narrowed via ../_shared/cors.ts.
+function json(req: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
-    status, headers: { "content-type": "application/json", ...CORS },
+    status, headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -60,25 +57,25 @@ async function checkSuperAdmin(authHeader: string): Promise<{ ok: boolean; user_
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (req.method === "OPTIONS") return preflight(req);
+  if (req.method !== "POST") return json(req, { ok: false, error: "method not allowed" }, 405);
 
   if (!RESEND_API_KEY) {
-    return json({ ok: false, error: "RESEND_API_KEY not configured" }, 500);
+    return json(req, { ok: false, error: "RESEND_API_KEY not configured" }, 500);
   }
 
   const auth = await checkSuperAdmin(req.headers.get("authorization") || "");
-  if (!auth.ok) return json({ ok: false, error: auth.error }, 401);
+  if (!auth.ok) return json(req, { ok: false, error: auth.error }, 401);
 
   let body: any;
-  try { body = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+  try { body = await req.json(); } catch { return json(req, { ok: false, error: "bad json" }, 400); }
 
   const thread_id = String(body?.thread_id || "").trim();
   const body_text = String(body?.body_text || "").trim();
   const body_html: string | null = body?.body_html ? String(body.body_html) : null;
   const subjectOverride: string | null = body?.subject ? String(body.subject) : null;
   if (!thread_id || !body_text) {
-    return json({ ok: false, error: "thread_id + body_text required" }, 400);
+    return json(req, { ok: false, error: "thread_id + body_text required" }, 400);
   }
 
   // □ Fetch the thread + the most recent inbound message (for headers).
@@ -87,7 +84,7 @@ Deno.serve(async (req: Request) => {
     .select("id, subject, from_addr")
     .eq("id", thread_id)
     .maybeSingle();
-  if (!thread) return json({ ok: false, error: "thread not found" }, 404);
+  if (!thread) return json(req, { ok: false, error: "thread not found" }, 404);
 
   const { data: lastInbound } = await admin
     .from("support_messages")
@@ -142,11 +139,11 @@ Deno.serve(async (req: Request) => {
     });
     const j = await r.json();
     if (!r.ok) {
-      return json({ ok: false, error: `Resend: ${j?.message || r.statusText}`, detail: j }, 502);
+      return json(req, { ok: false, error: `Resend: ${j?.message || r.statusText}`, detail: j }, 502);
     }
     resendId = j?.id || null;
   } catch (e: any) {
-    return json({ ok: false, error: `Resend fetch failed: ${e?.message || e}` }, 502);
+    return json(req, { ok: false, error: `Resend fetch failed: ${e?.message || e}` }, 502);
   }
 
   // □ Insert outbound message row. The trigger auto-flips the thread
@@ -173,7 +170,7 @@ Deno.serve(async (req: Request) => {
     })
     .select("id")
     .single();
-  if (mErr) return json({ ok: false, error: mErr.message, sent: true, resend_id: resendId }, 500);
+  if (mErr) return json(req, { ok: false, error: mErr.message, sent: true, resend_id: resendId }, 500);
 
   // □ Mark thread as read by THIS super_admin (they just replied, so
   // they've obviously read it). Upsert into support_reads.
@@ -182,5 +179,5 @@ Deno.serve(async (req: Request) => {
     { onConflict: "thread_id,user_id" }
   );
 
-  return json({ ok: true, message_id: msg.id, resend_id: resendId });
+  return json(req, { ok: true, message_id: msg.id, resend_id: resendId });
 });

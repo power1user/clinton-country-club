@@ -20,6 +20,7 @@
 
 // @ts-ignore Deno-only
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -27,14 +28,10 @@ const SERVICE_KEY       = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-const CORS = {
-  "Access-Control-Allow-Origin":  "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-function json(payload: unknown, status = 200) {
+// v0.16.2 — CORS narrowed via ../_shared/cors.ts.
+function json(req: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
-    status, headers: { "content-type": "application/json", ...CORS },
+    status, headers: { "content-type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -69,11 +66,11 @@ async function checkAdmin(authHeader: string, postedClubId: string | null) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (req.method === "OPTIONS") return preflight(req);
+  if (req.method !== "POST") return json(req, { ok: false, error: "method not allowed" }, 405);
 
   let body: any;
-  try { body = await req.json(); } catch { return json({ ok: false, error: "bad json" }, 400); }
+  try { body = await req.json(); } catch { return json(req, { ok: false, error: "bad json" }, 400); }
 
   const category    = String(body?.category   || "").trim();
   const subjectIn   = String(body?.subject    || "").trim();
@@ -83,14 +80,14 @@ Deno.serve(async (req: Request) => {
   const userAgent   = body?.user_agent ? String(body.user_agent).slice(0, 500) : null;
 
   if (!ALLOWED_CATEGORIES.has(category)) {
-    return json({ ok: false, error: "category required (user_help / admin_help / bug / enhancement / other)" }, 400);
+    return json(req, { ok: false, error: "category required (user_help / admin_help / bug / enhancement / other)" }, 400);
   }
   if (!subjectIn || !bodyText) {
-    return json({ ok: false, error: "subject + body_text required" }, 400);
+    return json(req, { ok: false, error: "subject + body_text required" }, 400);
   }
 
   const authCheck = await checkAdmin(req.headers.get("authorization") || "", clubId);
-  if (!authCheck.ok) return json({ ok: false, error: authCheck.error }, 401);
+  if (!authCheck.ok) return json(req, { ok: false, error: authCheck.error }, 401);
 
   // Resolve sender identity.
   let fromAddr: string | null = null;
@@ -115,7 +112,7 @@ Deno.serve(async (req: Request) => {
     fromName = fromName || u?.user?.user_metadata?.name || (u?.user?.email?.split("@")[0] || "Admin");
   }
   if (!fromAddr) {
-    return json({ ok: false, error: "could not resolve sender email" }, 422);
+    return json(req, { ok: false, error: "could not resolve sender email" }, 422);
   }
 
   const subjectTrimmed = subjectIn.slice(0, 500);
@@ -136,7 +133,7 @@ Deno.serve(async (req: Request) => {
     .single();
   if (tErr || !thread) {
     console.error("[submit-support-ticket] thread insert failed:", tErr);
-    return json({ ok: false, error: "thread insert failed", detail: tErr?.message }, 500);
+    return json(req, { ok: false, error: "thread insert failed", detail: tErr?.message }, 500);
   }
 
   const contextLines = [
@@ -168,8 +165,8 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (mErr) {
-    return json({ ok: false, error: "message insert failed", detail: mErr.message, thread_id: thread.id }, 500);
+    return json(req, { ok: false, error: "message insert failed", detail: mErr.message, thread_id: thread.id }, 500);
   }
 
-  return json({ ok: true, thread_id: thread.id, message_id: msg!.id });
+  return json(req, { ok: true, thread_id: thread.id, message_id: msg!.id });
 });
