@@ -177,6 +177,47 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.10** — Guest flow security audit (audit round 3 #3 + #4).
+
+  Wrote a full audit report at `supabase/audits/guest-flow.md` walking
+  the entire guest-registration → guest-session → guest-action surface:
+  the public `/guest/<slug>` route, the `guest-register` /
+  `guest-link` / `guest-qr-token` Edge Functions, RLS policies on
+  every table guests can touch, and the client-side
+  `guestAccess.js` matrix.
+
+  **Findings:**
+  - **guest-register validation** is solid: HMAC-signed QR tokens
+    with constant-time comparison, server-side club-status +
+    feature-flag gate, server-side canonical redirect (no
+    open-redirect via client-posted `redirect_to`).
+  - **Guest writes are correctly locked down by RLS.** Every
+    sensitive write policy requires a `members` row at the club,
+    which guests don't have. The absence-of-policy pattern means
+    guests can't write to messages, food orders, event
+    registrations, bulletin/partner posts, etc.
+  - **Access-level granularity (`data_only` / `read_only` /
+    `full_temporary`) is client-side only.** Documented design
+    choice rather than a hole — since writes are blocked
+    regardless of access_level, the distinction is purely about
+    what the UI surfaces. If we ever want DB-level enforcement
+    per level, that's a separate change.
+  - **Expiration is enforced at the DB.** `is_active_guest()`
+    checks `expires_at IS NULL OR expires_at > now()`; client
+    cannot bypass.
+
+  **Two real gaps documented** (severity: low-medium):
+  1. No rate limit on `guest-register` POST — anyone with the URL
+     can spam registrations. Supabase's auth-layer OTP rate-limit
+     provides some backpressure but doesn't stop function-level
+     abuse. Queued as v0.16.10b.
+  2. No CAPTCHA / human check on the public form. Operational /
+     UX concern; queued as a future v0.17.x decision.
+
+  **Verdict:** the guest flow's security boundary is solid for the
+  threats that matter. The follow-ups are DoS hardening, not
+  auth holes.
+
 - **v0.16.9** — Defensive client-side mutation scoping (audit round 3 #2).
 
   Many admin UPDATE/DELETE calls only filtered by `id`. RLS catches
