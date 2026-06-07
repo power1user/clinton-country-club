@@ -16,8 +16,8 @@
 import { useEffect, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
-import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 import { inputStyle, labelStyle } from '../../lib/formStyles.jsx';
+import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell (back-button handling baked in)
 
 export default function MemberTiersAdmin({ club }) {
   const [tiers, setTiers]     = useState([]);
@@ -158,7 +158,6 @@ export default function MemberTiersAdmin({ club }) {
 // TierEditModal — name-only add/rename. Validates uniqueness + non-empty.
 // ───────────────────────────────────────────────────────────────
 function TierEditModal({ mode, value, existing, onClose, onSave }) {
-  useModalBackClose(true, onClose);
   const isAdd = mode === 'add';
   const [name, setName] = useState(value);
   const [busy, setBusy] = useState(false);
@@ -193,55 +192,44 @@ function TierEditModal({ mode, value, existing, onClose, onSave }) {
   }, [canSave, name]);
 
   return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>
-            {isAdd ? 'Add Tier' : 'Rename Tier'}
-          </h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={labelStyle}>
-            Tier name
-            <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
-          </label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. Equity, Social, Junior, Honorary"
-            autoFocus
-            style={inputStyle}
-          />
-          {dup && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-              A tier named &ldquo;{trimmed}&rdquo; already exists in this club.
-            </p>
-          )}
-        </div>
-
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
-
-        <div onClick={canSave ? save : undefined} data-tap
-          style={{
-            padding: 12,
-            background: canSave ? G.green : G.border,
-            borderRadius: 3, textAlign: 'center',
-            cursor: canSave ? 'pointer' : 'not-allowed',
-            opacity: busy ? 0.6 : 1,
-          }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: canSave ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-            {busy ? 'Saving…' : (isAdd ? 'Add Tier' : 'Save')}
-          </span>
-        </div>
-
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
-          ESC to close · Ctrl/⌘+Enter to save
-        </p>
+    <BottomSheetModal title={isAdd ? 'Add Tier' : 'Rename Tier'} onClose={onClose}>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>
+          Tier name
+          <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
+        </label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Equity, Social, Junior, Honorary"
+          autoFocus
+          style={inputStyle}
+        />
+        {dup && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
+            A tier named &ldquo;{trimmed}&rdquo; already exists in this club.
+          </p>
+        )}
       </div>
-    </div>
+
+      {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+      <div onClick={canSave ? save : undefined} data-tap
+        style={{
+          padding: 12,
+          background: canSave ? G.green : G.border,
+          borderRadius: 3, textAlign: 'center',
+          cursor: canSave ? 'pointer' : 'not-allowed',
+          opacity: busy ? 0.6 : 1,
+        }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: canSave ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+          {busy ? 'Saving…' : (isAdd ? 'Add Tier' : 'Save')}
+        </span>
+      </div>
+
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
+        ESC to close · Ctrl/⌘+Enter to save
+      </p>
+    </BottomSheetModal>
   );
 }

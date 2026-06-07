@@ -3,10 +3,8 @@
 // client-side, write it to club-assets storage, and persist the
 // public URL on their members row.
 //
-// Why canvas-resize instead of a library: keeps the bundle slim
-// (~0 KB vs ~30 KB for browser-image-compression). Phone-sized
-// photos at 800px max edge + 0.85 quality JPEG land well under
-// 200KB in practice (typical ~50-120KB).
+// v0.15.26 — the resize/compress canvas glue moved to
+// src/lib/imageResize.js so the admin PersonEditModal can share it.
 //
 // Auto-hides when the club has the profile_photos flag off.
 import { useState, useRef } from 'react';
@@ -15,34 +13,7 @@ import Avatar from './Avatar.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { supabase } from '../lib/supabase.js';
-
-const MAX_EDGE_PX = 800;
-const JPEG_QUALITY = 0.85;
-
-// Pull pixels off the file, scale to MAX_EDGE_PX max edge, re-encode
-// JPEG. Returns a Blob (NOT a File) — Supabase storage accepts both.
-async function resizeToBlob(file) {
-  const img = await createImageBitmap(file);
-  const ratio = Math.min(MAX_EDGE_PX / img.width, MAX_EDGE_PX / img.height, 1);
-  const w = Math.max(1, Math.round(img.width * ratio));
-  const h = Math.max(1, Math.round(img.height * ratio));
-  // OffscreenCanvas isn't on every Safari version — fall back to a
-  // hidden DOM canvas if needed.
-  let blob;
-  if (typeof OffscreenCanvas !== 'undefined') {
-    const off = new OffscreenCanvas(w, h);
-    const ctx = off.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
-    blob = await off.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY });
-  } else {
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', JPEG_QUALITY));
-  }
-  img.close?.();
-  return blob;
-}
+import { resizeToBlob } from '../lib/imageResize.js';
 
 export default function ProfilePhotoCard() {
   const { member, club, session, refreshMember } = useAuth();

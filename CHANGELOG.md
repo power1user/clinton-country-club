@@ -164,6 +164,51 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.25 / v0.15.26** — Performance + code-dedup follow-ups to the bloat audit.
+
+  Two patches batched because they're independent and trivial to land
+  together; bumped the version straight from 0.15.24 → 0.15.26.
+
+  **v0.15.25 — Missing FK indexes (DB migration).** The v0.15.18 audit
+  named 7 missing indexes that never made it into a migration. Added
+  them all: \`bulletin_posts.member_id\`, \`food_orders.member_id\`,
+  \`messages.sender_user_id\`, \`partner_posts.member_id\`,
+  \`people_audit_log.created_at\` (DESC, helps the Activity History
+  pane), \`post_replies.member_id\`, \`post_replies.user_id\`,
+  \`thread_participants.member_id\`. Trivial DDL, prevents
+  sequential-scan storms at scale. Zero runtime risk.
+
+  **v0.15.26 — Three shared primitives extracted:**
+  - \`src/lib/imageResize.js\` — \`resizeToBlob(file, { maxEdge,
+    quality })\`. Pulled from the two near-identical copies in
+    \`ProfilePhotoCard.jsx\` and \`AllPeopleAdmin.jsx\`.
+  - \`src/components/BottomSheetModal.jsx\` — shared modal shell with
+    \`useModalBackClose\` baked in. Applied to AddDepartmentModal,
+    DepartmentDetailModal, AddStaffToDepartmentModal, TierEditModal,
+    PeopleCsvImportModal. Bigger custom shells (PersonEditModal's
+    identity strip, AddPersonPicker's centered card, the routing
+    Preview modal) intentionally left alone — their tops aren't
+    standard "title + ×".
+  - \`src/components/ToggleChip.jsx\` — on/off pill with check svg.
+    Applied to PersonEditModal Departments chips + ClubhouseRouting
+    chips. Optional \`color\` for the "on" background; new
+    \`onTextColor\` prop preserves the brass-cream pairing on brass
+    chips (the agent's first pass normalized to green-cream, which
+    was a tiny visual shift Marc would have caught).
+
+  **Impact:**
+  - ProfilePhotoCard.jsx: 207 → 178 (−29)
+  - AllPeopleAdmin.jsx: 1589 → 1541 (−48)
+  - DepartmentsAdmin.jsx: 673 → 644 (−29)
+  - MemberTiersAdmin.jsx: 248 → 235 (−13)
+  - ClubhouseRoutingAdmin.jsx: 316 → 291 (−25)
+  - Net (after the 3 new shared files at +128 lines): existing files
+    shed 144 lines.
+  - Admin chunk: 507.77 KB → 504.00 KB (−3.77 KB).
+
+  Build stayed clean every phase. Bottom-sheet design changes now
+  happen in one place across 5 admin surfaces.
+
 - **v0.15.24** — Drop NOT NULL on `guests.zip`.
 
   Marc hit this trying to demote a pending member to guest from the

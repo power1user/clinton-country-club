@@ -21,8 +21,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
-import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 import { labelStyle, inputStyle } from '../../lib/formStyles.jsx';   // v0.15.18 — shared primitives
+import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell (back-button handling baked in)
 
 // v0.15.18 — Form primitives (labelStyle, inputStyle) moved to
 // src/lib/formStyles.js — single source of truth for the whole admin.
@@ -221,7 +221,6 @@ export default function DepartmentsAdmin({ club }) {
 // AddDepartmentModal — minimal add UI. Name only.
 // ───────────────────────────────────────────────────────────────
 function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSaved }) {
-  useModalBackClose(true, onClose);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -256,54 +255,45 @@ function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSav
   }, [isValid, name]);
 
   return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>Add Department</h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={labelStyle}>
-            Name
-            <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
-          </label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. Pro Shop, Course Maintenance, Tennis Pro"
-            autoFocus
-            style={inputStyle}
-          />
-          {nameClash && (
-            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-              There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
-            </p>
-          )}
-        </div>
-
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
-
-        <div onClick={isValid ? save : undefined} data-tap
-          style={{
-            padding: 12,
-            background: isValid ? G.green : G.border,
-            borderRadius: 3, textAlign: 'center',
-            cursor: isValid ? 'pointer' : 'not-allowed',
-            opacity: busy ? 0.6 : 1,
-          }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: isValid ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
-            {busy ? 'Adding…' : 'Add Department'}
-          </span>
-        </div>
-
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
-          ESC to close · Ctrl/⌘+Enter to save
-        </p>
+    <BottomSheetModal title="Add Department" onClose={onClose}>
+      <div style={{ marginBottom: 12 }}>
+        <label style={labelStyle}>
+          Name
+          <span style={{ color: G.clsDot, marginLeft: 3, fontWeight: 700 }}>*</span>
+        </label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Pro Shop, Course Maintenance, Tennis Pro"
+          autoFocus
+          style={inputStyle}
+        />
+        {nameClash && (
+          <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
+            There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
+          </p>
+        )}
       </div>
-    </div>
+
+      {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+      <div onClick={isValid ? save : undefined} data-tap
+        style={{
+          padding: 12,
+          background: isValid ? G.green : G.border,
+          borderRadius: 3, textAlign: 'center',
+          cursor: isValid ? 'pointer' : 'not-allowed',
+          opacity: busy ? 0.6 : 1,
+        }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: isValid ? '#F2EDE0' : G.muted, fontWeight: 500 }}>
+          {busy ? 'Adding…' : 'Add Department'}
+        </span>
+      </div>
+
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, margin: '8px 0 0', textAlign: 'right', letterSpacing: '0.06em' }}>
+        ESC to close · Ctrl/⌘+Enter to save
+      </p>
+    </BottomSheetModal>
   );
 }
 
@@ -313,7 +303,6 @@ function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSav
 // rename the department inline, or delete the whole thing.
 // ───────────────────────────────────────────────────────────────
 function DepartmentDetailModal({ department, club, memberCount, existingNames, existingSlugs, onClose, onSaved }) {
-  useModalBackClose(true, onClose);
   // Embedded rename state — starts in display mode, "edit" toggles to input.
   const [renaming, setRenaming]   = useState(false);
   const [name, setName]           = useState(department.name);
@@ -421,56 +410,49 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
   }, [renaming]);
 
   return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        {/* Header — name with inline rename pencil */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {renaming ? (
-              <div>
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  autoFocus
-                  style={{ ...inputStyle, fontSize: 17, fontFamily: '"Playfair Display",serif', fontWeight: 700 }}
-                />
-                {nameClash && (
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
-                    There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <div onClick={canRename ? saveRename : undefined} data-tap
-                    style={{ padding: '6px 12px', background: canRename ? G.green : G.border, borderRadius: 3, cursor: canRename ? 'pointer' : 'not-allowed', opacity: renaming_busy ? 0.6 : 1 }}>
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: canRename ? '#F2EDE0' : G.muted, fontWeight: 600 }}>
-                      {renaming_busy ? 'Saving…' : 'Save'}
-                    </span>
-                  </div>
-                  <div onClick={() => { setRenaming(false); setName(department.name); }} data-tap
-                    style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
-                    <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 500 }}>Cancel</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>{department.name}</h3>
-                <div onClick={() => setRenaming(true)} data-tap title="Rename"
-                  style={{ padding: 4, cursor: 'pointer' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </div>
-              </div>
-            )}
-          </div>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer', flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+    <>
+    <BottomSheetModal title={department.name} onClose={onClose}>
+      {/* v0.15.26 — inline rename pencil + edit-mode input. Pencil sits
+          on its own line so the title prop above stays the static name
+          (BottomSheetModal owns the title styling). */}
+      {renaming ? (
+        <div style={{ marginBottom: 14 }}>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoFocus
+            style={{ ...inputStyle, fontSize: 17, fontFamily: '"Playfair Display",serif', fontWeight: 700 }}
+          />
+          {nameClash && (
+            <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.clsDot, margin: '4px 0 0' }}>
+              There&rsquo;s already a department named &ldquo;{trimmed}&rdquo;. Pick a different name.
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <div onClick={canRename ? saveRename : undefined} data-tap
+              style={{ padding: '6px 12px', background: canRename ? G.green : G.border, borderRadius: 3, cursor: canRename ? 'pointer' : 'not-allowed', opacity: renaming_busy ? 0.6 : 1 }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: canRename ? '#F2EDE0' : G.muted, fontWeight: 600 }}>
+                {renaming_busy ? 'Saving…' : 'Save'}
+              </span>
+            </div>
+            <div onClick={() => { setRenaming(false); setName(department.name); }} data-tap
+              style={{ padding: '6px 12px', background: 'transparent', border: `1px solid ${G.border}`, borderRadius: 3, cursor: 'pointer' }}>
+              <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 500 }}>Cancel</span>
+            </div>
           </div>
         </div>
+      ) : (
+        <div onClick={() => setRenaming(true)} data-tap title="Rename department"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginBottom: 14 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, fontWeight: 500 }}>Rename</span>
+        </div>
+      )}
 
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+      {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
 
         {/* Member list — header row with section label + Add Staff button */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '6px 0 8px' }}>
@@ -527,7 +509,7 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
         <div onClick={remove} data-tap style={{ marginTop: 18, padding: 8, textAlign: 'center', cursor: 'pointer' }}>
           <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, textDecoration: 'underline', textUnderlineOffset: 2 }}>Delete department</span>
         </div>
-      </div>
+    </BottomSheetModal>
 
       {/* v0.15.15 — Add-staff picker, rendered as a sibling so it
           stacks on top of the detail modal without interfering with
@@ -541,7 +523,7 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
           onAdded={() => { setAddingStaff(false); loadMembers(); onSaved?.(); }}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -552,7 +534,6 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
 // be assigned to a department even though their role is club-wide).
 // ───────────────────────────────────────────────────────────────
 function AddStaffToDepartmentModal({ department, club, alreadyAssignedUserIds, onClose, onAdded }) {
-  useModalBackClose(true, onClose);
   const [candidates, setCandidates] = useState([]); // [{user_id, name, role}]
   const [loading, setLoading]       = useState(true);
   const [addingId, setAddingId]     = useState(null);
@@ -616,57 +597,48 @@ function AddStaffToDepartmentModal({ department, club, alreadyAssignedUserIds, o
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 30 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>
-            Add staff to {department.name}
-          </h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
+    <BottomSheetModal
+      title={`Add staff to ${department.name}`}
+      subtitle="Pick one or more people to add. They keep their existing role and any other department assignments."
+      onClose={onClose}
+      zIndex={30}
+    >
+      {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
+
+      {loading ? (
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: '14px 0' }}>Loading…</p>
+      ) : candidates.length === 0 ? (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px' }}>
+          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
+            Everyone with staff access at this club is already in <strong>{department.name}</strong>. Promote
+            more members to staff under <strong>People</strong> if you want more options here.
+          </p>
         </div>
-        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: G.muted, margin: '0 0 14px' }}>
-          Pick one or more people to add. They keep their existing role and any other department assignments.
-        </p>
-
-        {err && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{err}</p>}
-
-        {loading ? (
-          <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, padding: '14px 0' }}>Loading…</p>
-        ) : candidates.length === 0 ? (
-          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '14px' }}>
-            <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 12, color: G.muted, margin: 0, lineHeight: 1.55 }}>
-              Everyone with staff access at this club is already in <strong>{department.name}</strong>. Promote
-              more members to staff under <strong>People</strong> if you want more options here.
-            </p>
-          </div>
-        ) : (
-          <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
-            {candidates.map((c, i) => (
-              <div key={c.user_id} style={{
-                display: 'flex', alignItems: 'center', padding: '12px 14px',
-                borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
-                gap: 10,
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>{c.name}</p>
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{c.role}</p>
-                </div>
-                <div
-                  onClick={() => add(c)}
-                  data-tap
-                  style={{ padding: '6px 12px', background: addingId === c.user_id ? G.border : G.green, borderRadius: 14, cursor: addingId ? 'wait' : 'pointer', opacity: addingId && addingId !== c.user_id ? 0.4 : 1, flexShrink: 0 }}
-                >
-                  <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 600 }}>
-                    {addingId === c.user_id ? 'Adding…' : 'Add'}
-                  </span>
-                </div>
+      ) : (
+        <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          {candidates.map((c, i) => (
+            <div key={c.user_id} style={{
+              display: 'flex', alignItems: 'center', padding: '12px 14px',
+              borderTop: i === 0 ? 'none' : `1px solid ${G.border}`,
+              gap: 10,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, margin: 0, fontWeight: 500 }}>{c.name}</p>
+                <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '2px 0 0', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{c.role}</p>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+              <div
+                onClick={() => add(c)}
+                data-tap
+                style={{ padding: '6px 12px', background: addingId === c.user_id ? G.border : G.green, borderRadius: 14, cursor: addingId ? 'wait' : 'pointer', opacity: addingId && addingId !== c.user_id ? 0.4 : 1, flexShrink: 0 }}
+              >
+                <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2EDE0', fontWeight: 600 }}>
+                  {addingId === c.user_id ? 'Adding…' : 'Add'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </BottomSheetModal>
   );
 }

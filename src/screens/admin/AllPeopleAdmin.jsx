@@ -16,6 +16,9 @@ import { useModalBackClose } from '../../hooks/useModalBackClose.js';
 import {
   inputStyle, selectStyle, FormRow, Field, SectionLabel,
 } from '../../lib/formStyles.jsx';   // v0.15.18 — shared form primitives
+import { resizeToBlob } from '../../lib/imageResize.js';   // v0.15.26
+import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell
+import ToggleChip from '../../components/ToggleChip.jsx';   // v0.15.26
 import {
   StatusPill, RolePill, StatusChangeModal, RoleChangeModal,
   STATUS_COLOR, ROLE_COLOR,
@@ -853,23 +856,9 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     if (!file || photoBusy || kind !== 'member' || !memberId || !person?.auth_user_id) return;
     setPhotoBusy(true); setErr(null);
     try {
-      // Resize to ~800px max edge, JPEG q=0.85.
-      const img = await createImageBitmap(file);
-      const ratio = Math.min(800 / img.width, 800 / img.height, 1);
-      const w = Math.max(1, Math.round(img.width  * ratio));
-      const h = Math.max(1, Math.round(img.height * ratio));
-      let blob;
-      if (typeof OffscreenCanvas !== 'undefined') {
-        const off = new OffscreenCanvas(w, h);
-        off.getContext('2d').drawImage(img, 0, 0, w, h);
-        blob = await off.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
-      } else {
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
-      }
-      img.close?.();
+      // v0.15.26 — Resize/compress moved to src/lib/imageResize.js so
+      // this matches ProfilePhotoCard's defaults (800px max, q=0.85).
+      const blob = await resizeToBlob(file);
 
       // Path uses the TARGET user's id (not auth.uid()) — storage RLS
       // `club_assets_staff_insert` permits any club staff to write
@@ -1240,41 +1229,15 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
             ) : (
               <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, padding: '10px 12px' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {allDepartments.map(dep => {
-                    const on = assignedDeptIds.has(dep.id);
-                    return (
-                      <div
-                        key={dep.id}
-                        onClick={() => toggleDepartment(dep)}
-                        data-tap
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 14,
-                          background: on ? G.green : 'transparent',
-                          border: `1px solid ${on ? G.green : G.border}`,
-                          cursor: deptBusy ? 'wait' : 'pointer',
-                          opacity: deptBusy ? 0.6 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        {on && (
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2EDE0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                        <span style={{
-                          fontFamily: '"Lora",serif',
-                          fontSize: 12,
-                          color: on ? '#F2EDE0' : G.text,
-                          fontWeight: on ? 600 : 400,
-                        }}>
-                          {dep.name}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {allDepartments.map(dep => (
+                    <ToggleChip
+                      key={dep.id}
+                      on={assignedDeptIds.has(dep.id)}
+                      label={dep.name}
+                      onClick={() => toggleDepartment(dep)}
+                      busy={deptBusy}
+                    />
+                  ))}
                 </div>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', fontStyle: 'italic' }}>
                   Clubhouse pushes are routed by topic &rarr; department. See{' '}
@@ -1510,7 +1473,6 @@ function initialFormFor(kind, row, person) {
 // individually via "+ Add Person → Guest".
 // ───────────────────────────────────────────────────────────────
 function PeopleCsvImportModal({ club, onClose, onSaved }) {
-  useModalBackClose(true, onClose);
   const [csvText, setCsvText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -1552,37 +1514,28 @@ function PeopleCsvImportModal({ club, onClose, onSaved }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(26,24,15,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 25 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: G.bg, borderRadius: '12px 12px 0 0', padding: '20px 18px 32px', width: '100%', maxHeight: '92%', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h3 style={{ fontFamily: '"Playfair Display",serif', fontSize: 17, fontWeight: 700, color: G.text, margin: 0 }}>Bulk Import Members</h3>
-          <div onClick={onClose} data-tap style={{ padding: 4, cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-          </div>
-        </div>
+    <BottomSheetModal title="Bulk Import Members" onClose={onClose}>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: '0 0 10px' }}>
+        Paste a CSV below. First row = column headers. Required: <code>name</code>, <code>membership_number</code>.
+        Optional: <code>email</code>, <code>tier</code>, <code>member_since</code>, <code>hcp</code>, <code>locker</code>, <code>cart</code>, <code>parking</code>.
+        New members are added with <strong>Pending</strong> status; they activate when they sign in with the matching email.
+        Existing membership numbers are updated.
+      </p>
 
-        <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.6, margin: '0 0 10px' }}>
-          Paste a CSV below. First row = column headers. Required: <code>name</code>, <code>membership_number</code>.
-          Optional: <code>email</code>, <code>tier</code>, <code>member_since</code>, <code>hcp</code>, <code>locker</code>, <code>cart</code>, <code>parking</code>.
-          New members are added with <strong>Pending</strong> status; they activate when they sign in with the matching email.
-          Existing membership numbers are updated.
-        </p>
+      <textarea
+        value={csvText}
+        onChange={e => setCsvText(e.target.value)}
+        placeholder={'name,membership_number,email,tier\nMarc Abla,0001,marc@example.com,Full Member\nMatt Bohlmann,0002,matt@example.com,Full Member'}
+        style={{ width: '100%', height: 200, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 11, color: G.text, background: G.card, resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+      />
 
-        <textarea
-          value={csvText}
-          onChange={e => setCsvText(e.target.value)}
-          placeholder={'name,membership_number,email,tier\nMarc Abla,0001,marc@example.com,Full Member\nMatt Bohlmann,0002,matt@example.com,Full Member'}
-          style={{ width: '100%', height: 200, padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: 'monospace', fontSize: 11, color: G.text, background: G.card, resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
-        />
+      {result?.error && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{result.error}</p>}
+      {result?.ok    && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.openBg, marginBottom: 10 }}>✓ Imported / updated {result.ok} member{result.ok === 1 ? '' : 's'}.</p>}
 
-        {result?.error && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.clsDot, marginBottom: 10 }}>{result.error}</p>}
-        {result?.ok    && <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.openBg, marginBottom: 10 }}>✓ Imported / updated {result.ok} member{result.ok === 1 ? '' : 's'}.</p>}
-
-        <div onClick={csvText && !busy ? run : undefined} data-tap
-          style={{ padding: 12, background: csvText && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: csvText && !busy ? 'pointer' : 'not-allowed' }}>
-          <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: csvText && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Importing…' : 'Import'}</span>
-        </div>
+      <div onClick={csvText && !busy ? run : undefined} data-tap
+        style={{ padding: 12, background: csvText && !busy ? G.green : G.border, borderRadius: 3, textAlign: 'center', cursor: csvText && !busy ? 'pointer' : 'not-allowed' }}>
+        <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: csvText && !busy ? '#F2EDE0' : G.muted, fontWeight: 500 }}>{busy ? 'Importing…' : 'Import'}</span>
       </div>
-    </div>
+    </BottomSheetModal>
   );
 }

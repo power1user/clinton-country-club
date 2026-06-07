@@ -24,6 +24,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { useModalBackClose } from '../../hooks/useModalBackClose.js';
+import ToggleChip from '../../components/ToggleChip.jsx';   // v0.15.26
 
 // Match TOPICS in screens/MessageClubhouse.jsx. If those change there,
 // also bump this list (or move topics into a shared module).
@@ -210,42 +211,18 @@ export default function ClubhouseRoutingAdmin({ club }) {
                   {t.hint}
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {departments.map(dep => {
-                    const on = selected.includes(dep.slug);
-                    return (
-                      <div
-                        key={dep.id}
-                        onClick={() => toggleSlug(t.id, dep.slug)}
-                        data-tap
-                        title={dep.slug}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 14,
-                          background: on ? G.brass : 'transparent',
-                          border: `1px solid ${on ? G.brass : G.border}`,
-                          cursor: saving ? 'wait' : 'pointer',
-                          opacity: saving ? 0.6 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        {on && (
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#F2E5C0" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                        <span style={{
-                          fontFamily: '"Lora",serif',
-                          fontSize: 12,
-                          color: on ? '#F2E5C0' : G.text,
-                          fontWeight: on ? 600 : 400,
-                        }}>
-                          {dep.name}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {departments.map(dep => (
+                    <ToggleChip
+                      key={dep.id}
+                      on={selected.includes(dep.slug)}
+                      label={dep.name}
+                      onClick={() => toggleSlug(t.id, dep.slug)}
+                      busy={saving}
+                      title={dep.slug}
+                      color={G.brass}
+                      onTextColor="#F2E5C0"
+                    />
+                  ))}
                 </div>
                 {selected.length === 0 && (
                   <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: G.muted, margin: '8px 0 0', fontStyle: 'italic' }}>
