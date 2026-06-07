@@ -35,7 +35,15 @@ function sanitizeFilename(name: string): string {
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
+  const auth = req.headers.get("authorization") || "";
+  const authOk = INGEST_SECRET && auth === `Bearer ${INGEST_SECRET}`;
+
+  // v0.16.0 — Diagnostic was unauthenticated and exposed which secrets
+  // are configured. Audit finding #4: gate behind the same INGEST_SECRET
+  // the email-ingest worker uses. Random requests now get 404 (no
+  // confirmation that diag exists), authenticated calls still work.
   if (url.searchParams.get("diag") === "1") {
+    if (!authOk) return new Response("Not found", { status: 404 });
     return json({
       version: 2,
       has_url: !!SUPABASE_URL,
@@ -46,8 +54,7 @@ Deno.serve(async (req: Request) => {
 
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  const auth = req.headers.get("authorization") || "";
-  if (!INGEST_SECRET || auth !== `Bearer ${INGEST_SECRET}`) {
+  if (!authOk) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 

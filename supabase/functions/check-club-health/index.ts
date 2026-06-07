@@ -27,11 +27,40 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
 const PLATFORM_DOMAIN = "groundslive.com";
 const FETCH_TIMEOUT_MS = 6000;
+
+// v0.16.0 — super_admin auth gate. Previously this endpoint was
+// callable by anyone who knew the URL (the service-role client at the
+// top would happily enumerate every club). Lifts the pattern from
+// submit-support-ticket: anon-client + user JWT → check user_roles for
+// a super_admin row → reject if absent. Service-role client below is
+// then used ONLY for the post-auth fan-out.
+async function requireSuperAdmin(req: Request): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const authHeader = req.headers.get("authorization") || "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) {
+    return { ok: false, status: 401, error: "missing bearer token" };
+  }
+  const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: u } = await anon.auth.getUser();
+  if (!u?.user) return { ok: false, status: 401, error: "invalid token" };
+  // The Grounds schema: user_roles.club_id (not tenant_id — see
+  // v0.13.7 hotfix). super_admin rows have club_id IS NULL.
+  const { data: roles, error } = await anon
+    .from("user_roles")
+    .select("role, club_id")
+    .eq("user_id", u.user.id);
+  if (error) return { ok: false, status: 500, error: error.message };
+  const isSuper = (roles || []).some((r: any) => r.role === "super_admin" && r.club_id === null);
+  if (!isSuper) return { ok: false, status: 403, error: "super_admin required" };
+  return { ok: true };
+}
 
 async function checkOne(slug: string): Promise<Record<string, unknown>> {
   const hostname = `${slug}.${PLATFORM_DOMAIN}`;
@@ -86,6 +115,15 @@ async function checkOne(slug: string): Promise<Record<string, unknown>> {
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // v0.16.0 — must be super_admin (audit finding #2).
+  const gate = await requireSuperAdmin(req);
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ ok: false, error: gate.error }), {
+      status: gate.status,
+      headers: { "content-type": "application/json" },
+    });
   }
 
   // Pull every club's slug. The service role bypasses RLS so we

@@ -164,6 +164,87 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.16.x — Phase 18: Security & Hardening Pass
+
+External code audit surfaced 8 findings — 3 verified bugs (support push
+silently broken, an unauthenticated service-role endpoint, a broken
+per-user dismissal key), 2 hardening gaps (unauthenticated diagnostic
+endpoints, missing baseline security headers), and 3 structural items
+(centralize admin auth, split the 5,327-line sections.jsx, add a test
+scaffold). v0.16.x sequences this across multiple patches under one
+minor so it's auditable. v0.16.0 opens the phase with the small-surface
+items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
+
+---
+
+- **v0.16.0** — Phase 18 foundation: security bugs + hardening.
+
+  Five audit items shipped in one patch:
+
+  **(Bug #1)** Support push to super_admins was silently broken. The
+  send-push support-ticket branch filtered `user_roles` by `tenant_id`
+  — a column that doesn't exist on this schema (it's `club_id`, as a
+  v0.13.7 hotfix comment in submit-support-ticket already documents).
+  The query 400'd, the error was swallowed by `const { data }` (no
+  destructuring of `error`), the function returned
+  `{sent:0,reason:"no super_admins"}` for every support ticket since
+  this code path shipped. Fixed the column AND now surface the query
+  error explicitly so this can never silently regress again.
+
+  **(Bug #2)** check-club-health Edge Function had no auth check. It
+  used the service-role key to enumerate every club's slug and fan
+  out HEAD requests — and any random POST to its URL got the full
+  list back. Added a `requireSuperAdmin` gate lifted from the
+  submit-support-ticket pattern: anon client + user JWT → check
+  user_roles for a super_admin row → reject otherwise.
+
+  **(Bug #3)** MemberAIBubble's localStorage dismissal key wasn't
+  actually per-user. The component destructured `user` from
+  `useAuth()`, but `useAuth` never exposed `user` — the interpolation
+  fell back to `'nx'`, so all users on a shared browser collided into
+  the same dismissal state. Fixed by reading `session?.user?.id` like
+  the rest of the codebase (AdminAIBubble already did this correctly).
+
+  **(Hardening #4)** Diagnostic GET endpoints were exposing secret-
+  presence flags to anyone with the URL:
+  - `admin-ai-chat?diag=1` now requires super_admin auth (returns
+    403 otherwise).
+  - `member-ai-chat` no longer responds to anon GET at all
+    (405 method-not-allowed).
+  - `receive-support-email?diag=1` now requires the INGEST_SECRET
+    bearer token (same secret the Cloudflare Email Worker uses for
+    POSTs). Returns 404 to randos so the endpoint's existence isn't
+    confirmed.
+
+  **(Hardening #5)** Baseline security headers added to
+  `public/_headers`. The deployed app previously had only cache rules;
+  now every response also gets:
+  - `Content-Security-Policy: default-src 'self'; script-src 'self';
+    style-src 'self' 'unsafe-inline'; connect-src 'self' + our
+    Supabase project; img-src self + data: + https:; frame-ancestors
+    'self'; base-uri 'self'; form-action 'self'`
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+    (1 year; preload list submission deferred since it's hard to undo)
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=(self),
+    interest-cohort=()`
+
+  `style-src 'unsafe-inline'` is needed because the codebase uses
+  React inline-style attributes everywhere; removing it would require
+  eliminating every `style={...}` prop. `script-src 'self'` is
+  restrictive — if a future feature inlines a script the browser will
+  block it with a clear console error, at which point we'd switch to
+  the nonce pattern instead of relaxing the policy.
+
+  **Deploy notes:** Static assets ship via Cloudflare on `git push`.
+  Edge Functions (`send-push`, `check-club-health`, `admin-ai-chat`,
+  `member-ai-chat`, `receive-support-email`) MUST be redeployed via
+  `npx supabase functions deploy <name>` or the Supabase MCP for the
+  bug fixes + diagnostic gating to take effect.
+
+---
+
 - **v0.15.33** — Cream outline on the floating Member AI bubble.
 
   Marc spotted: the MemberAIBubble closed-state floating button is a

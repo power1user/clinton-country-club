@@ -212,9 +212,17 @@ async function runDiag() {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  // Diagnostic — no auth required (only exposes presence flags, not values)
+  // v0.16.0 — Diagnostic was unauthenticated. Even though it only
+  // exposes presence flags (not values), that's still reconnaissance:
+  // an attacker can confirm we have an Anthropic key, a service key,
+  // and a working Anthropic connection. Gate behind super_admin
+  // (audit finding #4).
   const url = new URL(req.url);
   if (req.method === "GET" && url.searchParams.get("diag") === "1") {
+    const gate = await checkAdmin(req.headers.get("authorization") || "", null);
+    if (!gate.ok || !gate.is_super) {
+      return json({ ok: false, error: "super_admin required" }, 403);
+    }
     return runDiag();
   }
 

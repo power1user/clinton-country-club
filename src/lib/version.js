@@ -69,6 +69,66 @@
 //             row. v0.10.1 brings the Trophy Case (Community tab),
 //             v0.10.2 sponsor placement + add-on gating, v0.10.3
 //             member RSVP history (My Events).
+//   v0.16.x — Phase 18: Security & Hardening Pass. External code audit
+//             surfaced 8 findings spanning 3 verified bugs, 2 hardening
+//             gaps, and 3 structural refactors. v0.16.x sequences the
+//             work across multiple patches under one minor so it stays
+//             auditable.
+//             v0.16.0 — Phase 18 opens. Foundation patch addressing
+//             the small-surface items in one shipping unit:
+//             (#1) send-push support-ticket branch was filtering
+//             user_roles by `tenant_id` (a column that doesn't exist
+//             on this schema). The codebase already had a v0.13.7
+//             hotfix comment in submit-support-ticket warning "use
+//             club_id, not tenant_id." send-push was missed. Result:
+//             support pushes to super_admins NEVER fired since the
+//             feature shipped — the function silently returned
+//             {sent:0, reason:"no super_admins"} on every ticket.
+//             Fixed the column AND added error surfacing so a future
+//             column drift can't regress the same way silently.
+//             (#2) check-club-health used the service-role key with
+//             NO auth check. Anyone with the URL could enumerate
+//             every club + force fan-out HEAD requests across every
+//             subdomain. Added a super_admin gate lifted from the
+//             submit-support-ticket pattern.
+//             (#3) MemberAIBubble destructured `user` from useAuth(),
+//             but useAuth never exposed user — the dismissal-key
+//             interpolation fell to 'nx' and dismissals bled across
+//             users on the same browser. Switched to
+//             session?.user?.id like the rest of the codebase.
+//             (#4) Diagnostic endpoints exposing secret-presence
+//             flags to anyone with the URL: admin-ai-chat ?diag=1
+//             now requires super_admin; member-ai-chat anon GET
+//             returns 405; receive-support-email ?diag=1 requires
+//             the INGEST_SECRET (same as the POST path) and returns
+//             404 for anons so the endpoint's existence isn't
+//             confirmed to randos.
+//             (#5) Baseline security headers added to public/_headers:
+//             CSP (default-src self, script-src self, style-src self
+//             + unsafe-inline for React inline styles, connect-src
+//             to our Supabase project, frame-ancestors self),
+//             HSTS (1-year, not preloaded yet), X-Content-Type-
+//             Options nosniff, Referrer-Policy
+//             strict-origin-when-cross-origin, Permissions-Policy
+//             dialing camera/microphone/interest-cohort to ().
+//             v0.16.1 — Admin auth centralization (audit finding #6).
+//             Today's pattern: visibility filter in AdminPanel:525,
+//             actual rendering in a 1,500-line if/else at
+//             AdminPanel:302, with each section enforcing its own
+//             guard inconsistently. Plan: attach role/permission
+//             metadata to each section renderer; one reusable
+//             guard component reads it.
+//             v0.16.2 — sections.jsx split (audit finding #7).
+//             5,327-line file by admin domain. Pull each large area
+//             (Communications, Events, Dining, etc.) into its own
+//             file under src/screens/admin/sections/.
+//             v0.16.3 — Test scaffold (audit finding #8). Vitest +
+//             focused tests on the high-risk paths: permission
+//             helpers (hasPerm, isAdmin matrix), Edge Function auth
+//             gates, push-recipient selection, route/section
+//             visibility.
+//             v0.16.4 — Phase 18 closeout + README refresh.
+//
 //   v0.15.x — Phase 16: People Lifecycle Management. Stable
 //             per-person attributes (name, email, phone, address,
 //             photo) now live in a single `people` table keyed by
@@ -436,7 +496,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.15.33';
+export const VERSION = '0.16.0';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

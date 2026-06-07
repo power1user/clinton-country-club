@@ -282,11 +282,24 @@ async function handleSupportTicket(msg: any) {
   if (msg.direction !== "in") {
     return new Response(JSON.stringify({ sent: 0, reason: "outbound message" }), { headers: { "content-type": "application/json" } });
   }
-  const { data: superAdmins } = await supabase
+  // v0.16.0 — was `.is("tenant_id", null)` which 400s silently because
+  // the column is `club_id` on this schema (see v0.13.7 hotfix comment
+  // in submit-support-ticket/index.ts). The silent error path returned
+  // {sent:0,reason:"no super_admins"} for EVERY support ticket since
+  // this function shipped — support pushes to super_admins never fired.
+  // Surfacing the error explicitly so any future column drift doesn't
+  // silently regress the same way.
+  const { data: superAdmins, error: saErr } = await supabase
     .from("user_roles")
     .select("user_id")
     .eq("role", "super_admin")
-    .is("tenant_id", null);
+    .is("club_id", null);
+  if (saErr) {
+    return new Response(JSON.stringify({ sent: 0, error: `super_admin lookup failed: ${saErr.message}` }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
   const recipientUserIds = (superAdmins || []).map((r: any) => r.user_id).filter(Boolean);
   if (recipientUserIds.length === 0) {
     return new Response(JSON.stringify({ sent: 0, reason: "no super_admins" }), { headers: { "content-type": "application/json" } });

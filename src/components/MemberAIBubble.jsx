@@ -75,9 +75,14 @@ function ReplyBody({ text }) {
 }
 
 export default function MemberAIBubble() {
-  const { club, session, user } = useAuth();
+  // v0.16.0 — useAuth doesn't export `user`; destructuring it gave us
+  // undefined and the dismissKey fell back to 'nx', meaning ALL users
+  // on the same browser shared one dismissal state. Pull the user id
+  // off the session like the rest of the codebase (e.g. AdminAIBubble).
+  const { club, session } = useAuth();
+  const userId = session?.user?.id || 'nx';
   const enabled = club && isFeatureOn(club, 'member_ai');
-  const dismissKey = `member-ai-dismissed:${club?.id || 'nx'}:${user?.id || 'nx'}`;
+  const dismissKey = `member-ai-dismissed:${club?.id || 'nx'}:${userId}`;
 
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === 'undefined') return false;

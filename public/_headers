@@ -1,8 +1,46 @@
-# Cache rules for Cloudflare Pages.
-#  · /assets/* — hashed bundles, safe to cache for a year
-#  · /index.html — must always re-validate so members get fresh builds
-#    after a deploy (otherwise the edge can serve stale HTML pointing at
-#    old asset hashes and the app boots blank).
+# Cloudflare Pages headers.
+#
+# Two concerns mixed in this file:
+#   1. CACHING — /assets/* are content-hashed and safe to cache for a
+#      year. /index.html must always re-validate so members boot the
+#      newest bundle after a deploy (otherwise the edge can serve stale
+#      HTML pointing at old asset hashes and the app boots blank).
+#   2. SECURITY (v0.16.0, audit finding #5) — baseline security
+#      headers on every response. Applied with a `/*` matcher so every
+#      route inherits them; the more specific blocks below add or
+#      override as needed.
+#
+# CSP notes:
+#   - `script-src 'self'` is restrictive — Vite-built bundles are all
+#     same-origin under /assets/. If a future feature inlines a script
+#     it will break, surfaced by a console error; switch to a nonce
+#     pattern at that point rather than relaxing globally.
+#   - `style-src 'self' 'unsafe-inline'` is needed because the codebase
+#     uses React inline-style attributes everywhere. Browsers check
+#     inline `style="..."` against `style-src`. Removing 'unsafe-inline'
+#     would require eliminating every style={...} prop.
+#   - `connect-src` whitelists the Supabase project + any
+#     *.supabase.co for storage/realtime. The wildcard is project-ref-
+#     anchored, not blanket *.
+#   - `img-src` allows data: (used for inline-encoded SVGs in some
+#     icons) and https: (member profile photos via Supabase Storage
+#     signed URLs and the occasional external image in club branding).
+#   - `frame-ancestors 'self'` is the clickjacking guard. Stricter than
+#     X-Frame-Options because it lets the same-origin admin embed work
+#     while blocking everyone else.
+#
+# HSTS:
+#   - 1-year max-age. NOT including `preload` yet — that requires a
+#     formal submission to the HSTS preload list and is hard to undo.
+#     If we want preload later, add it and submit at
+#     https://hstspreload.org.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://exddcpqfdkyxommkslag.supabase.co wss://exddcpqfdkyxommkslag.supabase.co https://*.supabase.co; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

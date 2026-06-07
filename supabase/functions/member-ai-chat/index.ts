@@ -313,16 +313,11 @@ function computeCostCents(usage: any) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
+  // v0.16.0 — GET was unauthenticated and exposed service version,
+  // model name, manual size, tool count, and Anthropic-key presence.
+  // Audit finding #4: don't respond to anon GET at all.
   if (req.method === "GET") {
-    return json({
-      ok: true,
-      service: "member-ai-chat",
-      version: "v3-tools",
-      model: MODEL,
-      manual_chars: MEMBER_MANUAL.length,
-      tool_count: TOOLS.length,
-      anthropic_key_present: ANTHROPIC_KEY.length > 0,
-    });
+    return json({ ok: false, error: "method not allowed" }, 405);
   }
 
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
