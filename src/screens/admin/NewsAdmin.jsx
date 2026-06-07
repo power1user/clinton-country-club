@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { supabase } from '../../lib/supabase.js';
+import { useConfirm } from '../../components/ConfirmModal.jsx';
 
 // ============================================================
 // NewsAdminFull — replaces the old composer with full list + edit + delete
@@ -149,6 +150,7 @@ export function NewsAdminFull() {
 
 function NewsEditor({ club, canEdit, row, onClose, onSaved }) {
   const isAdd = !row;
+  const confirmAsync = useConfirm(); // v0.16.8 — shared confirm modal
   const [form, setForm] = useState(() => row
     ? {
         category: row.category || 'General',
@@ -218,7 +220,12 @@ function NewsEditor({ club, canEdit, row, onClose, onSaved }) {
   };
 
   const remove = async () => {
-    if (!confirm(`Delete "${row.headline}"? This cannot be undone.`)) return;
+    if (!(await confirmAsync({
+      title: `Delete "${row.headline}"?`,
+      body: 'This cannot be undone. The post will disappear from member feeds.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusy(true);
     const { error } = await supabase.from('news').delete().eq('id', row.id);
     setBusy(false);

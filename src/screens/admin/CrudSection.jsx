@@ -21,6 +21,7 @@ import { useEffect, useState, useRef } from 'react';
 import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../../lib/supabase.js';
+import { useConfirm } from '../../components/ConfirmModal.jsx';
 
 export default function CrudSection({
   table,
@@ -133,6 +134,7 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
   const [form, setForm] = useState(() => ({ ...row }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const confirmAsync = useConfirm(); // v0.16.8 — shared confirm modal
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // Translate the common Postgres error codes Supabase surfaces into
@@ -178,7 +180,12 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
   };
 
   const remove = async () => {
-    if (!confirm('Delete this item? This cannot be undone.')) return;
+    if (!(await confirmAsync({
+      title: 'Delete this item?',
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusy(true);
     const { error } = await supabase.from(table).delete().eq('id', row.id);
     setBusy(false);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, lazy, Suspense } from 'react';
 import { NavProvider, useNav } from './hooks/useNav.jsx';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
+import { ConfirmProvider } from './components/ConfirmModal.jsx';
 import { useFlag } from './hooks/useFlag.js';
 import { useAnalytics } from './hooks/useAnalytics.js';
 import BottomNav from './components/BottomNav.jsx';
@@ -446,7 +447,9 @@ export default function App() {
     <div className="phone-frame">
       <div className="app-root">
         <AuthProvider>
-          <Gate />
+          <ConfirmProvider>
+            <Gate />
+          </ConfirmProvider>
         </AuthProvider>
       </div>
     </div>

@@ -177,6 +177,40 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.8** — Shared ConfirmModal — foundation + first conversions.
+
+  Audit round 2 finding (g): destructive admin actions used native
+  `window.confirm()` / `window.alert()`, which is inconsistent with the
+  app's design, can't show rich UI, and on some PWA contexts is styled
+  weirdly or suppressed.
+
+  Shipped this patch:
+  - **`src/components/ConfirmModal.jsx`** — `<ConfirmProvider>`
+    context + `useConfirm()` hook. Returns a `confirmAsync(opts)`
+    function that opens the dialog and resolves to true/false on
+    user choice. Supports `danger` (red Delete button), `body`
+    (supporting paragraph), `confirmLabel`/`cancelLabel` overrides,
+    and `kind: 'alert'` (single OK button) for the informational
+    variant. ESC cancels; Enter confirms; backdrop click cancels;
+    body click does nothing (won't dismiss accidentally). Falls
+    back to native `confirm()` if `useConfirm` is called outside
+    the provider (defense in depth + warning log).
+  - **App.jsx** — `<ConfirmProvider>` mounted inside `<AuthProvider>`,
+    wrapping `<Gate />`. Available everywhere except the splash.
+  - **First conversions (proof of pattern)**:
+    - `CrudSection.jsx` — the generic admin CRUD's "delete item"
+      flow. High leverage: any admin section built on CrudSection
+      picks up the new modal automatically.
+    - `NewsAdmin.jsx` — "Delete this news post?" with a real
+      "post will disappear from member feeds" body.
+
+  **Queued for follow-up sweep (v0.16.8b or later):** 21 remaining
+  `confirm()`/`alert()` sites across AllPeopleAdmin, DepartmentsAdmin,
+  MemberTiersAdmin, AdminPanel, sections.jsx, sections/platform.jsx,
+  TermsGate, ProfilePhotoCard, Replies. The mechanical pattern is
+  documented; each is a 3-line change (import hook, call hook, replace
+  the if-confirm).
+
 - **v0.16.7** — `react-hooks/exhaustive-deps` audit (audit round 2 #d).
 
   Walked every `eslint-disable react-hooks/exhaustive-deps` site in
