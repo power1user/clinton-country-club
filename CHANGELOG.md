@@ -164,6 +164,20 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.29** — Fix "column reference 'auth_user_id' is ambiguous" in `all_people_at_club`.
+
+  Hotfix. v0.15.28's `paged` CTE used `JOIN ... USING (auth_user_id)`
+  followed by an unqualified `SELECT auth_user_id`. Postgres should
+  treat USING-merged columns as unambiguous, but in this plpgsql
+  context with multiple downstream LEFT JOINs that also surface
+  `auth_user_id`, the planner flagged it. Marc hit the error the
+  moment he clicked into the People section.
+
+  Rewrote the CTE chain: dropped the redundant `filtered` indirection
+  (it was just selecting one column from a CTE that already had it),
+  paginate directly from `flagged`, qualify every column reference to
+  its CTE alias. Same return shape, same behavior — just unambiguous.
+
 - **v0.15.27 / v0.15.28** — People list scales: CTE rewrite + pagination + server-side filter/search.
 
   The two perf items from the bloat audit that mattered for scale.
