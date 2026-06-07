@@ -164,6 +164,31 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+- **v0.15.32** — Smart relative timestamps on every message + notification.
+
+  Marc spotted: chat bubbles in Thread.jsx and the admin-dashboard
+  notification feed showed time only. Fine for an active conversation,
+  useless for a member who hadn't checked messages in a day — they had
+  no way to tell if a "3:42 PM" stamp meant today or last week.
+
+  Fix: new `src/lib/timeFormat.js` with `formatMessageTimestamp(iso)`
+  using the Slack / iMessage / WhatsApp pattern:
+  - Today          → `3:42 PM`
+  - Yesterday      → `Yesterday · 3:42 PM`
+  - Within 7 days  → `Wed · 3:42 PM`
+  - This year      → `Mar 15 · 3:42 PM`
+  - Older          → `Mar 15, 2024 · 3:42 PM`
+
+  Wired into Thread.jsx (covers clubhouse messages, DMs, food-order
+  replies, support replies — every message in the app) and
+  AdminDashboard.jsx notification feed. Same-day messages stay
+  compact; old messages get progressively more date context.
+
+  Out of scope: food-order pickup time, pace-of-play "updated" label
+  — those are inherently same-day signals; a date would be noise.
+  Audit-log rows still use a full fixed timestamp for clarity as a
+  historical record.
+
 - **v0.15.31** — Fix the IN-UI back arrow cascading two levels at once.
 
   v0.15.30 covered the modal cases but missed a separate bug in the

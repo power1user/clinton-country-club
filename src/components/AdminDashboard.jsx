@@ -27,6 +27,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { G } from '../theme.js';
 import { supabase } from '../lib/supabase.js';
+import { formatMessageTimestamp } from '../lib/timeFormat.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -1706,7 +1707,8 @@ function PushTodayTile({ clubId }) {
             {n.title || '(no title)'}
           </p>
           <p style={{ fontFamily: 'monospace', fontSize: 10, color: G.muted, margin: '1px 0 0' }}>
-            {new Date(n.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+            {/* v0.15.32 — smart relative timestamp (was time-only). */}
+            {formatMessageTimestamp(n.created_at)}
           </p>
         </div>
       ))}

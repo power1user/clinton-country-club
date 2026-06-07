@@ -11,6 +11,7 @@ import { useNav } from '../hooks/useNav.jsx';
 import { useAnalytics } from '../hooks/useAnalytics.js';
 import Avatar from '../components/Avatar.jsx';
 import { supabase } from '../lib/supabase.js';
+import { formatMessageTimestamp } from '../lib/timeFormat.js';
 import { markThreadRead, hideThread } from '../hooks/useInbox.js';
 import PendingGuard from '../components/PendingGuard.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
@@ -589,8 +590,13 @@ function MessageBubble({ message, ownUserId, showPhotos = false }) {
           borderBottomLeftRadius:  own ? 14 : 4,
         }}>
           <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: own ? '#F2EDE0' : G.text, margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.body}</p>
+          {/* v0.15.32 — smart relative timestamp via formatMessageTimestamp:
+              same-day stays compact ("3:42 PM"); older messages get progressively
+              more date context ("Yesterday · 3:42 PM" → "Wed · 3:42 PM" →
+              "Mar 15 · 3:42 PM"). Before this, the bubble showed time only,
+              which was useless for members returning after a day. */}
           <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: own ? '#A8D8B8' : G.muted, margin: '4px 0 0', opacity: 0.75, textAlign: 'right' }}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            {formatMessageTimestamp(message.created_at)}
           </p>
         </div>
       </div>
