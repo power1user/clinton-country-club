@@ -1,4 +1,4 @@
-// useModalBackClose — v0.15.23 (was v0.15.15 base + v0.15.23 nav-conflict fix)
+// useModalBackClose — v0.15.30 (was v0.15.23)
 //
 // Lets a modal close when the user taps the mobile browser's back
 // button instead of navigating out of the surrounding page. Pushes
@@ -13,31 +13,34 @@
 // modal. Native apps + most modern web apps tie a modal to a history
 // entry so back-gesture closes it; this hook is that.
 //
-// Usage:
-//   useModalBackClose(isOpen, onClose)
+// v0.15.30 fix — the v0.15.23 cleanup-flag approach only protected
+// the PROGRAMMATIC-close path (scenario B). The REAL-user-back-gesture
+// path (scenario A) was still broken: AdminPanel's popstate listener
+// registers on mount (early); this hook's listener registers when the
+// modal opens (later). DOM listeners fire in registration order, so
+// AdminPanel ran first, saw no flags, and unwound `sec` BEFORE this
+// hook got its chance — exactly the "mobile back exits admin" bug.
 //
-// One subtle race: if React's cleanup runs AFTER popstate already
-// fired (user tapped back), we shouldn't call history.back() again
-// — that would skip past the surrounding page entry. A ref tracks
-// whether onClose was reached via popstate.
-//
-// v0.15.23 fix — coordination with AdminPanel's admin-nav popstate
-// handler (v0.15.17). When a modal closes PROGRAMMATICALLY (Save,
-// X, etc.) we call `window.history.back()` to pop our marker entry.
-// That fires popstate, which AdminPanel was interpreting as a user
-// back-gesture and using to unwind one nav level (clearing `sec`).
-// Result: every modal Save was secretly booting the user up to the
-// section-list — and on mobile that read as "exited admin." The
-// MODAL_CLEANUP_IN_FLIGHT exported flag tells the admin handler
-// "this popstate came from us cleaning up, don't react." Self-clears
-// on next macrotask so it can't poison subsequent real back gestures.
+// The fix is a module-level `modalOpenCount` (incremented on mount,
+// decremented in cleanup) that AdminPanel checks. Cleanup orders the
+// decrement AFTER history.back() so the synthetic popstate also sees
+// count > 0. Result: while ANY modal is mounted, AdminPanel skips its
+// unwind logic — regardless of who fires popstate first.
 
 import { useEffect, useRef } from 'react';
 
-// Module-level flag. AdminPanel.jsx imports this binding and reads it
-// in its popstate handler. ES module `let` exports update live on the
-// import side, so flipping it here is visible to AdminPanel immediately.
+// Module-level state read by AdminPanel.jsx. ES module `let` exports
+// stay live on the import side, so updates here are visible there.
+//
+// MODAL_CLEANUP_IN_FLIGHT — kept for paranoid belt-and-suspenders;
+// modalOpenCount alone would actually suffice, but a stale flag is
+// cheap insurance against future refactors that touch the lifecycle.
 export let MODAL_CLEANUP_IN_FLIGHT = false;
+
+// Number of modals currently open (incremented on mount, decremented
+// in cleanup). AdminPanel's popstate handler bails when this is > 0.
+let modalOpenCount = 0;
+export function getModalOpenCount() { return modalOpenCount; }
 
 export function useModalBackClose(isOpen, onClose) {
   const closedByPopstateRef = useRef(false);
@@ -45,26 +48,42 @@ export function useModalBackClose(isOpen, onClose) {
   useEffect(() => {
     if (!isOpen) return;
     closedByPopstateRef.current = false;
-    // Mark our entry so we can tell on cleanup whether we still own it.
+
+    // Modal is mounted — claim our slot. Decremented in cleanup below.
+    modalOpenCount += 1;
+
+    // Mark our history entry so we can tell on cleanup whether we
+    // still own it (i.e. popstate hasn't already popped us).
     window.history.pushState({ modalOpen: true }, '');
+
     const onPop = () => {
       closedByPopstateRef.current = true;
       onClose?.();
     };
     window.addEventListener('popstate', onPop);
+
     return () => {
       window.removeEventListener('popstate', onPop);
-      // Programmatic close: pop our entry so the back-stack stays sane.
-      // If popstate already fired, the entry's already gone — don't
-      // call history.back() again (would over-pop into the previous page).
-      if (!closedByPopstateRef.current && window.history.state?.modalOpen) {
-        // v0.15.23 — Flag our intent so AdminPanel's admin-nav popstate
-        // handler doesn't treat this synthetic back as a user gesture.
-        // Cleared on the next macrotask, by which time popstate listeners
-        // for this back have already run.
+
+      const needsBackPop =
+        !closedByPopstateRef.current && window.history.state?.modalOpen;
+
+      if (needsBackPop) {
+        // Programmatic close: we need to pop our marker entry so the
+        // back-stack stays sane. Order matters: history.back() queues
+        // a popstate task; we want AdminPanel.onPop to see count > 0
+        // when that task runs, so DON'T decrement yet — decrement on
+        // a setTimeout that runs AFTER the popstate task.
         MODAL_CLEANUP_IN_FLIGHT = true;
         window.history.back();
-        setTimeout(() => { MODAL_CLEANUP_IN_FLIGHT = false; }, 0);
+        setTimeout(() => {
+          MODAL_CLEANUP_IN_FLIGHT = false;
+          modalOpenCount = Math.max(0, modalOpenCount - 1);
+        }, 0);
+      } else {
+        // popstate already popped our entry (real user back gesture):
+        // count is still incremented from mount, decrement now.
+        modalOpenCount = Math.max(0, modalOpenCount - 1);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -164,7 +164,43 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
-- **v0.15.29** — Fix "column reference 'auth_user_id' is ambiguous" in `all_people_at_club`.
+- **v0.15.30** — REAL fix for the auth_user_id ambiguity + bulletproof the mobile back button.
+
+  v0.15.29 didn't actually fix the ambiguity. Two issues:
+  (1) Three unqualified `auth_user_id` references in the `rels_agg`
+      UNION ALL slipped through the "qualify everything" pass.
+  (2) The deeper root cause: `RETURNS TABLE(auth_user_id ...)` creates
+      an implicit OUT parameter named `auth_user_id` that's in scope
+      for every SQL statement in the function body. Postgres's default
+      `#variable_conflict error` policy then collides ANY bare column
+      named `auth_user_id` with the OUT param.
+
+  Real fix: renamed the internal CTE column from `auth_user_id` to
+  `uid` everywhere (only the final SELECT exposes it as
+  `pg.uid AS auth_user_id`, where qualification is unambiguous), AND
+  added `#variable_conflict use_column` as belt-and-suspenders. Verified
+  end-to-end by impersonating a real admin via JWT claims and confirming
+  the function returns rows.
+
+  Mobile back-button regression (separate bug): tapping back from a
+  modal still kicked the user out of the admin section on mobile. The
+  v0.15.23 fix only covered the programmatic-close path (Save / X) via
+  the `MODAL_CLEANUP_IN_FLIGHT` flag. The REAL user back-gesture path
+  was still broken because AdminPanel's popstate listener registers on
+  mount (early) while `useModalBackClose`'s registers when the modal
+  opens (later). DOM listeners fire in registration order, so AdminPanel
+  ran FIRST, saw no flags, unwound `sec` → and only THEN did the modal
+  hook get a chance.
+
+  Fix: added a module-level `modalOpenCount` in `useModalBackClose.js`
+  (incremented on mount, decremented in cleanup; cleanup orders the
+  decrement AFTER `history.back()` so the synthetic popstate also sees
+  count > 0). AdminPanel.onPop now bails on `count > 0` as its primary
+  guard, with the cleanup flag + `modalOpen` sentinel kept as belt-
+  and-suspenders. Real user back gestures and programmatic closes both
+  now leave admin nav untouched.
+
+- **v0.15.29** — Fix "column reference 'auth_user_id' is ambiguous" in `all_people_at_club`. (Superseded by v0.15.30 — was an incomplete fix.)
 
   Hotfix. v0.15.28's `paged` CTE used `JOIN ... USING (auth_user_id)`
   followed by an unqualified `SELECT auth_user_id`. Postgres should
