@@ -177,6 +177,53 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.1** — send-push secret gate + useAuth club-load error surface.
+
+  Audit round 2 surfaced two more items that v0.16.0 didn't cover:
+
+  **send-push had NO auth.** The function ran with the service-role
+  key and accepted any POST. Any caller with the URL could fire push
+  notifications to arbitrary users (the function's title/body are
+  constructed server-side, but the recipient set is taken from the
+  posted record, so notifications could be redirected — plus the
+  function makes a fan-out of network calls, which is a DoS vector).
+  The intended caller is a Postgres trigger via `pg_net.http_post`,
+  which can supply a bearer header.
+
+  Fix: shared-secret gate on `SEND_PUSH_SECRET` env var, with a
+  safe-rollout: if the env var is unset, the function logs a loud
+  warning and accepts unauthenticated calls (so current triggers
+  don't break the moment this deploys). Once the env var is set on
+  the Edge Function AND DB triggers are updated to include the
+  `Authorization: Bearer <secret>` header, the gate enforces. Order
+  of operations doesn't matter — missing env var makes the check a
+  no-op until both halves are in place. Same gate now also covers
+  `?diag=1` (which exposed VAPID-key prefix + service-key presence).
+
+  **useAuth silently ignored club-load errors.** The clubs row
+  load-effect had `if (cancelled || error) return;` — any failure
+  (bad slug, RLS issue, network blip, paused Supabase project) left
+  `club` permanently null while the rest of the app waited on it.
+  UI stuck on "Loading your club…" with no signal what went wrong.
+
+  Fix: capture the error into a new `clubError` state on the auth
+  context. App.jsx Gate now branches on it to render a recoverable
+  error state — "We couldn't reach your club" with a "Try again"
+  reload button and the raw error message in small text. Beats
+  spinning indefinitely on a transient failure.
+
+  **Setup for v0.16.2 CORS sweep:** added `supabase/functions/_shared/cors.ts`
+  with a groundslive-domain allowlist helper. Will be wired into
+  every browser-invoked function in v0.16.2. Helper isn't called
+  from any function yet — it's just the shared module for the next
+  patch.
+
+  **Deploy:** send-push needs to redeploy to take effect. Until
+  SEND_PUSH_SECRET is also set on the function secrets + DB triggers
+  updated, send-push remains in safe-rollout mode (accepts unauth
+  with a warning log). The useAuth + App.jsx changes deploy via
+  Cloudflare on git push.
+
 - **v0.16.0** — Phase 18 foundation: security bugs + hardening.
 
   Five audit items shipped in one patch:

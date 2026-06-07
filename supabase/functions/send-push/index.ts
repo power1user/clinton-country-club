@@ -46,6 +46,43 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+// v0.16.1 — Shared-secret gate (audit round 2, finding "send-push has
+// no auth"). send-push runs with the service-role key, so an
+// unauthenticated POST could fan out arbitrary push notifications to
+// any subscribed user — and ?diag=1 exposed VAPID key prefix + service-
+// key presence to randos. The intended caller is a Postgres trigger
+// (pg_net.http_post on row insert), which CAN supply a bearer header.
+//
+// Safe rollout: if SEND_PUSH_SECRET env var is unset, we log a loud
+// warning and ACCEPT the call. Once the env var is set on the Edge
+// Function secrets AND the DB triggers are updated to include the
+// Authorization header, the gate enforces. Order is flexible — set
+// the env var first OR update triggers first; either way works
+// because the missing env var makes the check a no-op.
+//
+// Deploy sequence for full enforcement:
+//   1. Update DB triggers (pg_net.http_post calls) to include
+//      Authorization: Bearer <secret> on every call to send-push.
+//   2. Set SEND_PUSH_SECRET on the Edge Function secrets in Supabase
+//      (Dashboard → Project Settings → Edge Functions, or via MCP).
+//   3. Deploy this function. The gate is now live.
+const SEND_PUSH_SECRET = Deno.env.get("SEND_PUSH_SECRET") || "";
+
+function checkSecret(req: Request): { ok: boolean; reason?: string } {
+  if (!SEND_PUSH_SECRET) {
+    console.warn(
+      "[send-push] SEND_PUSH_SECRET env var not set — accepting unauthenticated request. " +
+      "Set the secret on the Edge Function and update triggers to enforce the gate."
+    );
+    return { ok: true };
+  }
+  const auth = req.headers.get("authorization") || "";
+  if (auth !== `Bearer ${SEND_PUSH_SECRET}`) {
+    return { ok: false, reason: "missing or invalid bearer token" };
+  }
+  return { ok: true };
+}
+
 let vapidOk = false;
 let vapidErr: string | null = null;
 let vapidDiag: Record<string, unknown> = {};
@@ -335,14 +372,32 @@ async function handleSupportTicket(msg: any) {
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   if (url.searchParams.get("diag") === "1") {
+    // v0.16.1 — gate diag behind the same secret as POST. Exposes
+    // VAPID key prefix + service-key presence; not for randos.
+    const gate = checkSecret(req);
+    if (!gate.ok) {
+      return new Response(JSON.stringify({ ok: false, error: gate.reason }), {
+        status: 401, headers: { "content-type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({
       version: 20,
       vapidOk, vapidErr, vapidDiag,
       hasSupabaseUrl: !!SUPABASE_URL,
       hasServiceKey: !!SERVICE_KEY,
+      hasSendPushSecret: !!SEND_PUSH_SECRET,
     }, null, 2), { headers: { "content-type": "application/json" } });
   }
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  // v0.16.1 — secret gate on POST. Until SEND_PUSH_SECRET is set, this
+  // is a no-op (with a warning log). See module-level comment above.
+  const gate = checkSecret(req);
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ ok: false, error: gate.reason }), {
+      status: 401, headers: { "content-type": "application/json" },
+    });
+  }
   if (!vapidOk) {
     return new Response(JSON.stringify({ ok: false, error: vapidErr, vapidDiag }, null, 2), { status: 500, headers: { "content-type": "application/json" } });
   }

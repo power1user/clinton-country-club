@@ -15,6 +15,13 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);            // 'super_admin' | 'club_manager' | 'club_admin' | null
   const [permissions, setPermissions] = useState({}); // jsonb perm flags (club_admin only)
   const [loading, setLoading] = useState(true);
+  // v0.16.1 — surface club-load failures (audit round 2). Previously the
+  // load() effect silently returned on error, so a bad slug, an RLS
+  // mismatch, or a network blip left `club=null` indefinitely while
+  // the rest of the app waited on it — UI stuck on "Loading..." with
+  // no signal what went wrong. Now we capture the error so the
+  // ErrorBoundary / top-level renderer can show a meaningful state.
+  const [clubError, setClubError] = useState(null);
 
   // Load the club row (everyone needs it to scope queries by club_id).
   // Subscribed in realtime so branding edits from Club Settings push
@@ -28,7 +35,19 @@ export function AuthProvider({ children }) {
         .select('*')
         .eq('slug', CLUB_SLUG)
         .single();
-      if (cancelled || error) return;
+      if (cancelled) return;
+      if (error) {
+        // Don't leave the app in limbo. Log + surface; the consumer
+        // can branch on `clubError` to show a recoverable error UI
+        // ("Couldn't reach your club — check your connection") rather
+        // than spinning forever. Common causes: bad slug (typo in URL
+        // / wrong subdomain), RLS policy preventing anon read, network
+        // failure, Supabase project paused.
+        console.error('[useAuth] club load failed for slug=' + CLUB_SLUG, error);
+        setClubError(error);
+        return;
+      }
+      setClubError(null);
       setClub(data);
       applyClubPalette(data);
     };
@@ -211,7 +230,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthCtx.Provider value={{
-      session, member, guest, club, role, permissions,
+      session, member, guest, club, clubError, role, permissions,
       isSuperAdmin, isManager, isClubAdmin, isAdmin,
       isGuest, guestAccessLevel,
       hasPerm,

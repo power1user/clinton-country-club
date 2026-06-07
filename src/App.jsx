@@ -307,7 +307,7 @@ function getInitialDeepLink() {
 }
 
 function Gate() {
-  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel } = useAuth();
+  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel, clubError } = useAuth();
 
   // v0.8.7: minimum-duration splash. Tracks whether at least
   // SPLASH_MIN_MS has elapsed since mount; until that's true AND
@@ -325,6 +325,39 @@ function Gate() {
   // Shows the branded landing + form before any other gate logic fires.
   if (isOnGuestRegistrationRoute()) {
     return <GuestRegister />;
+  }
+
+  // v0.16.1 — if the club row failed to load (bad slug, RLS issue,
+  // network blip, paused project), show a recoverable error state
+  // instead of spinning on the splash forever. Previously useAuth
+  // silently swallowed the error and left the app in indeterminate
+  // loading (audit round 2, useAuth.jsx line 31).
+  if (clubError) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: G.green, padding: 32, textAlign: 'center' }}>
+        <img
+          src="/grounds-icon.png"
+          alt={`${PLATFORM_NAME} logo`}
+          style={{ width: 72, height: 72, marginBottom: 18, borderRadius: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', opacity: 0.85 }}
+        />
+        <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 24, fontWeight: 700, color: '#F2EDE0', margin: '0 0 8px' }}>
+          We couldn't reach your club
+        </h1>
+        <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: '#A8D8B8', margin: '0 0 18px', maxWidth: 320, lineHeight: 1.5 }}>
+          The club at this address may be offline, or your connection dropped. Check the URL and try again.
+        </p>
+        <div
+          onClick={() => window.location.reload()}
+          data-tap
+          style={{ padding: '10px 20px', background: '#C4A040', borderRadius: 6, cursor: 'pointer', fontFamily: '"Lora",serif', fontSize: 13, fontWeight: 600, color: '#1A180F', letterSpacing: '0.04em' }}
+        >
+          Try again
+        </div>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: 'rgba(242,237,224,0.5)', margin: '24px 0 0' }}>
+          {clubError?.message || 'Unknown error'}
+        </p>
+      </div>
+    );
   }
 
   if (loading || !splashTimerDone) {
