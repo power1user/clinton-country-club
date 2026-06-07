@@ -99,7 +99,108 @@
 //             state-dependent action items. Manager-promotion +
 //             manager-demotion gated to managers + super_admin so
 //             a club can't end up with zero managers.
-//             v0.15.3 — Phase 16 closeout (this entry).
+//             v0.15.3 — Phase 16 closeout (initial scope).
+//             v0.15.6 — PersonEditModal v1 lands: full per-person
+//             workspace replaces the kebab-only flow. + Add Person
+//             chooser (Member/Guest), Import CSV (upserts on
+//             club_id + membership_number), click-row-to-edit.
+//             Old Manage Members + Directory routes deleted.
+//             v0.15.7-v0.15.10 — UX polish: left-side ▲▼ caret on
+//             every select, demote-only magic-link button on
+//             verified users, lifecycle actions lifted into the
+//             modal (kebab trimmed to the fast lane: Send Magic
+//             Link, Convert Guest→Member, Mark Active), per-person
+//             audit history pane (manager-only).
+//             v0.15.11 — Admin AI manual refresh to match the
+//             consolidated People surface; admin-ai-chat Edge
+//             Function redeployed so the new manual is live.
+//             v0.15.12 — Message Clubhouse fix (member-side
+//             dispatch + admin-side inbound).
+//             v0.15.13–15 — Phase 17: Departments + topic
+//             routing. New club_departments + user_departments
+//             tables; clubs.clubhouse_topic_routing jsonb maps
+//             each of the 5 clubhouse topics
+//             (general/dining/golf/events/billing) to a
+//             department. New People → Departments section
+//             (manager-only) with CRUD + clickable rows → member
+//             list view + Add Staff inline. Per-person department
+//             assignment chips inside PersonEditModal. send-push
+//             v20 routes clubhouse fan-out via
+//             topic → department → users.
+//             v0.15.16 — PersonEditModal v2: identity strip
+//             redesign. Avatar (click to upload — Supabase
+//             Storage, image resize util), name, meta, **status
+//             pill** + **role pill** at the top. Tapping a pill
+//             opens a sub-modal (reason field + confirm) and
+//             fires a SECURITY DEFINER RPC with p_reason. Form
+//             restructured: required fields stay visible, the
+//             rest grouped into a "More details" expander. New
+//             Notes textarea (members.notes + guests.notes
+//             columns). Photo upload from avatar click. Old
+//             freestanding Actions section retired — its rows
+//             are now reached via the pills.
+//             v0.15.17 — Phone back-button unwinds admin nav
+//             levels (popstate listener on AdminPanel pushes a
+//             history marker on each drill-down, pops it on back).
+//             v0.15.18 — DB hardening migration: audit triggers
+//             on members + guests for status + tier + role
+//             changes, routing-scrub triggers on
+//             clubhouse_topic_routing (nullify references to
+//             deleted departments), clubs.deleted_at soft-delete
+//             column with a BEFORE DELETE block on the table,
+//             has_permission COALESCE fix, duplicate
+//             admin_preferences index dropped, all_people_at_club
+//             returns has_notes flag.
+//             v0.15.19 — Bidirectional sync triggers:
+//             people ↔ members + people ↔ guests stay in sync on
+//             name/email/phone (was: shadowed columns drifted).
+//             v0.15.20 — Club-configurable membership tiers
+//             (clubs.member_tiers jsonb; default ['standard',
+//             'premium', 'family', 'corporate']; PersonEditModal
+//             tier dropdown now sources from here).
+//             v0.15.21 — Code-split admin from member bundle
+//             (React.lazy + Suspense). Member-side: 1.37MB /
+//             350KB gzipped; admin chunk: 508KB separate. Member
+//             load doesn't pay for admin code anymore.
+//             v0.15.23 — Regression fixes for three bugs from
+//             the v0.15.16 redesign: (1) notes not saving when
+//             modal closed via back-button (modal state was lost),
+//             (2) Save kicked the user out of admin on mobile,
+//             (3) phone back-button regression in admin.
+//             Coordinator: MODAL_CLEANUP_IN_FLIGHT module-level
+//             sentinel tells AdminPanel's popstate handler to
+//             ignore programmatic back() calls from
+//             useModalBackClose.
+//             v0.15.24 — guests.zip NOT NULL dropped (member →
+//             guest demote crashed on missing zip; zip is
+//             genuinely optional).
+//             v0.15.25 — Added 7 missing foreign-key indexes
+//             flagged in the audit (months earlier, never
+//             applied).
+//             v0.15.26 — Dedup: BottomSheetModal shell extracted,
+//             ToggleChip component with onTextColor prop,
+//             imageResize.js util pulled from ProfilePhotoCard +
+//             AllPeopleAdmin.
+//             v0.15.27 — Rewrite all_people_at_club to use
+//             CTE-based aggregates instead of per-row subqueries
+//             (N+1 → 1 query).
+//             v0.15.28 — Paginate the People list (p_limit /
+//             p_offset / p_filter / p_search params on the RPC,
+//             returns total_count; client uses 100-row pages
+//             with "Load more"). Filter + search now run
+//             server-side via the RPC.
+//             v0.15.29-31 — Hotfix chain for the v0.15.28
+//             rewrite: "column reference auth_user_id is
+//             ambiguous" caught + fixed (CTE column renamed to
+//             \`uid\` internally to dodge the RETURNS TABLE
+//             OUT-param collision; #variable_conflict use_column
+//             belt-and-suspenders). Mobile back-button finally
+//             fixed completely — modalOpenCount module-level
+//             counter for user-gesture pops, navCleanupRef for
+//             in-UI back-arrow synthetic pops. Three guards in
+//             AdminPanel.onPop (count, cleanup flag, modalOpen
+//             sentinel); both scenarios (real user back + Save
+//             button) tested.
 //   v0.14.x — Phase 15: GroundsLive AI. Two-agent, prompt-cached
 //             AI assistant embedded throughout The Grounds. The
 //             Admin AI ships first (manager onboarding payoff is

@@ -1,11 +1,14 @@
-// manual.ts — v0.15.11 GroundsLive Admin AI manual content.
+// manual.ts — v0.15.31 GroundsLive Admin AI manual content.
 //
-// Last refresh covers everything through v0.15.10 (People
-// consolidation: lifecycle actions live in the PersonEditModal,
-// kebab trimmed to the fast lane, per-person audit history,
-// verified-aware magic link button). Imported into index.ts and
-// injected as cached system prompt content so prompt caching
-// engages on every admin question.
+// Last refresh covers everything through v0.15.31. Phase 17
+// (Departments + clubhouse topic routing) and the v0.15.16
+// PersonEditModal redesign (identity strip with status + role
+// pills, avatar photo upload, More details expander, notes
+// textarea) are now reflected in this manual. Also: server-side
+// People-list pagination (v0.15.28), configurable membership
+// tiers (v0.15.20). Imported into index.ts and injected as
+// cached system prompt content so prompt caching engages on
+// every admin question.
 //
 // AUTHORING NOTES:
 // - Keep BYTE-STABLE for prompt caching. No timestamps, no UUIDs,
@@ -192,7 +195,7 @@ The individual food/drink items. Per item: name, description, price, category, a
 
 ## 11. People area
 
-As of v0.15.6, the People area is **consolidated**: there is no more separate "Directory" or "Manage Members" section. Everything lives in one unified **People** section. The old sidebar entries are gone.
+As of v0.15.6, the People area is **consolidated**: there is no more separate "Directory" or "Manage Members" section. Everything lives in one unified **People** section. Phase 17 (v0.15.13) added a sibling **Departments** section for routing/role-grouping.
 
 ### People
 The single management surface for everyone with any relation to the club — members, guests, and staff. Permission key: \`can_manage_members\`.
@@ -200,10 +203,12 @@ The single management surface for everyone with any relation to the club — mem
 **Top of the section:**
 - **+ Add Person** button — opens a chooser modal: Member or Guest. Picking one opens the bottom-sheet edit form with the right field set for that kind.
 - **Import CSV** button — bulk import members. Required CSV columns: \`name\`, \`membership_number\`. Optional: \`email\`, \`tier\`, \`member_since\`, \`hcp\`, \`locker\`, \`cart\`, \`parking\`. Upserts on club_id + membership_number — re-importing the same CSV updates existing rows rather than duplicating.
-- **Filter pills**: All / Members / Guests / Staff (with counts).
-- **Search box**: matches name, email, or phone.
+- **Filter pills**: All / Members / Guests / Staff (with counts). Filter is **server-side** as of v0.15.28 — only people matching the active filter are loaded.
+- **Search box**: matches name, email, or phone. Also **server-side** (250ms debounce). Searching scopes the entire club, not just the currently loaded page.
 
-**Each row shows:** avatar + initials, name, email · phone, and **relation chips** on the right (\`Member\`, \`Member (pending)\`, \`Guest\`, \`Guest (unverified)\`, \`Admin\`, \`Manager\`).
+**Pagination (v0.15.28).** The list loads **100 people per page**. If there are more, a **Load more (N remaining)** button appears at the bottom of the list — click it to append the next page. This replaces the old "render-everyone-at-once" approach and keeps the People list snappy even at 500+ records.
+
+**Each row shows:** avatar + initials, name, email · phone, and **relation chips** on the right (\`Member\`, \`Member (pending)\`, \`Guest\`, \`Guest (unverified)\`, \`Admin\`, \`Manager\`). A small **notes dot** indicates the person has saved notes.
 
 **Tap a row** to open the **PersonEditModal** — the per-person edit surface where almost everything happens.
 
@@ -213,38 +218,59 @@ The single management surface for everyone with any relation to the club — mem
 - **Convert Guest → Member** (only shows when the person is a guest and not yet a member — common onboarding action)
 - **Mark Active** (only shows when the person is a non-active member — common reactivation)
 
-Everything else lives in the modal. If an admin asks "where's promote to admin?" → it moved into the Edit modal's Actions section.
+Everything else lives in the modal — including all status / role transitions, which moved to the identity-strip pills in v0.15.16.
 
 ### PersonEditModal — the per-person workspace
-Opens when the admin taps a row or picks Edit Person… from the kebab. Layout from top to bottom:
+Opens when the admin taps a row or picks Edit Person… from the kebab. The v0.15.16 redesign reorganized this into an **identity strip** at the top, the form, departments, and activity history. Layout top to bottom:
 
-1. **Title** — \`Edit Member\` / \`Edit Guest\` / \`Add Member\` / \`Add Guest\`.
+1. **Identity strip** (top).
+   - **Avatar** (left). Click it to upload a new photo — opens a file picker, resizes client-side (\`imageResize.js\`, max 800px edge, 0.85 quality), and uploads to Supabase Storage. The new photo appears immediately.
+   - **Name + meta** (center). Name + email/phone subline + \`✓ Verified · last seen Mar 15, 2026\` for verified users.
+   - **Status pill** (right). For members: \`Active\` / \`Pending\` / \`Inactive\`. For guests: their guest status. **Tap the pill** to open a **status-change sub-modal** with a reason textarea + confirm button. On confirm, fires the appropriate SECURITY DEFINER RPC (\`change_member_status\`, \`demote_member_to_guest\`, \`convert_guest_to_member\`) with \`p_reason\`. The transition is audited to \`people_audit_log\` and the modal + parent list refresh in place.
+   - **Role pill** (right, next to status). \`Member\` / \`Guest\` / \`Admin\` / \`Manager\`. **Tap the pill** to open a **role-change sub-modal** — same reason-and-confirm pattern. Fires \`promote_member_to_staff\` / \`demote_staff_to_member\` etc. with \`p_reason\`. Manager-only transitions are gated client-side AND in the RPC (a club can't end up with zero managers).
 2. **Member↔Guest tab toggle** (only when the person has both kinds of record) — \`Edit as member\` / \`Edit as guest\`. Switches the form's field set without leaving the modal.
 3. **Form** — grouped into sections:
-   - **Identity** (member): name *, member # *, email
-   - **Membership details** (member): tier, status, member since, handicap, locker, cart, parking
-   - **Identity** (guest): name *, email *, phone, ZIP
-   - **Visit details** (guest): visit type, access level, visit date, expires_at, status
+   - **Required fields stay visible** at the top of the form.
+     - Member: name *, member # *, email
+     - Guest:  name *, email *
+   - **More details ▸** — collapsed-by-default expander. Click to expand the secondary fields:
+     - Member: tier, member since, handicap, locker, cart, parking, phone, ZIP
+     - Guest: visit type, access level, visit date, expires_at, phone, ZIP
+   - **Notes** — multi-line textarea (members.notes / guests.notes). Whatever you write here surfaces as a small notes dot on the parent People row.
+   - The **Status** field is GONE from the form — it's now driven by the Status pill in the identity strip.
    - Required-field asterisks are **red**. Empty required fields surface a red "Required." line directly under the input on save.
-   - Dropdowns are styled with a left-side ▲▼ caret so they're visually distinct from text inputs.
-4. **Save** + **Send Magic Link / Re-send sign-in link** buttons:
+   - Dropdowns have a left-side ▲▼ caret so they're visually distinct from text inputs.
+   - **Tier dropdown** sources from \`clubs.member_tiers\` (v0.15.20) — managers can edit the tier list under Club Settings → Branding.
+4. **Departments** (v0.15.13, between the form and the actions). Shows every department for this club as a chip. Departments the person belongs to are filled (brass); the rest are outlined. Tap a chip to toggle. Changes save immediately to \`user_departments\`. Department membership controls clubhouse topic routing (see Phase 17 below).
+5. **Save** + **Send Magic Link / Re-send sign-in link** buttons:
    - **Save** is disabled until the form is valid AND (in edit mode) dirty. The disabled state has a tooltip explaining why.
-   - **Send Magic Link** is a filled brass button for **unverified** users (\`person.last_seen_at\` is null). For **verified** users it switches to outline-only "Re-send sign-in link" + a subline \`✓ Verified · last seen Mar 15, 2026\`.
-   - Keyboard: **ESC** closes, **Ctrl/⌘+Enter** saves. A hint line at the bottom of the modal calls this out.
-5. **Actions section** (between the form and the audit history) — every lifecycle transition that applies to this person renders as an iOS-style tap row with a chevron. Each fires a SECURITY DEFINER RPC, audits to \`people_audit_log\`, and refreshes both the modal and the parent list in place. Possible rows (conditional):
-   - **Convert Guest → Member** — when guest-only.
-   - **Demote Member → Guest** — when active/pending member. Marks the member row inactive (history-preserving), creates/reactivates a guest row with \`read_only\` access.
-   - **Mark Member Active / Pending / Inactive** — one-tap status RPC, audited.
-   - **Promote to Admin** / **Promote to Manager** — manager promotion is manager-only.
-   - **Promote Admin → Manager** / **Demote Manager → Admin** — manager-only.
-   - **Remove Staff Role** — danger styling. Removes the user_role row, member status is retained.
-   After Convert / Demote-to-Guest, the modal **auto-switches** the member↔guest toggle so the form lands on the new primary record.
+   - **Send Magic Link** is a filled brass button for **unverified** users (\`person.last_seen_at\` is null). For **verified** users it switches to outline-only "Re-send sign-in link".
+   - Keyboard: **ESC** closes, **Ctrl/⌘+Enter** saves.
 6. **Activity history** (collapsed by default, **manager-only** — club_admins don't see this section). Click ▸ to expand. Up to 50 most recent events for this person at this club, sorted newest first. Each row shows:
    - Friendly action label (e.g. "Promoted to staff", "Demoted from member to guest").
    - Status diff like \`pending → active\` when the event has from/to statuses.
+   - The reason text supplied at the time of the action (v0.15.16 added \`p_reason\`).
    - Timestamp (\`Mar 15, 2026, 3:42 PM\`) + the name of who performed it.
-   Source: \`people_audit_log\` table (Phase 16 migration 75) + \`people\` table for performer name resolution.
+   Source: \`people_audit_log\` table (Phase 16 migration 75) + \`people\` table for performer name resolution. Audit triggers on \`members\` and \`guests\` (v0.15.18) capture status + tier + role changes even if they happen via direct SQL.
 7. **Delete record link** (super_admin only, at the very bottom). Permanent — but the audit log keeps history.
+
+**The old freestanding "Actions" section is retired.** If an admin asks "where do I promote someone to admin?" → tap the **Role pill**. "Where do I mark a member inactive?" → tap the **Status pill**.
+
+### Departments *(manager only)* — Phase 17
+Sibling section to People under the People area. Manage groups of staff that route clubhouse messages and (potentially future) other workflows.
+
+**List view.** Each department row shows name + member count. Click the row to open the **Department Detail modal**.
+
+**Department Detail modal.**
+- Edit the department name (slug is auto-generated from the name + collision-resolved silently; never shown in the UI).
+- **Members list** — every user_role row currently in \`user_departments\` for this department. Tap to remove.
+- **+ Add Staff** button (v0.15.15) — inline picker of every staff member at this club; tap to add.
+- **Delete department** — danger action at the bottom. On delete, any \`clubhouse_topic_routing\` entries pointing at this department are scrubbed to null by trigger (v0.15.18) so messages don't silently dead-letter.
+
+**How departments interact with the rest of the app:**
+- **Topic routing** (next section) maps each of the 5 clubhouse message topics to one department. New clubhouse messages on that topic push to every member of that department.
+- **Per-person department chips** in PersonEditModal let you assign individuals.
+- Departments DO NOT replace user_roles. A person can be a club_admin AND in the "Dining" department; permissions and routing are separate axes.
 
 ### Moderate Posts
 Hide/delete member-generated content (bulletin posts, partner posts). Shows the offending content + member name + action buttons. Permission key: \`can_manage_members\`.
@@ -256,7 +282,7 @@ The badge library + per-member assignment. Each club creates its own badges (e.g
 **Manager only.** Configure guest access rules: how long guest access lasts (per-club default), max uses per guest, the access mode (\`data_only\` / \`read_only\` / \`full_temporary\`). Includes a printable QR code that, when scanned at the clubhouse, takes a guest through self-registration.
 
 ### Manage Staff
-**Manager only.** Promote a member to club_admin, demote a club_admin back to member, and configure each club_admin's permissions (the checkbox grid of \`can_manage_events\`, \`can_post_news\`, etc.). Note: staff promote/demote can also be done from inside the People → PersonEditModal Actions section (recommended path — it's audited and centralized). This section remains for permission-grid editing of an existing club_admin's checkboxes.
+**Manager only.** Promote a member to club_admin, demote a club_admin back to member, and configure each club_admin's permissions (the checkbox grid of \`can_manage_events\`, \`can_post_news\`, etc.). Note: staff promote/demote is **also** available from inside PersonEditModal via the **Role pill** (recommended path — same RPCs, same audit trail, lets you set a reason). This section remains as the home for permission-grid editing of an existing club_admin's checkboxes.
 
 ## 12. Club Settings area *(manager only)*
 
@@ -264,6 +290,8 @@ This entire area is hidden from club_admins. Configuration that's set once or ra
 
 ### Branding & Contact
 Club name, tagline, logo, brand colors (primary/secondary), contact phone/email, signup gating (auto-approve new members or require manual approval).
+
+**Member tiers (v0.15.20).** The list of membership tiers (defaults: \`standard\`, \`premium\`, \`family\`, \`corporate\`) lives in \`clubs.member_tiers\` (jsonb). Manager can rename / add / remove tiers here; the PersonEditModal's tier dropdown sources from this list. Renaming a tier doesn't migrate existing member rows — they keep their old value, which will then show as the old string in the dropdown. If you remove a tier that members are still on, those members keep the value but the dropdown won't list it for new picks.
 
 ### Facilities
 The catalog of facilities the club has (Restaurant, Bar, Course, Pool, Banquet Room are the seeded defaults; managers add custom ones like Tennis Court, Pickleball, Driving Range, Golf Simulator). Each facility has display name, active toggle, sort order. Renaming here propagates to the home status pills, Daily Status admin, Facility Hours admin, and member surfaces instantly via realtime.
@@ -281,6 +309,22 @@ One-off date overrides — closures for holidays, special tournament hours, etc.
 
 ### Member Guide
 Onboarding pages shown to new members on first run (House Rules, Course Etiquette, How To Book a Tee Time, etc.). Markdown editor per page, slug-based URLs. The "Help & Support" surface members hit from MyClub pulls from here. Permission key: \`can_post_news\`.
+
+### Topic Routing *(manager only, Phase 17)*
+Maps each of the 5 **clubhouse message topics** to the department that should receive them. New clubhouse messages on a topic push to every member of the routed department.
+
+The 5 topics:
+- **General** (default catchall — usually routes to a "Front Desk" or "Management" department)
+- **Dining** (food and beverage questions — routes to "Dining" or "Kitchen")
+- **Golf** (tee times, course conditions — routes to "Pro Shop" or "Golf Operations")
+- **Events** (event coordination — routes to "Events" or "Activities")
+- **Billing** (membership dues, statements — routes to "Office" or "Accounting")
+
+**Configuration.** For each topic, pick a department from the dropdown. Setting a topic to "(unassigned)" means no one gets routed pushes for that topic — those messages still appear in Communications → Clubhouse Messages for any manager who's watching the queue, but nobody gets a notification.
+
+**Data shape.** Lives in \`clubs.clubhouse_topic_routing\` (jsonb), keyed by topic slug. Scrub trigger (v0.15.18) nullifies any routing entry pointing at a department that gets deleted, so you can't end up with a stale reference.
+
+**Send-push v20** is the Edge Function that consumes this map. Each new clubhouse_message row → look up topic → look up department → fan out push notifications to every \`user_departments\` member of that department (minus the sender).
 
 ## 13. Platform area *(super_admin only)*
 
@@ -331,9 +375,12 @@ The admin app receives push notifications on:
 - New food orders (kitchen staff)
 - Kitchen replies on food orders (the ordering member)
 - Reply on a support thread the user is involved with
+- New clubhouse messages routed to your department (Phase 17 — see Topic Routing)
 - Other Comms inbox activity
 
 Push subscription is per-device; users grant the browser permission once and the service worker handles delivery.
+
+**Clubhouse routing detail (Phase 17, v0.15.13+).** When a member sends a clubhouse message, it's tagged with one of 5 topics (general / dining / golf / events / billing). The \`send-push\` Edge Function (v20+) looks up \`clubs.clubhouse_topic_routing[topic]\` to find the department, then fans out push notifications to every \`user_departments\` member of that department. Senders are excluded from their own fan-out. If a topic has no routing configured (null), no pushes go out — the message still lands in the Communications → Clubhouse Messages queue, but nobody is woken up about it.
 
 ## 15. Common admin tasks — step-by-step
 
@@ -383,22 +430,62 @@ Push subscription is per-device; users grant the browser permission once and the
 3. **Import** — new rows are added as **Pending** (auto-activate when they sign in with the matching email). Existing membership numbers are updated, not duplicated.
 
 ### Convert a guest to a member
-- Fast path: row kebab (⋮) → **Convert Guest → Member**.
-- Modal path: tap the row → open the **Actions** section → **Convert Guest → Member**.
-- Both confirm first. A new \`members\` row is created at \`tier='standard'\`, \`status='active'\`. The guest record stays in place as history. Audited.
+- **Fast path**: row kebab (⋮) → **Convert Guest → Member** (no reason field — just confirm).
+- **Modal path (v0.15.16+)**: tap the row → tap the **Role pill** (which says "Guest") → pick **Convert to Member** → optionally type a reason → **Confirm**.
+- A new \`members\` row is created at the club default tier, \`status='active'\`. The guest record stays in place as history. Audited to \`people_audit_log\` with the reason.
+
+### Change a member's status (Active / Pending / Inactive)
+1. Sidebar → **People** → tap the member's row
+2. In the identity strip, tap the **Status pill** (the colored chip showing the current status)
+3. Pick the target status, optionally type a reason, hit **Confirm**
+4. Audited. Modal + parent list refresh in place.
 
 ### Demote a member to guest (e.g. snowbird, lapsed dues)
 1. Sidebar → **People** → tap the member's row
-2. Scroll to **Actions** → **Demote Member → Guest**
-3. Confirm — the \`members\` row is marked \`inactive\` (history preserved). A \`guests\` row is created/reactivated with \`read_only\` access. Audited.
+2. Tap the **Role pill** (which says "Member") → pick **Demote to Guest**
+3. Optionally type a reason, **Confirm**
+4. The \`members\` row is marked \`inactive\` (history preserved). A \`guests\` row is created/reactivated with \`read_only\` access. Audited.
 
-### Promote / demote staff
+### Promote / demote staff (Phase 16 + v0.15.16 redesign)
 1. Sidebar → **People** → tap the person's row
-2. Scroll to **Actions** section. Available rows depend on current role:
-   - Member, not staff → "Promote to Admin" (always) + "Promote to Manager" (manager-only)
-   - club_admin → "Promote Admin → Manager" (manager-only), "Remove Staff Role"
-   - club_manager → "Demote Manager → Admin" (manager-only), "Remove Staff Role"
-3. Confirm. The user_role row is created/updated/deleted. Audited in \`people_audit_log\`.
+2. Tap the **Role pill** in the identity strip
+3. Pick the target role. Available options depend on current role:
+   - Member, not staff → **Promote to Admin** (always) + **Promote to Manager** (manager-only)
+   - club_admin → **Promote Admin → Manager** (manager-only), **Demote to Member** (manager-only), **Remove Staff Role**
+   - club_manager → **Demote Manager → Admin** (manager-only), **Demote to Member** (manager-only), **Remove Staff Role**
+4. Optionally type a reason → **Confirm**. The user_role row is created/updated/deleted. Audited in \`people_audit_log\`.
+
+Older path: **People → Manage Staff** still works for the same operations + permission-grid editing. The pill path is recommended because it lets you add a reason.
+
+### Add a note to a person
+1. Sidebar → **People** → tap the person's row
+2. Scroll past the form to the **Notes** textarea
+3. Type the note, click **Save**. A small notes dot now appears on this person's row in the People list.
+
+### Upload a profile photo for a person
+1. Sidebar → **People** → tap the person's row
+2. Click the **avatar** (top-left of the modal)
+3. Pick an image file. It's resized client-side and uploaded to Supabase Storage; the new photo replaces the initials avatar immediately.
+
+### Assign a person to a department (Phase 17)
+1. Sidebar → **People** → tap the person's row
+2. Scroll to the **Departments** chip strip (between the form and the Activity History)
+3. Tap any chip to toggle. Filled brass = assigned, outlined = not assigned. Saves immediately.
+
+### Create or edit a department (Phase 17, manager only)
+1. Sidebar → **People** → **Departments**
+2. **+ Add Department** → type a name → Save. (Slug is auto-generated, not shown.)
+3. To edit an existing department: tap the row → opens the Department Detail modal where you can rename, add staff, or delete.
+
+### Configure clubhouse topic routing (Phase 17, manager only)
+1. Sidebar → **Club Settings** → **Topic Routing**
+2. For each of the 5 topics (General / Dining / Golf / Events / Billing), pick the department that should receive its messages
+3. **Save**. The change takes effect on the next clubhouse message — every member of the routed department will get a push.
+
+### Edit the club's membership tier list (v0.15.20, manager only)
+1. Sidebar → **Club Settings** → **Branding & Contact**
+2. Scroll to **Membership Tiers** → add/rename/remove tiers
+3. **Save**. The PersonEditModal tier dropdown now reflects the new list. Existing members on a removed tier keep their value.
 
 ### See the audit trail for a specific person *(manager only)*
 1. Sidebar → **People** → tap the person's row
@@ -468,6 +555,9 @@ Push subscription is per-device; users grant the browser permission once and the
 - **Workspaces are per-(user, club).** A super_admin viewing a club they don't usually manage sees the default workspace, not their own.
 - **The Member Guide is the member-side help.** When a member opens Help & Support from MyClub, they see pages from Member Guide plus a "Contact Club Staff" form that routes to the Clubhouse Messages sub-queue.
 - **support@groundslive.com is the platform team.** Inbound goes to the super_admin's Support inbox. Use the Contact Support modal in-app instead of email when possible — it auto-captures context.
+- **The \`people\` table is the canonical identity (Phase 16).** Stable per-person attributes (name, email, phone, photo, notes) live in \`people\` keyed by auth.user_id. \`members\` and \`guests\` hold per-club relations + per-club fields (handicap, locker, access_level, etc.). Bidirectional sync triggers (v0.15.19) keep \`members\` and \`guests\` shadow columns in sync with \`people\` — the shadow columns will eventually be dropped (deferred until the soak window completes).
+- **Every lifecycle transition is audited.** \`people_audit_log\` captures who-did-what-when, including the reason text the admin supplied at the pill sub-modal. Trigger-based capture on members + guests (v0.15.18) means even direct-SQL changes show up in the log. Manager-only view inside PersonEditModal.
+- **Departments ≠ roles (Phase 17).** \`user_roles.role\` controls *permissions* (what you can do). \`user_departments\` controls *routing* (where work gets pushed). A person can be both a club_admin AND in the "Dining" department, OR just in a department without any user_role (a notification-target staffer).
 
 ## 17. When to escalate to platform support
 
