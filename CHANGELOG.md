@@ -177,6 +177,44 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.11** — Phase 18 closeout + README refresh.
+
+  README's "Current version" header refreshed to v0.16.11 + Phase 18
+  patch index inline. The version.js phase-history block updated with
+  Phase 18's full v0.16.0-11 chronology + an as-built architecture
+  diagram showing the three durable invariants Phase 18 established:
+
+  ```
+  ┌─────────────────────────────────────────────────┐
+  │  ONE SOURCE OF TRUTH FOR PERMISSIONS            │
+  │  has_permission() RPC (DB) ↕ userHasPerm() (JS) │
+  │    ↕  tested by permissions.test.js              │
+  │  meetsRequirements gates both menu + render     │
+  └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────┐
+  │  REPO IS NOW THE SCHEMA SOURCE OF TRUTH         │
+  │  supabase/migrations/*.sql — every change       │
+  │    ships as a numbered SQL file BEFORE apply    │
+  │  supabase/functions/* — every Edge Function     │
+  │    in the repo (was: 6 missing pre-v0.16.3)     │
+  └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────┐
+  │  ALL EDGE FUNCTIONS NOW AUTHENTICATED           │
+  │  send-push: shared-secret gate (safe-rollout)   │
+  │  check-club-health: super_admin gate            │
+  │  All diagnostic endpoints behind auth           │
+  │  CORS narrowed from `*` to groundslive allowlist│
+  └─────────────────────────────────────────────────┘
+  ```
+
+  **Phase 18 totals: 11 patches, 21 audit findings closed,**
+  4 follow-up items queued (admin-ai-chat manual redeploy from
+  v0.15.31, rate-limit guest-register POST, confirm-modal 21-site
+  sweep, `select('*')` tightening).
+
+  Phase 18 closed. Next minor (v0.17.x) opens whenever Marc names
+  the next phase.
+
 - **v0.16.10** — Guest flow security audit (audit round 3 #3 + #4).
 
   Wrote a full audit report at `supabase/audits/guest-flow.md` walking

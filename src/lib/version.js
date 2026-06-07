@@ -127,7 +127,74 @@
 //             helpers (hasPerm, isAdmin matrix), Edge Function auth
 //             gates, push-recipient selection, route/section
 //             visibility.
-//             v0.16.4 — Phase 18 closeout + README refresh.
+//             v0.16.4 — Admin auth centralization (audit round 1 #6).
+//             ONE meetsRequirements() predicate gates both menu
+//             visibility and SectionContent render — extracted to
+//             src/lib/adminAuth.js in v0.16.6 so it's unit-testable
+//             without loading the whole admin UI tree.
+//             v0.16.5 — sections.jsx split slice 1: Platform domain
+//             extracted to src/screens/admin/sections/platform.jsx
+//             (sections.jsx 5,639 → 4,845 lines). Dead-code removed
+//             during extraction: PlatformSettingsAdmin /
+//             PlatformMetricsAdmin / ComingSoonSection stubs.
+//             v0.16.6 — Vitest scaffold + 56 focused tests across
+//             permissions matrix (16), meetsRequirements predicate
+//             (16), CORS allowlist (24). The permission tests pin
+//             the client↔DB has_permission() invariant; the CORS
+//             tests catch regression to wildcard Allow-Origin.
+//             v0.16.7 — react-hooks/exhaustive-deps audit. Walked
+//             25 disable sites across 13 files; 23 justified, 0
+//             actually buggy, 2 subtle cases documented in
+//             src/REACT_HOOKS_DEPS_NOTES.md. Re-audit cadence:
+//             every minor or when count exceeds 30.
+//             v0.16.8 — ConfirmModal + ConfirmProvider foundation.
+//             Native confirm()/alert() retired from CrudSection
+//             + NewsAdmin as proof-of-pattern; 21-site sweep queued.
+//             v0.16.9 — Defensive client-side mutation scoping
+//             (audit round 3 #2). Every admin UPDATE/DELETE on a
+//             club-scoped table now filters by both id AND club_id.
+//             RLS would catch a cross-tenant attempt anyway, but
+//             belt-and-suspenders prevents a class of "RLS bug =
+//             data corruption" scenarios.
+//             v0.16.10 — Guest flow security audit at
+//             supabase/audits/guest-flow.md. Walked
+//             /guest/<slug> → guest-register Edge Function → RLS
+//             policies → guest session. Verdict: writes correctly
+//             locked down by RLS (every sensitive policy requires
+//             a members row, which guests don't have). Two real
+//             gaps: no rate limit on guest-register POST, no
+//             CAPTCHA. Both DoS-class, not auth holes; queued.
+//             v0.16.11 — Phase 18 closeout. README refreshed with
+//             Phase 18 patch index. This entry marks Phase 18 as
+//             complete: 11 patches, 21 audit findings closed, 4
+//             follow-up items queued (admin-ai-chat redeploy from
+//             v0.15.31, rate-limit guest-register, confirm-modal
+//             21-site sweep, select('*') tightening).
+//             Phase 18 architecture as built:
+//
+//             ┌─────────────────────────────────────────────────┐
+//             │  ONE SOURCE OF TRUTH FOR PERMISSIONS            │
+//             │  has_permission() RPC (DB)                      │
+//             │    ↕  must agree with                            │
+//             │  userHasPerm() (src/lib/permissions.js)         │
+//             │    ↕  tested by                                  │
+//             │  permissions.test.js (16 tests)                 │
+//             │  meetsRequirements gates both menu + render     │
+//             └─────────────────────────────────────────────────┘
+//             ┌─────────────────────────────────────────────────┐
+//             │  REPO IS NOW THE SCHEMA SOURCE OF TRUTH         │
+//             │  supabase/migrations/*.sql — every change       │
+//             │  ships as a numbered SQL file BEFORE apply      │
+//             │  supabase/functions/* — every Edge Function     │
+//             │  in the repo (was: 6 missing pre-v0.16.3)       │
+//             └─────────────────────────────────────────────────┘
+//             ┌─────────────────────────────────────────────────┐
+//             │  ALL EDGE FUNCTIONS NOW AUTHENTICATED           │
+//             │  send-push: shared-secret gate (safe-rollout)   │
+//             │  check-club-health: super_admin gate            │
+//             │  All diagnostic endpoints behind auth           │
+//             │  CORS narrowed from `*` to groundslive allowlist│
+//             └─────────────────────────────────────────────────┘
 //
 //   v0.15.x — Phase 16: People Lifecycle Management. Stable
 //             per-person attributes (name, email, phone, address,
@@ -496,7 +563,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.10';
+export const VERSION = '0.16.11';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

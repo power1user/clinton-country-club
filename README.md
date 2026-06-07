@@ -11,21 +11,76 @@ Cloudflare DNS provision — not a code change or a new deploy.
 - `oakgrovecc.groundslive.com` — Oakgrove Country Club
 - `windhavencc.groundslive.com` — Windhaven Country Club
 
-**Current version:** `v0.14.8` (Phase 15 — GroundsLive AI, complete)
+**Current version:** `v0.16.11` (Phase 18 — Security & Hardening Pass, complete)
 
-> Phase 15 is the **two-agent embedded AI** built on Claude Haiku 4.5
-> with Anthropic prompt caching. **Admin AI** lives in the admin
-> topbar (a brass chat-bubble next to the existing `?` icon); it knows
-> the full admin manual + bills to The Grounds as platform expense.
+> Phase 18 (v0.16.x) is the security/hardening audit response. Three
+> rounds of external code review surfaced 21 findings across
+> security, code quality, and operational risk. v0.16.x closed every
+> one through v0.16.11.
+>
+> - **v0.16.0** opened the phase with the 5 small-surface fixes:
+>   `send-push` was filtering `user_roles` by `tenant_id` (wrong
+>   column → support pushes silently broken), `check-club-health` had
+>   no auth on a service-role endpoint, MemberAIBubble's dismissal
+>   key was broken per-user, diagnostic Edge Function endpoints
+>   exposed secret-presence to anons, and `public/_headers` had no
+>   baseline security headers (CSP, HSTS, X-Content-Type-Options,
+>   Referrer-Policy, Permissions-Policy).
+> - **v0.16.1-2** — `send-push` shared-secret gate (safe-rollout),
+>   useAuth club-load error surface, and CORS narrowed from `*` to a
+>   groundslive-origin allowlist across all 6 browser-invoked Edge
+>   Functions.
+> - **v0.16.3** — pulled live Supabase schema + RLS + 6 missing Edge
+>   Functions into the repo, fixing audit finding #6 ("no review
+>   surface for the security boundary"). From v0.16.3 forward, every
+>   schema/RLS/function change ships as a numbered SQL file in
+>   `supabase/migrations/` BEFORE being applied via MCP.
+> - **v0.16.4** — centralized admin auth (ONE `meetsRequirements()`
+>   predicate gating both menu visibility and SectionContent render).
+> - **v0.16.5** — opened the `sections.jsx` split (5,639 → 4,845
+>   lines by extracting the Platform domain).
+> - **v0.16.6** — Vitest + 56 focused tests pinning the permission
+>   matrix, the auth-guard predicate, and the CORS allowlist.
+> - **v0.16.7** — audited 25 `react-hooks/exhaustive-deps` disable
+>   sites; documented every one in `src/REACT_HOOKS_DEPS_NOTES.md`.
+> - **v0.16.8** — shared `ConfirmModal` + `ConfirmProvider` to retire
+>   native `confirm()`/`alert()` from admin (foundation + 2
+>   conversions; remaining 21 sweep queued).
+> - **v0.16.9** — defensive `id AND club_id` scoping on admin
+>   mutations.
+> - **v0.16.10** — guest-flow security audit at
+>   `supabase/audits/guest-flow.md`. Guest writes are correctly
+>   locked down by RLS; the remaining gaps (no rate limit on
+>   guest-register, no CAPTCHA) are operational DoS concerns
+>   queued for follow-up.
+> - **v0.16.11** — Phase 18 closeout (this README refresh).
+>
+> See `src/lib/version.js` for the full Phase 18 patch index;
+> `CHANGELOG.md` for what each v0.16.x patch shipped.
+
+> Phase 17 (v0.15.13-15) shipped Departments + Topic Routing:
+> per-club staff groups (`club_departments` + `user_departments`)
+> with topic-based push routing for clubhouse messages
+> (`clubs.clubhouse_topic_routing` jsonb). New People → Departments
+> admin section (manager-only) + per-person assignment chips in
+> PersonEditModal + Topic Routing config under Club Settings.
+> `send-push v20` routes clubhouse fan-out via topic → departments
+> → users.
+
+> Phase 16 (v0.15.0-12) was People Lifecycle Management: the `people`
+> table as canonical identity + `people_audit_log` for compliance +
+> lifecycle RPCs (convert guest→member, demote member→guest, change
+> status, promote/demote staff) all audit-logged. v0.15.6+ shipped
+> the unified People admin view. v0.15.16 redesigned PersonEditModal
+> with an identity-strip + status/role pills → sub-modal lifecycle UX.
+
+> Phase 15 (v0.14.0-8) was **two-agent embedded AI** built on Claude
+> Haiku 4.5 with Anthropic prompt caching. **Admin AI** lives in the
+> admin topbar; knows the full admin manual + bills to The Grounds.
 > **Member AI** is a dismissible floating bubble on every member
 > screen, gated per-club by `feature_flags.member_ai` (default OFF);
-> it has 5 live-data tools (`get_today_status`, `get_menu`,
-> `get_upcoming_events`, `get_recent_news`, `get_lesson_pros`) and
-> bills per-club. One `ai_usage_log` table; the `mode` column is the
-> billing axis. Super_admins see the rollup at Platform → AI Usage.
->
-> See `src/lib/version.js` for the full v0.14.0 → v0.14.8 phase index
-> with architecture diagram.
+> has 5 live-data tools and bills per-club. One `ai_usage_log` table;
+> the `mode` column is the billing axis.
 
 > Phase 14 (v0.13.0 → v0.13.9) shipped the Platform Support Inbox —
 > a super_admin-only triage surface that lands
