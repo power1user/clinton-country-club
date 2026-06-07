@@ -171,7 +171,10 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
     if (isAdd) {
       ({ error } = await supabase.from(table).insert(payload));
     } else {
-      ({ error } = await supabase.from(table).update(payload).eq('id', row.id));
+      // v0.16.9 — Defense in depth: scope the update to id AND club_id
+      // even though RLS would block a cross-tenant attempt. Cheap
+      // belt-and-suspenders against a future RLS bug.
+      ({ error } = await supabase.from(table).update(payload).eq('id', row.id).eq('club_id', club.id));
     }
     setBusy(false);
     if (error) { setErr(friendlyError(error)); return; }
@@ -187,7 +190,8 @@ function CrudFormModal({ mode, club, table, title, row, fields, beforeSave, canE
       danger: true,
     }))) return;
     setBusy(true);
-    const { error } = await supabase.from(table).delete().eq('id', row.id);
+    // v0.16.9 — Same id+club_id scoping for delete.
+    const { error } = await supabase.from(table).delete().eq('id', row.id).eq('club_id', club.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     onSaved?.();

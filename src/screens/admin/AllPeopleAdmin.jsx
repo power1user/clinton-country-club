@@ -828,7 +828,8 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
       };
       const { error } = isAdd
         ? await supabase.from('members').insert(row)
-        : await supabase.from('members').update(row).eq('id', memberId);
+        // v0.16.9 — defense in depth: scope mutations by id AND club_id
+        : await supabase.from('members').update(row).eq('id', memberId).eq('club_id', club.id);
       setBusy(false);
       if (error) { setErr(error.message); return; }
     } else {
@@ -847,7 +848,8 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
       };
       const { error } = isAdd
         ? await supabase.from('guests').insert(row)
-        : await supabase.from('guests').update(row).eq('id', guestId);
+        // v0.16.9 — defense in depth: scope mutations by id AND club_id
+        : await supabase.from('guests').update(row).eq('id', guestId).eq('club_id', club.id);
       setBusy(false);
       if (error) { setErr(error.message); return; }
     }
@@ -888,9 +890,11 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     const what = kind === 'member' ? 'member record' : 'guest record';
     if (!window.confirm(`Delete this ${what} for ${form.name}? Permanent — audit log keeps history.`)) return;
     setBusy(true);
+    // v0.16.9 — defense in depth: scope deletes by id AND club_id even
+    // though this is super_admin-only (RLS would gate cross-tenant anyway).
     const { error } = kind === 'member'
-      ? await supabase.from('members').delete().eq('id', memberId)
-      : await supabase.from('guests').delete().eq('id', guestId);
+      ? await supabase.from('members').delete().eq('id', memberId).eq('club_id', club.id)
+      : await supabase.from('guests').delete().eq('id', guestId).eq('club_id', club.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     onSaved?.();

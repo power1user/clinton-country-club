@@ -153,7 +153,8 @@ function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholde
     } else {
       const next = { ...draft };
       next[primaryField] = (next[primaryField] || '').trim();
-      const { error } = await supabase.from(table).update(next).eq('id', editing);
+      // v0.16.9 — defense in depth: scope by id AND club_id (audit round 3 #2)
+      const { error } = await supabase.from(table).update(next).eq('id', editing).eq('club_id', club.id);
       if (error) { setErr(error.message); return; }
     }
     cancel();
@@ -163,7 +164,8 @@ function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholde
   const remove = async (row) => {
     if (!confirm(`Delete "${row[primaryField]}"? This may affect items in the menu using this category.`)) return;
     setErr(null);
-    const { error } = await supabase.from(table).delete().eq('id', row.id);
+    // v0.16.9 — defense in depth: scope by id AND club_id
+    const { error } = await supabase.from(table).delete().eq('id', row.id).eq('club_id', club.id);
     if (error) { setErr(error.message); return; }
     refresh();
   };

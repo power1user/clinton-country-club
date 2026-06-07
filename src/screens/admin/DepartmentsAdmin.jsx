@@ -392,7 +392,8 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
       ? `Delete the "${department.name}" department?\n\n${memberCount} person${memberCount === 1 ? ' is' : 's are'} currently assigned to it. Their assignment row${memberCount === 1 ? '' : 's'} will be removed automatically. Any topic routing that points to this department will fall back to "all staff" until you re-route it.`
       : `Delete the "${department.name}" department?`;
     if (!window.confirm(confirmMsg)) return;
-    const { error } = await supabase.from('club_departments').delete().eq('id', department.id);
+    // v0.16.9 — defense in depth: scope by id AND club_id (audit round 3 #2)
+    const { error } = await supabase.from('club_departments').delete().eq('id', department.id).eq('club_id', club.id);
     if (error) { setErr(error.message); return; }
     onSaved?.();
   };

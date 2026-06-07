@@ -227,7 +227,8 @@ function NewsEditor({ club, canEdit, row, onClose, onSaved }) {
       danger: true,
     }))) return;
     setBusy(true);
-    const { error } = await supabase.from('news').delete().eq('id', row.id);
+    // v0.16.9 — defense in depth: scope by id AND club_id
+    const { error } = await supabase.from('news').delete().eq('id', row.id).eq('club_id', club.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     onSaved?.();

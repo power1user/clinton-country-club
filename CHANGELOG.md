@@ -177,6 +177,41 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.9** — Defensive client-side mutation scoping (audit round 3 #2).
+
+  Many admin UPDATE/DELETE calls only filtered by `id`. RLS catches
+  cross-tenant attempts at the DB, but client-side defense in depth
+  is cheap and prevents a class of "RLS bug = data corruption"
+  scenarios. The audit flagged sections.jsx:156/166 and NewsAdmin.jsx
+  specifically; this patch sweeps the highest-leverage paths.
+
+  **Converted (every admin UPDATE/DELETE now scopes by id AND club_id):**
+  - `CrudSection.jsx` — the generic admin CRUD's edit + delete. Used
+    by ~10 admin sections (menu cats, menu items, lesson pros, pro
+    shop items, hole sponsors, sponsor banners, etc.).
+  - `AllPeopleAdmin.jsx` — member + guest update (×2) and the
+    super_admin-only delete. The most-destructive paths in admin.
+  - `NewsAdmin.jsx` — news post delete.
+  - `sections.jsx` `SortableSimpleAdmin` — update + delete on
+    facilities, menu categories, and other sortable lists.
+  - `DepartmentsAdmin.jsx` — department delete.
+
+  All add `.eq('id', x).eq('club_id', club.id)`. If RLS ever has a
+  bug that lets a cross-tenant request through, the client-side scope
+  still rejects it.
+
+  **Queued for the eventual sweep (v0.16.9b or absorbed into other
+  patches):** ~25 remaining mutation sites in sections.jsx (food
+  orders status, event registrations, club_facilities reorder,
+  hole_sponsors, etc.) and a few in member-side components. The
+  pattern is documented; each is a 1-line change.
+
+  **`select('*')` tightening (audit round 3 #5) deferred** — the
+  largest offenders are `useAuth.jsx`'s `clubs.*` load (clubs has
+  dozens of columns and is referenced everywhere; narrowing requires
+  inventorying every column used app-wide). Queued for a focused
+  follow-up rather than risking missing-column bugs.
+
 - **v0.16.8** — Shared ConfirmModal — foundation + first conversions.
 
   Audit round 2 finding (g): destructive admin actions used native
