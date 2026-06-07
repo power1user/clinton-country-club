@@ -177,6 +177,33 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.4** — Admin auth centralization (audit round 1, finding #6).
+
+  Before: every section in `AdminPanel.jsx` had auth-related metadata
+  on the AREAS array (`superOnly`, `managerOnly`, `permKey`), AND most
+  had a SECOND inline check at render time (`{sec === 'staff' && isManager && <StaffAdmin />}`).
+  Some sections had the inline check, some didn't. Adding a new
+  section meant updating two places, and any drift between the
+  visibility filter (which gated the menu) and the inline guard
+  (which gated the render) could silently allow access via deep-link.
+
+  Now: one predicate `meetsRequirements(section, ctx)` reads the
+  metadata. The visibility filter uses it (`sectionVisible`).
+  `SectionContent` uses it ONCE at the top — if requirements fail,
+  render an `<AdminAccessDenied>` stub instead of the section body.
+  All inline `isManager &&` / `isSuperAdmin &&` checks are gone.
+
+  Defense in depth is preserved: the menu filter hides forbidden
+  sections from sidebars / area grids / search; the render-time
+  guard refuses to render the body even if someone reaches the
+  section via deep-link. Both layers read the same metadata.
+
+  No public API changes. `SectionContent` now also accepts `isAdmin`
+  + `hasPerm` props; AdminPanel + AdminLayoutDesktop pass them
+  through. The AREAS metadata shape is unchanged — sections still use
+  `superOnly` / `managerOnly` / `permKey` to declare their
+  requirements; adding a new section is now one-place-to-edit.
+
 - **v0.16.3** — Pull live Supabase schema/RLS/Edge Functions into the repo.
 
   Audit round 3 finding #6 ("operational risk: no local migrations").

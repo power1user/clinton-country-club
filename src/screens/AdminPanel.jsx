@@ -291,19 +291,73 @@ const AREAS = [
 ];
 
 // Flat lookup for the section content router
-const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id })));
+const ALL_SECTIONS = AREAS.flatMap(a => a.sections.map(s => ({ ...s, areaId: a.id, areaSuperOnly: !!a.superOnly })));
 
-// v0.11.1 — SectionContent extracted as a standalone component so
-// both AdminLayoutMobile (the existing Level-3 in AdminPanel) and
-// AdminLayoutDesktop (the new sidebar-driven shell) can render the
-// same section bodies without duplicating the long if-chain. The
-// per-section permission gates stay inline here as defense in depth
-// even though the sidebar / area cards already filter by them.
-export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
+// Map by id for O(1) lookup from SectionContent
+const SECTIONS_BY_ID = Object.fromEntries(ALL_SECTIONS.map(s => [s.id, s]));
+
+// v0.16.4 — Single source of truth for "is this admin allowed to see /
+// render this section?" Used by both the menu visibility filter AND
+// the SectionContent guard (defense in depth — menu can be bypassed
+// via deep link; SectionContent must enforce independently).
+//
+// Requirements live on the section/area metadata in AREAS above:
+//   - section.permKey   — string permission key (mirrors RLS has_permission)
+//   - section.managerOnly — club_manager (or super_admin) required
+//   - area.superOnly    — super_admin required (propagated as areaSuperOnly)
+//
+// ctx must provide: isSuperAdmin, isManager, isAdmin, hasPerm.
+// `hasPerm` is the same function from useAuth that the rest of the
+// app uses; it MUST stay aligned with the DB has_permission() RPC.
+// See supabase/migrations/0001_phase18_baseline_helpers.sql.
+export function meetsRequirements(section, ctx) {
+  if (!section) return false;
+  // Floor: any admin role. Members/guests never see admin sections.
+  if (!ctx.isAdmin) return false;
+  // Area-level: Platform sections are super_admin-only.
+  if (section.areaSuperOnly && !ctx.isSuperAdmin) return false;
+  // Section-level managerOnly: must be club_manager (super_admin passes).
+  if (section.managerOnly && !ctx.isManager) return false;
+  // Section-level permKey: must hold the named permission.
+  if (section.permKey && !ctx.hasPerm(section.permKey)) return false;
+  return true;
+}
+
+// v0.16.4 — Centralized admin auth (audit #6).
+//
+// Before: every section was rendered with an inline `isManager &&` /
+// `isSuperAdmin &&` check, duplicating the metadata that already lives
+// on the AREAS array. Some sections had the check, some didn't. Adding
+// a new section meant remembering to add the check in two places, and
+// any drift between the menu visibility filter and the render-time
+// guard would silently allow access via deep-link.
+//
+// After: ONE predicate (`meetsRequirements`, defined above) reads the
+// metadata. The menu filter uses it (`sectionVisible`); SectionContent
+// uses it ONCE at the top. If a section's metadata says "managerOnly +
+// permKey:can_X" then both layers enforce it. To add a new section,
+// add it to AREAS — there's no second place to remember.
+//
+// Renders an <AdminAccessDenied> stub when the caller deep-links into
+// a section they're not allowed to see. Not just `null` — silent
+// failure is a UX trap; the user should see why.
+export function SectionContent({ sec, club, isManager, isSuperAdmin, isAdmin, hasPerm }) {
+  // v0.11.1: extracted so both AdminLayoutMobile + AdminLayoutDesktop
+  // share one section router.
+  const section = SECTIONS_BY_ID[sec];
+  if (!section) return null;
+
+  const allowed = meetsRequirements(section, { isSuperAdmin, isManager, isAdmin, hasPerm });
+  if (!allowed) {
+    return <AdminAccessDenied sectionLabel={section.l} />;
+  }
+
+  // Switch on sec. NO per-section role checks below — that's the
+  // entire point of v0.16.4. All gating happens above via metadata.
   return (
     <>
       {sec === 'status'         && <DailyStatusAdmin club={club} />}
-      {sec === 'facilityhours'  && isManager && <FacilityHoursAdmin />}
+      {sec === 'facilityhours'  && <FacilityHoursAdmin />}
       {sec === 'overrides'      && <ScheduleOverridesAdmin />}
       {sec === 'pace'           && <PaceAdmin club={club} />}
       {sec === 'pins'           && <PinsAdmin club={club} />}
@@ -321,9 +375,9 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'lessonpros'     && <LessonProsAdmin />}
       {sec === 'people_all'     && <PeopleAdmin club={club} />}
       {sec === 'people_unified' && <AllPeopleAdmin />}
-      {sec === 'departments'    && isManager && <DepartmentsAdmin club={club} />}
+      {sec === 'departments'    && <DepartmentsAdmin club={club} />}
       {sec === 'badges'         && <BadgesAdmin club={club} />}
-      {sec === 'staff'          && isManager && <StaffAdmin club={club} />}
+      {sec === 'staff'          && <StaffAdmin club={club} />}
       {sec === 'clubhouseinbox' && <ClubhouseInboxAdmin />}
       {sec === 'inbox_food'      && <FoodOrdersAdmin />}
       {sec === 'inbox_lessons'   && <LessonRequestsAdmin mode="lessons" />}
@@ -331,18 +385,36 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin }) {
       {sec === 'inbox_guests'    && <GuestRegistrationsFeed />}
       {sec === 'inbox_clubhouse' && <ClubhouseInboxAdmin />}
       {sec === 'inbox_rsvps'     && <EventRegistrationsAdmin mode="flat" />}
-      {sec === 'clubsettings'   && isManager && <ClubSettingsAdmin />}
-      {sec === 'facilities'     && isManager && <FacilitiesAdmin />}
-      {sec === 'features'       && isManager && <FeaturesAdmin />}
-      {sec === 'clubhouseRouting' && isManager && <ClubhouseRoutingAdmin club={club} />}
-      {sec === 'membertiers'    && isManager && <MemberTiersAdmin club={club} />}
-      {sec === 'guests'         && isManager && <GuestManagementAdmin />}
-      {sec === 'superadmins'    && isSuperAdmin && <SuperAdminsAdmin />}
-      {sec === 'allclubs'       && isSuperAdmin && <AllClubsAdmin />}
-      {sec === 'provisionlog'   && isSuperAdmin && <ProvisionLogAdmin />}
-      {sec === 'aiusage'        && isSuperAdmin && <AIUsageAdmin />}
-      {sec === 'support'        && isSuperAdmin && <SupportAdmin />}
+      {sec === 'clubsettings'   && <ClubSettingsAdmin />}
+      {sec === 'facilities'     && <FacilitiesAdmin />}
+      {sec === 'features'       && <FeaturesAdmin />}
+      {sec === 'clubhouseRouting' && <ClubhouseRoutingAdmin club={club} />}
+      {sec === 'membertiers'    && <MemberTiersAdmin club={club} />}
+      {sec === 'guests'         && <GuestManagementAdmin />}
+      {sec === 'superadmins'    && <SuperAdminsAdmin />}
+      {sec === 'allclubs'       && <AllClubsAdmin />}
+      {sec === 'provisionlog'   && <ProvisionLogAdmin />}
+      {sec === 'aiusage'        && <AIUsageAdmin />}
+      {sec === 'support'        && <SupportAdmin />}
     </>
+  );
+}
+
+// v0.16.4 — Access-denied stub for deep-linked sections the caller
+// doesn't have permission for. Should rarely render in practice (the
+// menu filter normally hides these), but defense in depth means
+// SectionContent enforces independently.
+function AdminAccessDenied({ sectionLabel }) {
+  return (
+    <div style={{ padding: '40px 24px', textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
+      <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 18, color: G.text, margin: '0 0 8px' }}>
+        Not authorized
+      </p>
+      <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: 0, lineHeight: 1.5 }}>
+        Your current role doesn't have access to{sectionLabel ? ` "${sectionLabel}"` : ' this section'}.
+        Ask your club manager if you should be granted this permission.
+      </p>
+    </div>
   );
 }
 
@@ -517,14 +589,13 @@ export default function AdminPanel() {
   // the main hub AND per-sub-queue badges inside the Comms sub-hub.
   const commsUnread = useCommsUnread(club?.id);
 
-  // Visibility filter — a section is visible if:
-  //   - not superOnly (or user is super_admin)
-  //   - not managerOnly (or user is manager+)
-  //   - user has the section's permKey (manager+ has all perms implicitly)
-  const sectionVisible = (s) =>
-    (!s.superOnly   || isSuperAdmin) &&
-    (!s.managerOnly || isManager)    &&
-    (!s.permKey     || hasPerm(s.permKey));
+  // v0.16.4 — Both filters now route through `meetsRequirements` so the
+  // menu visibility check and SectionContent's render-time guard share
+  // ONE predicate. See the module-level definition + comments above.
+  const authCtx = { isSuperAdmin, isManager, isAdmin, hasPerm };
+  // SECTIONS_BY_ID carries `areaSuperOnly` (propagated from the area),
+  // so meetsRequirements handles Platform-area gating uniformly.
+  const sectionVisible = (s) => meetsRequirements(SECTIONS_BY_ID[s.id] || s, authCtx);
 
   // An area is visible if it's not super-only (or user is super) AND has any
   // visible sections. Platform area is super-only entirely.
@@ -562,6 +633,8 @@ export default function AdminPanel() {
         club={club}
         isManager={isManager}
         isSuperAdmin={isSuperAdmin}
+        isAdmin={isAdmin}
+        hasPerm={hasPerm}
         commsUnread={commsUnread}
         compact={isTablet}
       />
@@ -584,7 +657,7 @@ export default function AdminPanel() {
                 SectionContent component at the top of this file so
                 the mobile + desktop layouts render identical
                 section bodies without duplication. */}
-            <SectionContent sec={sec} club={club} isManager={isManager} isSuperAdmin={isSuperAdmin} />
+            <SectionContent sec={sec} club={club} isManager={isManager} isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} hasPerm={hasPerm} />
           </div>
         </div>
         {/* v0.14.9 — floating AI on mobile admin */}

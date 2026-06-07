@@ -63,6 +63,9 @@ export default function AdminLayoutDesktop({
   areas, sectionVisible,
   member, club,
   isManager, isSuperAdmin,
+  // v0.16.4 — also accept isAdmin + hasPerm so we can pass them down to
+  // SectionContent for the centralized auth-guard (audit #6).
+  isAdmin, hasPerm,
   commsUnread,
   compact = false,
 }) {
@@ -690,6 +693,8 @@ export default function AdminLayoutDesktop({
               club={club}
               isManager={isManager}
               isSuperAdmin={isSuperAdmin}
+              isAdmin={isAdmin}
+              hasPerm={hasPerm}
             />
           ) : activeArea ? (
             // Area picked, no section yet — keep the existing
