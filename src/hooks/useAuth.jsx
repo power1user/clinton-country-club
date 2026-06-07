@@ -161,6 +161,10 @@ export function AuthProvider({ children }) {
     setPermissions(adminRow?.permissions || {});
   };
 
+  // v0.16.7 audit: hydrateMember is defined in the component body and
+  // reads session+club via closure. Including it in deps would trip a
+  // new function-identity on every render → infinite re-fire. The
+  // listed deps (session, club) ARE the inputs we care about.
   useEffect(() => { hydrateMember(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [session, club]);
 
   const signIn = async (email, password) => {

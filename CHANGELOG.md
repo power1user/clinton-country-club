@@ -177,6 +177,45 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.7** — `react-hooks/exhaustive-deps` audit (audit round 2 #d).
+
+  Walked every `eslint-disable react-hooks/exhaustive-deps` site in
+  `src/` — 25 disables across 13 files. The audit's concern: "this
+  pattern often hides stale state, missed reloads, and realtime
+  subscription bugs." The walk-through:
+
+  **23 sites JUSTIFIED** — all follow one of three patterns:
+  Pattern A "load on key change" (15 sites), Pattern B "capture
+  callback once on mount" (3 sites), Pattern C `useMemo` filtered
+  by role (2 sites). All three are well-understood React idioms
+  that would cause infinite re-renders if the linter's suggestion
+  were followed verbatim.
+
+  **0 sites FIXED** — none of the 25 disables masked an actual
+  stale-state bug at the time of the audit. The pattern-matching
+  was clean.
+
+  **2 SUBTLE cases** — `useModalBackClose`'s popstate listener
+  captures `onClose` once; if a parent ever re-renders with a
+  meaningfully different `onClose`, the listener still calls the
+  old one. In practice the parent's modal-open state machine
+  doesn't change `onClose`'s behavior across renders, so this is
+  benign — but flagged for future scrutiny if a hook is ever
+  passed a closure over changing state. `useAuth`'s
+  `hydrateMember` in a `[session, club]` effect is the canonical
+  inline-function-via-closure pattern; safe.
+
+  Output: a comprehensive **`src/REACT_HOOKS_DEPS_NOTES.md`** that
+  documents every disable, the policy ("each survives only with a
+  justification"), and the "how to add new code that needs this"
+  recipe. Re-audit cadence: every minor version bump or when the
+  total disable count exceeds 30. Either trigger means the
+  pattern is propagating beyond documented justifications.
+
+  **No code-level changes** other than a justification comment
+  added to the `useAuth.jsx` site (the most-likely-to-be-missed
+  reader of the policy). The policy doc covers the other 24.
+
 - **v0.16.6** — Test scaffold + the first 56 focused tests (audit #8).
 
   Vitest installed; `npm run test` (watch) and `npm run test:run`
