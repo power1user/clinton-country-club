@@ -177,6 +177,39 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.19** — Hotfix: useNav popstate listener was kicking users
+  out of admin on mobile.
+
+  **Real root cause for "back exits admin entirely" on mobile.**
+  Two popstate listeners are attached at runtime:
+  1. `useNav.onPop` — pops one entry off the current tab's
+     navigation stack on every back gesture
+  2. `AdminPanel.onPop` (mobile-only) — handles admin's internal
+     drill-down levels (area, section), pushed via
+     `pushState({adminNav: ...})`
+  3. `useModalBackClose` — closes modals, pushed via
+     `pushState({modalOpen: true})`
+
+  `useNav.onPop` checks NOTHING about who pushed the entry. Every
+  popstate caused it to pop the current tab stack. Result on
+  mobile: pressing back inside admin's nav (or after closing a
+  modal via the X button) ALSO popped the surrounding
+  `myclub/admin` entry off the tab stack, kicking the user out
+  of admin entirely.
+
+  Desktop didn't have the bug because AdminPanel only pushes
+  history entries on mobile (`if (isDesktop) return` early in
+  the push effect). So desktop popstate flow only ever had
+  useNav's entries to deal with.
+
+  **Fix:** `useNav.onPop` now bails when the new current state
+  has `adminNav` or `modalOpen` — those entries are owned by
+  other handlers, and useNav must not touch the tab stack for
+  them. `navIdRef` is left untouched so subsequent navigation
+  tracks correctly.
+
+  Build: 1897 modules, 1.38MB bundle. Tests: 56/56 passing.
+
 - **v0.16.18** — Hotfix: ConfirmModal now hooks the phone back button.
 
   Root cause for the "back button exits admin" regression Marc

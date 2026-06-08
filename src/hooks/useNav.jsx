@@ -87,6 +87,21 @@ export function NavProvider({ children, initialDeepLink = null }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onPop = (e) => {
+      // v0.16.19 — popstate fires for ANY history entry being popped,
+      // not just useNav's. AdminPanel pushes entries for area/sec
+      // drill-down (state.adminNav), and useModalBackClose pushes
+      // entries for modal mounts (state.modalOpen). Those entries are
+      // owned by their respective handlers; useNav MUST NOT pop the
+      // tab stack for those, otherwise pressing back inside admin pops
+      // the surrounding myclub/admin entry → user is kicked out of
+      // admin entirely (the bug Marc reported on mobile).
+      //
+      // Skip and leave navIdRef untouched — the in-app stack hasn't
+      // moved, so navIdRef shouldn't either.
+      if (e.state && (e.state.adminNav || e.state.modalOpen)) {
+        return;
+      }
+
       const incoming = e.state?.navId ?? 0;
       const direction = incoming < navIdRef.current ? 'back' : 'forward';
       navIdRef.current = incoming;
