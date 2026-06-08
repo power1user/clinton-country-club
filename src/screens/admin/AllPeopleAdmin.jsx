@@ -161,35 +161,35 @@ export default function AllPeopleAdmin() {
   const convertGuest = (p) => runAction(
     'convert_guest_to_member',
     { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_tier: 'standard', p_status: 'active' },
-    p.auth_user_id,
+    p.person_id, // v0.16.17 — busy-state key is person_id (auth_user_id may be NULL for pre-auth)
     `Convert ${p.name} from guest to member?\n\nA new member row is created. Their guest record stays as history.`
   );
 
   const changeStatus = (p, to) => runAction(
     'change_member_status',
     { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_to_status: to },
-    p.auth_user_id,
+    p.person_id,
     null
   );
 
   const promote = (p, role) => runAction(
     'promote_member_to_staff',
     { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_role: role },
-    p.auth_user_id,
+    p.person_id,
     `Promote ${p.name} to ${role === 'club_manager' ? 'Manager' : 'Admin'}?\n\nThey'll gain admin access. Audited in people_audit_log.`
   );
 
   const demote = (p) => runAction(
     'demote_staff_to_member',
     { p_auth_user_id: p.auth_user_id, p_club_id: club.id },
-    p.auth_user_id,
+    p.person_id,
     `Demote ${p.name} back to member?\n\nThey lose all admin permissions at this club. Audited.`
   );
 
   const demoteToGuest = (p) => runAction(
     'demote_member_to_guest',
     { p_auth_user_id: p.auth_user_id, p_club_id: club.id, p_access_level: 'read_only' },
-    p.auth_user_id,
+    p.person_id,
     `Demote ${p.name} from member to guest?\n\nTheir member row is marked inactive (kept for history). A guest row is created/reactivated with read_only access. Audited.`
   );
 
@@ -198,7 +198,7 @@ export default function AllPeopleAdmin() {
       setActionErr('No email on file — open the person and add one first.');
       return;
     }
-    setBusyId(p.auth_user_id);
+    setBusyId(p.person_id); // v0.16.17 — busy-state key
     setActionErr(null);
     setActionFor(null);
     const redirect = club?.slug ? `https://${club.slug}.groundslive.com/` : window.location.origin;
@@ -314,7 +314,7 @@ export default function AllPeopleAdmin() {
       ) : (
         <div style={{ background: G.card, borderRadius: 4, border: `1px solid ${G.border}` }}>
           {filtered.map((p, i) => (
-            <div key={p.auth_user_id} style={{
+            <div key={p.person_id} style={{ /* v0.16.17 — person_id is always-non-null; auth_user_id was NULL for pre-auth */
               display: 'flex', alignItems: 'center', padding: '12px 14px',
               borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10,
             }}>
@@ -368,11 +368,11 @@ export default function AllPeopleAdmin() {
               {/* Kebab actions menu */}
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div
-                  onClick={() => setActionFor(actionFor === p.auth_user_id ? null : p.auth_user_id)}
+                  onClick={() => setActionFor(actionFor === p.person_id ? null : p.person_id)}
                   data-tap
                   style={{
                     padding: '6px 8px', cursor: 'pointer',
-                    background: actionFor === p.auth_user_id ? G.card : 'transparent',
+                    background: actionFor === p.person_id ? G.card : 'transparent',
                     borderRadius: 4,
                   }}
                   title="Actions"
@@ -383,7 +383,7 @@ export default function AllPeopleAdmin() {
                     <circle cx="12" cy="19" r="1.2" />
                   </svg>
                 </div>
-                {actionFor === p.auth_user_id && (
+                {actionFor === p.person_id && (
                   <div style={{
                     position: 'absolute', right: 0, top: 30,
                     background: G.bg, border: `1px solid ${G.border}`, borderRadius: 4,
@@ -399,16 +399,16 @@ export default function AllPeopleAdmin() {
                           · The kebab is the right surface for one-tap actions
                             you fire from the list without opening anything:
                             magic links, guest-approval, snowbird reactivation. */}
-                    <ActionItem onClick={() => { setActionFor(null); openEdit(p); }} busy={busyId === p.auth_user_id}>
+                    <ActionItem onClick={() => { setActionFor(null); openEdit(p); }} busy={busyId === p.person_id}>
                       Edit Person…
                     </ActionItem>
-                    <ActionItem onClick={() => sendMagicLink(p)} busy={busyId === p.auth_user_id}>
+                    <ActionItem onClick={() => sendMagicLink(p)} busy={busyId === p.person_id}>
                       Send Magic Link
                     </ActionItem>
                     {p.is_guest && !p.is_member && (
                       <>
                         <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
-                        <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.auth_user_id}>
+                        <ActionItem onClick={() => convertGuest(p)} busy={busyId === p.person_id}>
                           Convert Guest → Member
                         </ActionItem>
                       </>
@@ -416,7 +416,7 @@ export default function AllPeopleAdmin() {
                     {p.is_member && p.member_status !== 'active' && (
                       <>
                         <div style={{ height: 1, background: G.border, margin: '4px 0' }} />
-                        <ActionItem onClick={() => changeStatus(p, 'active')} busy={busyId === p.auth_user_id}>
+                        <ActionItem onClick={() => changeStatus(p, 'active')} busy={busyId === p.person_id}>
                           Mark Active
                         </ActionItem>
                       </>
@@ -631,27 +631,23 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   };
 
   // Load underlying row(s) in edit mode.
+  // v0.16.17 — gate + lookups pivot to person_id. auth_user_id is
+  // NULL for pre-auth admin-added members/guests; the old gate
+  // hid them entirely.
   useEffect(() => {
-    if (isAdd || !person?.auth_user_id || !club?.id) { setLoadingRow(false); return; }
+    if (isAdd || !person?.person_id || !club?.id) { setLoadingRow(false); return; }
     let cancelled = false;
     const load = async () => {
       setLoadingRow(true);
-      // v0.15.16 — also pull `phone` (now surfaced on Identity row) and
-      // `notes` (new free-form staff-only column added in migration
-      // v0_15_16_notes_columns_and_reason_param).
-      // v0.16.14 — Task #52 stage 1: pull stable per-person fields
-      // from embedded people. v0.16.16 stage 2c: also select person_id
-      // so the save handler can target the canonical people row for
-      // name/email/phone/photo_url writes.
       const memberQ = person.is_member
         ? supabase.from('members')
             .select('id, person_id, membership_number, tier, member_since, hcp, locker, cart, parking, status, notes, people(name, email, phone, photo_url)')
-            .eq('club_id', club.id).eq('user_id', person.auth_user_id).maybeSingle()
+            .eq('club_id', club.id).eq('person_id', person.person_id).maybeSingle()
         : Promise.resolve({ data: null });
       const guestQ = person.is_guest
         ? supabase.from('guests')
             .select('id, person_id, visit_type, visit_date, access_level, status, expires_at, notes, people(name, email, phone, zip)')
-            .eq('club_id', club.id).eq('user_id', person.auth_user_id)
+            .eq('club_id', club.id).eq('person_id', person.person_id)
             .order('created_at', { ascending: false }).limit(1)
         : Promise.resolve({ data: [] });
       const [mRes, gRes] = await Promise.all([memberQ, guestQ]);
@@ -682,7 +678,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person?.auth_user_id, club?.id, loadVersion]);
+  }, [person?.person_id, club?.id, loadVersion]);
 
   // v0.15.9 — fetch the per-person audit trail from people_audit_log.
   // Two-step: first the raw rows for the person+club, then resolve

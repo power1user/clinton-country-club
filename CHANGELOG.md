@@ -177,6 +177,44 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.17** — Hotfix: People admin row identity collision for pre-auth records.
+
+  **Bug:** v0.16.16's `all_people_at_club` rewrite started correctly
+  including pre-auth members + guests in the People view (latent
+  Phase 16 bug fixed as a side effect). But pre-auth records have
+  `auth_user_id = NULL`, and the AllPeopleAdmin client used
+  `auth_user_id` as the React key, kebab-menu state key, busy-state
+  key, and modal load gate. With multiple pre-auth rows, all NULL
+  ids collapsed to the same identity — every pre-auth row's kebab
+  menu appeared open simultaneously (looked like "a bunch of magic
+  link / edit person modals popping up"), and the edit modal load
+  short-circuited so the form opened empty.
+
+  **Fix:**
+
+  - **Migration `0008_phase18_followup_all_people_at_club_add_person_id.sql`** —
+    Added `person_id` to the RPC's RETURNS TABLE so it's selectable
+    from the client. Always populated, always unique.
+
+  - **`AllPeopleAdmin.jsx`** — Switched the client identity key
+    from `p.auth_user_id` to `p.person_id` at every site:
+    - React row key
+    - Kebab menu open/close state (`actionFor`)
+    - Busy-state spinner (`busyId`) on every action handler
+      (convertGuest, changeStatus, promote, demote, demoteToGuest,
+      sendMagicLink)
+    - PersonEditModal load gate + member/guest queries (changed
+      from `.eq('user_id', auth_user_id)` to `.eq('person_id', person_id)`)
+    - useEffect dep `person?.auth_user_id` → `person?.person_id`
+
+  - Pre-auth records can now be edited correctly. The form loads
+    their existing data, save writes name/email/phone back to the
+    canonical `people` row (per v0.16.16's people-canonical pattern).
+    Audit log, departments, photo upload remain gated by `auth_user_id`
+    since those genuinely require an authenticated user.
+
+  Build: 1897 modules, 1.38MB bundle. Tests: 56/56 passing.
+
 - **v0.16.16** — Task #52 stage 2c finale: app writes refactored,
   duplicate columns dropped, sync triggers retired. `people` is
   the sole source of truth for name/email/phone/photo_url/zip.

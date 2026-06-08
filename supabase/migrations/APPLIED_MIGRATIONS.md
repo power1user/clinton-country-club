@@ -107,8 +107,9 @@ For the SQL that defines the current security boundary, see `0001_phase18_baseli
 | 20260608014000 | 0005_phase18_followup_person_aware_triggers |
 | 20260608015000 | 0006_phase18_followup_drop_redundant_user_id_people_fks |
 | 20260608020000 | 0007_phase18_followup_drop_duplicate_columns_finalize |
+| 20260608021500 | 0008_phase18_followup_all_people_at_club_add_person_id |
 
-95 migrations total.
+96 migrations total.
 
 ## Phase boundaries (rough)
 
