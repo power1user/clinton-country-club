@@ -94,15 +94,18 @@ Deno.serve(async (req: Request) => {
   let fromName: string | null = null;
   let fromMemberId: string | null = null;
   if (clubId) {
+    // v0.16.20 — Task #52 hotfix: name + email live on the canonical
+    // `people` row. Embed via the person_id FK.
     const { data: member } = await admin
       .from("members")
-      .select("id, name, email")
+      .select("id, people(name, email)")
       .eq("user_id", authCheck.user_id)
       .eq("club_id", clubId)
       .maybeSingle();
     if (member) {
-      fromAddr     = (member.email || "").toLowerCase() || null;
-      fromName     = member.name || null;
+      const p = (member as any).people;
+      fromAddr     = (p?.email || "").toLowerCase() || null;
+      fromName     = p?.name || null;
       fromMemberId = member.id;
     }
   }

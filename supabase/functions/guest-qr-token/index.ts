@@ -151,9 +151,13 @@ Deno.serve(async (req) => {
     }
 
     // ── Member mode (default)
+    // v0.16.20 — Task #52 hotfix: `name` removed from select (column
+    // was dropped from members in v0.16.16; it was never actually used
+    // downstream in this function anyway). The QR signing uses club_id +
+    // member_id only.
     const { data: member, error: mErr } = await supa
       .from('members')
-      .select('id, club_id, name, clubs(id, slug, name)')
+      .select('id, club_id, clubs(id, slug, name)')
       .eq('user_id', u.user.id)
       .maybeSingle();
     if (mErr) return json({ ok: false, error: mErr.message }, 500);

@@ -150,15 +150,17 @@ async function handleThreadMessage(msg: any) {
     .single();
   if (!thread) return new Response(JSON.stringify({ ok: false, error: "thread not found", thread_id: msg.thread_id }), { status: 404, headers: { "content-type": "application/json" } });
 
+  // v0.16.20 — Task #52 hotfix: name lives on the canonical `people`
+  // row (not members). Embed via the person_id FK.
   let senderName: string | null = null;
   if (msg.sender_user_id && (thread as any).club_id) {
     const { data: senderRow } = await supabase
       .from("members")
-      .select("name")
+      .select("people(name)")
       .eq("user_id", msg.sender_user_id)
       .eq("club_id", (thread as any).club_id)
       .maybeSingle();
-    senderName = senderRow?.name || null;
+    senderName = (senderRow as any)?.people?.name || null;
   }
 
   // v20 — recipient resolution by thread kind.
