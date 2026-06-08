@@ -170,6 +170,21 @@
 //             follow-up items queued (admin-ai-chat redeploy from
 //             v0.15.31, rate-limit guest-register, confirm-modal
 //             21-site sweep, select('*') tightening).
+//             v0.16.12 — Phase 18 follow-up #1: confirm-modal sweep
+//             complete. The remaining 21 native window.confirm() /
+//             window.alert() sites (queued in v0.16.8) now route
+//             through the shared <ConfirmProvider> / useConfirm()
+//             hook. Components touched: ProfilePhotoCard, Replies,
+//             TermsGate, AllPeopleAdmin (+PersonEditModal),
+//             DepartmentsAdmin, MemberTiersAdmin, AdminPanel
+//             (MemberBadgesRow + BadgesAdmin + StaffAdmin),
+//             platform.jsx (SuperAdminsAdmin), and sections.jsx
+//             (SortableSimpleAdmin, FacilitiesAdmin, EventEditor,
+//             MemberGuideEditor, MemberPostsAdmin, GuestList,
+//             SupportTeamTab). Native browser confirm()/alert() is
+//             now fully retired from app code; the only remaining
+//             reference is ConfirmModal's own fallback warning when
+//             useConfirm() is called outside a provider.
 //             Phase 18 architecture as built:
 //
 //             ┌─────────────────────────────────────────────────┐
@@ -563,7 +578,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.11';
+export const VERSION = '0.16.12';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

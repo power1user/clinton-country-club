@@ -18,8 +18,10 @@ import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { inputStyle, labelStyle } from '../../lib/formStyles.jsx';
 import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell (back-button handling baked in)
+import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 
 export default function MemberTiersAdmin({ club }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [tiers, setTiers]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
@@ -66,7 +68,13 @@ export default function MemberTiersAdmin({ club }) {
     const usageMsg = count
       ? `\n\n${count} member${count === 1 ? '' : 's'} currently have${count === 1 ? 's' : ''} this tier. Removing the tier from the list does NOT change their record — they'll keep the tier value, but you won't be able to set new members to it.`
       : '';
-    if (!window.confirm(`Remove the "${v}" tier?${usageMsg}`)) return;
+    // v0.16.8b — shared confirm modal (was window.confirm)
+    if (!(await confirmAsync({
+      title: `Remove the "${v}" tier?`,
+      body: usageMsg || undefined,
+      confirmLabel: 'Remove tier',
+      danger: true,
+    }))) return;
     const next = tiers.slice();
     next.splice(i, 1);
     await persist(next);

@@ -18,6 +18,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSupportModal.jsx';
+import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
@@ -66,6 +67,7 @@ export function MenuCategoriesAdmin() {
 // renumbering), and write all of them in one Supabase upsert. One
 // round-trip = no flicker.
 function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholder, selectColumns, primaryField, secondaryFn, defaultRow }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -162,7 +164,13 @@ function SortableSimpleAdmin({ club, canEdit, table, title, emptyMsg, placeholde
   };
 
   const remove = async (row) => {
-    if (!confirm(`Delete "${row[primaryField]}"? This may affect items in the menu using this category.`)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: `Delete "${row[primaryField]}"?`,
+      body: 'This may affect items in the menu using this category.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setErr(null);
     // v0.16.9 — defense in depth: scope by id AND club_id
     const { error } = await supabase.from(table).delete().eq('id', row.id).eq('club_id', club.id);
@@ -1063,6 +1071,7 @@ function facilityKeyFromName(name) {
 
 export function FacilitiesAdmin() {
   const { club, hasPerm } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   // Re-use the same permission gate Daily Status uses — anyone
   // who can flip today's status is qualified to manage the
   // catalog of facility names.
@@ -1116,7 +1125,13 @@ export function FacilitiesAdmin() {
 
   const remove = async (row) => {
     if (row.is_default) return; // belt-and-suspenders; UI also hides the button
-    if (!confirm(`Delete "${row.display_name}"? Members will stop seeing this facility immediately.`)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: `Delete "${row.display_name}"?`,
+      body: 'Members will stop seeing this facility immediately.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusyId(row.id); setErr(null);
     const { error } = await supabase.from('club_facilities').delete().eq('id', row.id);
     setBusyId(null);
@@ -2338,6 +2353,7 @@ function formatEventTimeShort(r) {
 }
 
 function EventEditor({ club, canEdit, row, onClose, onSaved }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const isAdd = !row;
   const isInSeries = !!row?.recurrence_group_id;
   // Apply-scope only matters when editing a row in a series.
@@ -2495,10 +2511,16 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
   const remove = async () => {
     if (!row) return;
     const scope = isInSeries ? applyScope : 'single';
-    const confirmMsg = isInSeries && scope === 'future'
-      ? `Delete "${row.title}" AND all later occurrences in this series? This cannot be undone.`
-      : `Delete "${row.title}"? This cannot be undone.`;
-    if (!confirm(confirmMsg)) return;
+    // v0.16.8b — shared confirm modal
+    const title = isInSeries && scope === 'future'
+      ? `Delete "${row.title}" + all later occurrences?`
+      : `Delete "${row.title}"?`;
+    if (!(await confirmAsync({
+      title,
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusy(true);
     if (isInSeries && scope === 'future') {
       const { error } = await supabase
@@ -2871,6 +2893,7 @@ export function MemberGuideAdmin() {
 const GUIDE_ICONS = ['👋', '⛳', '🏌️', '🏆', '🌳', '🍽️', '🍷', '☕', '📅', '📜', '🚗', '🅿️', '🏊', '🎾', 'ℹ️', '📍', '☎️', '⚠️'];
 
 function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, onSaved }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [form, setForm] = useState(() => ({ ...row }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -2918,7 +2941,13 @@ function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, 
   };
 
   const remove = async () => {
-    if (!confirm(`Delete "${row.title}"? This cannot be undone.`)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: `Delete "${row.title}"?`,
+      body: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusy(true);
     const { error } = await supabase.from('club_content').delete().eq('id', row.id);
     setBusy(false);
@@ -3028,6 +3057,7 @@ function MemberGuideEditor({ club, canEdit, row, isAdd, existingSlugs, onClose, 
 export function MemberPostsAdmin() {
   const { club, hasPerm } = useAuth();
   const canEdit = hasPerm('can_manage_members');
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [bulletin, setBulletin] = useState([]);
   const [partner, setPartner] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3066,14 +3096,26 @@ export function MemberPostsAdmin() {
     await supabase.from('bulletin_posts').update({ hidden: !row.hidden }).eq('id', row.id);
   };
   const removeBulletin = async (id) => {
-    if (!confirm('Delete this bulletin post? Members will lose it permanently.')) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: 'Delete this bulletin post?',
+      body: 'Members will lose it permanently.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     await supabase.from('bulletin_posts').delete().eq('id', id);
   };
   const togglePartnerOpen = async (row) => {
     await supabase.from('partner_posts').update({ is_open: !row.is_open }).eq('id', row.id);
   };
   const removePartner = async (id) => {
-    if (!confirm('Delete this partner post? Members will lose it permanently.')) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: 'Delete this partner post?',
+      body: 'Members will lose it permanently.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     await supabase.from('partner_posts').delete().eq('id', id);
   };
 
@@ -3684,6 +3726,7 @@ function ClubhouseQRCard({ club }) {
 
 // ── GuestList ───────────────────────────────────────────────────────
 function GuestList({ club }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -3808,7 +3851,12 @@ function GuestList({ club }) {
 
     const { data, error } = await query;
     if (error || !data) {
-      alert(`Could not export visit history: ${error?.message || 'unknown error'}`);
+      // v0.16.8b — shared confirm modal
+      await confirmAsync({
+        title: 'Export failed',
+        body: `Could not export visit history: ${error?.message || 'unknown error'}`,
+        kind: 'alert',
+      });
       return;
     }
     // Optional name/email q-string filter applied client-side because
@@ -4662,6 +4710,7 @@ function AttachmentChip({ att, isOutBubble }) {
 // ── Team tab — destination management (Phase 14, v0.13.1) ───────────
 function SupportTeamTab() {
   const { session } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -4729,7 +4778,13 @@ function SupportTeamTab() {
   };
 
   const removeDestination = async (row) => {
-    if (!confirm(`Remove ${row.name} (${row.email}) from the support team? They'll stop receiving forwarded mail.`)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: `Remove ${row.name}?`,
+      body: `${row.email} will stop receiving forwarded mail.`,
+      confirmLabel: 'Remove',
+      danger: true,
+    }))) return;
     setErr(null); setBusy(true);
     try {
       await invokeManage('DELETE', { id: row.id });

@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { G } from '../theme.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { useConfirm } from './ConfirmModal.jsx';
 
 // Short relative time — "just now", "5m", "2h", "Mar 4"
 function rel(iso) {
@@ -35,6 +36,7 @@ function rel(iso) {
 
 export default function Replies({ postTable, postId, defaultOpen = false }) {
   const { club, session, member, canMemberWrite } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [replies, setReplies] = useState([]);
   const [open, setOpen] = useState(defaultOpen);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ export default function Replies({ postTable, postId, defaultOpen = false }) {
   };
 
   const removeOwn = async (id) => {
-    if (!confirm('Delete this reply?')) return;
+    if (!(await confirmAsync({ title: 'Delete this reply?', confirmLabel: 'Delete', danger: true }))) return;
     const { error } = await supabase.from('post_replies').delete().eq('id', id);
     if (error) setErr(error.message);
   };

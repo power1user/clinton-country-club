@@ -177,6 +177,52 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.12** — Phase 18 follow-up #1: confirm-modal sweep complete.
+
+  v0.16.8 introduced the shared `<ConfirmProvider>` + `useConfirm()`
+  pattern and proved it out on `CrudSection` + `NewsAdmin`, leaving
+  the remaining 21 native `window.confirm()` / `window.alert()` sites
+  queued. v0.16.12 closes that queue: every remaining site now routes
+  through the modal.
+
+  **Components touched (16):** `ProfilePhotoCard`, `Replies`,
+  `TermsGate`, `AllPeopleAdmin` (+ `PersonEditModal`),
+  `DepartmentsAdmin`, `MemberTiersAdmin`, `AdminPanel`
+  (`MemberBadgesRow` + `BadgesAdmin` + `StaffAdmin`), `platform.jsx`
+  (`SuperAdminsAdmin`), and `sections.jsx` (`SortableSimpleAdmin`,
+  `FacilitiesAdmin`, `EventEditor`, `MemberGuideEditor`,
+  `MemberPostsAdmin` × 2, `GuestList`, `SupportTeamTab`).
+
+  **Patterns used:**
+
+  ```jsx
+  // Destructive confirm
+  if (!(await confirmAsync({
+    title: 'Delete "Foo"?',
+    body: 'This cannot be undone.',
+    confirmLabel: 'Delete',
+    danger: true,
+  }))) return;
+
+  // Informational alert
+  await confirmAsync({
+    title: 'Export failed',
+    body: error.message,
+    kind: 'alert',
+  });
+  ```
+
+  **Verification:** post-sweep grep for `\b(window\.)?(confirm|alert)\s*\(`
+  across `src/` returns zero matches in app code — only
+  `ConfirmModal.jsx`'s own fallback (when `useConfirm()` is called
+  outside its provider) and a historical comment reference in
+  `version.js`. Native browser modals are fully retired.
+
+  Closes Phase 18 follow-up item 3 of 4. Remaining: admin-ai-chat
+  manual redeploy (already done in deploy phase, no version bump),
+  rate-limit guest-register POST (Task #82), `select('*')` tightening
+  (audit round 3 #1, separate sweep).
+
 - **v0.16.11** — Phase 18 closeout + README refresh.
 
   README's "Current version" header refreshed to v0.16.11 + Phase 18

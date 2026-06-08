@@ -19,6 +19,7 @@ import {
 import { resizeToBlob } from '../../lib/imageResize.js';   // v0.15.26
 import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell
 import ToggleChip from '../../components/ToggleChip.jsx';   // v0.15.26
+import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 import {
   StatusPill, RolePill, StatusChangeModal, RoleChangeModal,
   STATUS_COLOR, ROLE_COLOR,
@@ -87,6 +88,7 @@ const PAGE_SIZE = 100;
 
 export default function AllPeopleAdmin() {
   const { club, isManager, isSuperAdmin } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -145,7 +147,8 @@ export default function AllPeopleAdmin() {
 
   // ── Kebab action handlers (unchanged from v0.15.5) ─────────────
   const runAction = async (rpcName, args, personId, confirmMsg) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    // v0.16.8b — shared confirm modal (was window.confirm)
+    if (confirmMsg && !(await confirmAsync({ title: confirmMsg, confirmLabel: 'Confirm', danger: true }))) return;
     setBusyId(personId);
     setActionErr(null);
     const { error } = await supabase.rpc(rpcName, args);
@@ -545,6 +548,7 @@ const GUEST_STATUS_OPTIONS = ['active','pending_authentication','expired'];
 function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose, onSaved, onActionComplete }) {
   // v0.15.15 — phone back-button closes the modal instead of exiting admin.
   useModalBackClose(true, onClose);
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
 
   // v0.15.6 — when a person has both records, let the admin toggle
   // which side they're editing without leaving the modal.
@@ -888,7 +892,13 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
   const remove = async () => {
     if (!isSuperAdmin) return;
     const what = kind === 'member' ? 'member record' : 'guest record';
-    if (!window.confirm(`Delete this ${what} for ${form.name}? Permanent — audit log keeps history.`)) return;
+    // v0.16.8b — shared confirm modal (was window.confirm)
+    if (!(await confirmAsync({
+      title: `Delete this ${what}?`,
+      body: `Permanent delete for ${form.name}. The people_audit_log keeps history.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    }))) return;
     setBusy(true);
     // v0.16.9 — defense in depth: scope deletes by id AND club_id even
     // though this is super_admin-only (RLS would gate cross-tenant anyway).

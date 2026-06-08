@@ -10,9 +10,11 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase.js';
 import { CURRENT_TERMS_VERSION, CURRENT_TERMS_DATE, termsSections } from '../lib/terms.js';
 import { PLATFORM_NAME } from '../lib/version.js';
+import { useConfirm } from '../components/ConfirmModal.jsx';
 
 export default function TermsGate() {
   const { club, member, signOut, refreshMember } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const sections = termsSections(club?.name || 'your club');
@@ -40,7 +42,12 @@ export default function TermsGate() {
   };
 
   const decline = async () => {
-    if (!confirm('Decline and sign out? You can come back and agree later.')) return;
+    if (!(await confirmAsync({
+      title: 'Decline and sign out?',
+      body: 'You can come back and agree later — these terms are required to use the app.',
+      confirmLabel: 'Decline & sign out',
+      danger: true,
+    }))) return;
     await signOut();
   };
 

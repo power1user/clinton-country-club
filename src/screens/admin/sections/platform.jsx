@@ -22,6 +22,7 @@ import { G } from '../../../theme.js';
 import { useAuth } from '../../../hooks/useAuth.jsx';
 import { supabase } from '../../../lib/supabase.js';
 import { COMMON_TIMEZONES } from '../../../lib/timezone.js';
+import { useConfirm } from '../../../components/ConfirmModal.jsx';   // v0.16.8b
 // ClubSettingsForm + FeaturesPanel still live in sections.jsx (they're
 // shared with the manager-side Club Settings area). Pull them from
 // there rather than splitting them too in this same patch.
@@ -32,6 +33,7 @@ import { ClubSettingsForm, FeaturesPanel } from '../sections.jsx';
 // ============================================================
 export function SuperAdminsAdmin() {
   const { session, club } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [admins, setAdmins] = useState([]);
   const [memberPool, setMemberPool] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,19 +76,27 @@ export function SuperAdminsAdmin() {
       created_by: session?.user?.id,
       permissions: {},
     });
-    if (error) { alert(error.message); return; }
+    // v0.16.8b — shared modal in alert variant (was native alert)
+    if (error) { await confirmAsync({ title: 'Promote failed', body: error.message, kind: 'alert' }); return; }
     setAdding(false);
     refresh();
   };
 
   const demote = async (row) => {
     const isSelf = row.user_id === session?.user?.id;
-    const msg = isSelf
-      ? "You're removing your own super_admin status. You'll immediately lose platform access. Continue?"
-      : `Remove ${row.display_name || 'this user'}'s super_admin status?`;
-    if (!confirm(msg)) return;
+    // v0.16.8b — shared confirm modal (was native confirm + alert)
+    if (!(await confirmAsync({
+      title: isSelf
+        ? "Remove your own super_admin status?"
+        : `Remove ${row.display_name || 'this user'}'s super_admin status?`,
+      body: isSelf
+        ? "You'll immediately lose platform access. Make sure someone else can still get in."
+        : undefined,
+      confirmLabel: 'Remove',
+      danger: true,
+    }))) return;
     const { error } = await supabase.from('user_roles').delete().eq('id', row.id);
-    if (error) { alert(error.message); return; }
+    if (error) { await confirmAsync({ title: 'Remove failed', body: error.message, kind: 'alert' }); return; }
     refresh();
   };
 

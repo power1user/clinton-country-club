@@ -32,6 +32,7 @@ import AdminAIBubble from '../components/AdminAIBubble.jsx';
 import AdminAIChatModal from '../components/AdminAIChatModal.jsx';
 import { PERMISSION_KEYS, PERMISSION_GROUPS } from '../lib/permissions.js';
 import Badge from '../components/Badge.jsx';
+import { useConfirm } from '../components/ConfirmModal.jsx';   // v0.16.8b
 import * as LucideIcons from 'lucide-react';
 import { useViewport } from '../hooks/useViewport.js';
 import { useAdminPreference } from '../hooks/useAdminPreference.js';
@@ -1889,6 +1890,7 @@ function MemberDetailPanel({ m, staffRole }) {
 // don't have a member row in the assigning club).
 function MemberBadgesRow({ memberId, clubId }) {
   const { member: currentAdmin } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [held,      setHeld]      = useState([]);   // member_badges rows w/ embedded badge
   const [library,   setLibrary]   = useState([]);   // all badges in the club
   const [picking,   setPicking]   = useState(false);
@@ -1952,7 +1954,8 @@ function MemberBadgesRow({ memberId, clubId }) {
 
   const removeAssignment = async (row) => {
     const name = row.badges?.name || 'this badge';
-    if (!confirm(`Remove "${name}" from this member?`)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({ title: `Remove "${name}" from this member?`, confirmLabel: 'Remove', danger: true }))) return;
     setErr('');
     const { error } = await supabase.from('member_badges').delete().eq('id', row.id);
     if (error) { setErr(error.message); return; }
@@ -2170,6 +2173,7 @@ const BADGE_CATEGORY_CHOICES = [
 ];
 
 function BadgesAdmin({ club }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [badges,  setBadges]  = useState([]);
   const [counts,  setCounts]  = useState({}); // badge_id → number of members holding it
   const [loading, setLoading] = useState(true);
@@ -2272,10 +2276,13 @@ function BadgesAdmin({ club }) {
 
   const remove = async (badge) => {
     const c = counts[badge.id] || 0;
-    const msg = c > 0
-      ? `Delete "${badge.name}"? ${c} member${c === 1 ? '' : 's'} currently hold this badge. Their assignment will be removed too.`
-      : `Delete "${badge.name}"?`;
-    if (!confirm(msg)) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({
+      title: `Delete "${badge.name}"?`,
+      body: c > 0 ? `${c} member${c === 1 ? '' : 's'} currently hold this badge. Their assignment will be removed too.` : undefined,
+      confirmLabel: 'Delete badge',
+      danger: true,
+    }))) return;
     setErr('');
     const { error } = await supabase.from('badges').delete().eq('id', badge.id);
     if (error) { setErr(error.message); return; }
@@ -2574,6 +2581,7 @@ function BadgeField({ label, children }) {
 // ─── Staff admin — user_roles editor with per-staff permission modal ──────
 function StaffAdmin({ club }) {
   const { session, isSuperAdmin } = useAuth();
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [staff, setStaff] = useState([]);
   const [memberPool, setMemberPool] = useState([]);  // members not yet on staff
   const [loading, setLoading] = useState(true);
@@ -2610,7 +2618,8 @@ function StaffAdmin({ club }) {
   }, [club?.id, version]);
 
   const remove = async (id) => {
-    if (!confirm('Remove this person from staff?')) return;
+    // v0.16.8b — shared confirm modal
+    if (!(await confirmAsync({ title: 'Remove this person from staff?', confirmLabel: 'Remove', danger: true }))) return;
     await supabase.from('user_roles').delete().eq('id', id);
     refresh();
   };

@@ -14,10 +14,12 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { supabase } from '../lib/supabase.js';
 import { resizeToBlob } from '../lib/imageResize.js';
+import { useConfirm } from './ConfirmModal.jsx';
 
 export default function ProfilePhotoCard() {
   const { member, club, session, refreshMember } = useAuth();
   const enabled = useFlag('profile_photos');
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const uploadRef = useRef(null);
@@ -95,7 +97,12 @@ export default function ProfilePhotoCard() {
   };
 
   const removePhoto = async () => {
-    if (busy || !confirm('Remove your profile photo?')) return;
+    if (busy) return;
+    if (!(await confirmAsync({
+      title: 'Remove your profile photo?',
+      confirmLabel: 'Remove',
+      danger: true,
+    }))) return;
     setBusy(true); setErr(null);
     try {
       // v0.6.15: file names are unique-per-upload now (avatar-<ts>.jpg)

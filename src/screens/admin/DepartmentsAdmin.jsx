@@ -23,6 +23,7 @@ import { G } from '../../theme.js';
 import { supabase } from '../../lib/supabase.js';
 import { labelStyle, inputStyle } from '../../lib/formStyles.jsx';   // v0.15.18 — shared primitives
 import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell (back-button handling baked in)
+import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 
 // v0.15.18 — Form primitives (labelStyle, inputStyle) moved to
 // src/lib/formStyles.js — single source of truth for the whole admin.
@@ -303,6 +304,7 @@ function AddDepartmentModal({ club, existingNames, existingSlugs, onClose, onSav
 // rename the department inline, or delete the whole thing.
 // ───────────────────────────────────────────────────────────────
 function DepartmentDetailModal({ department, club, memberCount, existingNames, existingSlugs, onClose, onSaved }) {
+  const confirmAsync = useConfirm(); // v0.16.8b — shared confirm modal
   // Embedded rename state — starts in display mode, "edit" toggles to input.
   const [renaming, setRenaming]   = useState(false);
   const [name, setName]           = useState(department.name);
@@ -388,10 +390,15 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
   };
 
   const remove = async () => {
-    const confirmMsg = memberCount > 0
-      ? `Delete the "${department.name}" department?\n\n${memberCount} person${memberCount === 1 ? ' is' : 's are'} currently assigned to it. Their assignment row${memberCount === 1 ? '' : 's'} will be removed automatically. Any topic routing that points to this department will fall back to "all staff" until you re-route it.`
-      : `Delete the "${department.name}" department?`;
-    if (!window.confirm(confirmMsg)) return;
+    // v0.16.8b — shared confirm modal (was window.confirm)
+    if (!(await confirmAsync({
+      title: `Delete the "${department.name}" department?`,
+      body: memberCount > 0
+        ? `${memberCount} person${memberCount === 1 ? ' is' : 's are'} currently assigned. Their assignment row${memberCount === 1 ? '' : 's'} will be removed automatically. Any topic routing that points to this department will fall back to "all staff" until you re-route it.`
+        : undefined,
+      confirmLabel: 'Delete department',
+      danger: true,
+    }))) return;
     // v0.16.9 — defense in depth: scope by id AND club_id (audit round 3 #2)
     const { error } = await supabase.from('club_departments').delete().eq('id', department.id).eq('club_id', club.id);
     if (error) { setErr(error.message); return; }
