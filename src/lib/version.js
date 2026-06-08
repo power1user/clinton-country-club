@@ -185,6 +185,33 @@
 //             now fully retired from app code; the only remaining
 //             reference is ConfirmModal's own fallback warning when
 //             useConfirm() is called outside a provider.
+//             v0.16.13 — Phase 18 follow-ups #2 + #4. Two parallel
+//             wraps on the same patch:
+//
+//             #2 Rate-limit guest-register POST. Migration 0002
+//             adds rate_limit_events + check_and_record_rate_limit().
+//             guest-register Edge Function v12 calls it twice per
+//             attempt — IP bucket (20/10m) and email bucket (5/1h) —
+//             and 429s before doing any DB work. Closes the DoS gap
+//             documented in supabase/audits/guest-flow.md. Verified:
+//             a 6-attempt smoke test returns true×5 then false.
+//
+//             #4 `select('*')` tightening. Of 10 client-side
+//             `select('*')` calls, 4 in sections.jsx (support_threads
+//             list + detail, support_messages, support_destinations)
+//             swapped to explicit column lists so future column
+//             additions can't accidentally leak. The remaining 6
+//             (useAuth's self-hydration of clubs/members/guests +
+//             platform.jsx's super_admin club editor) are kept as
+//             `*` with security-justification comments: each reads
+//             the user's own RLS-gated row into app-wide state, no
+//             tables have secret-class columns, and tightening
+//             would mean updating every consumer on every new
+//             column. Documented exception.
+//
+//             Closes Phase 18 follow-ups 2 + 4 of 4. Remaining: #3
+//             (5-topic clubhouse smoke test, Task #30) needs real
+//             devices and is on Marc.
 //             Phase 18 architecture as built:
 //
 //             ┌─────────────────────────────────────────────────┐
@@ -578,7 +605,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.12';
+export const VERSION = '0.16.13';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

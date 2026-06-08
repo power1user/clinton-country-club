@@ -4226,9 +4226,11 @@ function SupportThreadList({ onOpen }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      // v0.16.13 — explicit column list. Matches the current schema;
+      // future column additions stay server-side until added here.
       const { data: tRows } = await supabase
         .from('support_threads')
-        .select('*')
+        .select('id, subject, from_addr, from_name, from_member_id, from_club_id, status, last_message_at, created_at, category')
         .order('last_message_at', { ascending: false })
         .limit(200);
       // Per-(thread, this super_admin) read state
@@ -4408,9 +4410,14 @@ function SupportThreadDetail({ threadId, onBack }) {
     (async () => {
       setLoading(true);
       const [{ data: t }, { data: ms }] = await Promise.all([
-        supabase.from('support_threads').select('*').eq('id', threadId).maybeSingle(),
+        // v0.16.13 — explicit column lists. Same columns as before
+        // (current schema), but adding a new column in the DB no
+        // longer auto-ships it to the client.
+        supabase.from('support_threads')
+          .select('id, subject, from_addr, from_name, from_member_id, from_club_id, status, last_message_at, created_at, category')
+          .eq('id', threadId).maybeSingle(),
         supabase.from('support_messages')
-          .select('*')
+          .select('id, thread_id, direction, message_id, in_reply_to, references_ids, from_addr, from_name, to_addrs, cc_addrs, subject, body_text, body_html, raw_size_bytes, has_attachments, received_at, created_at, created_by')
           .eq('thread_id', threadId)
           .order('received_at', { ascending: true }),
       ]);
@@ -4726,9 +4733,10 @@ function SupportTeamTab() {
     (async () => {
       setLoading(true);
       // Read directly from the table — RLS already restricts to super_admin.
+      // v0.16.13 — explicit column list. Same set as today's schema.
       const { data } = await supabase
         .from('support_destinations')
-        .select('*')
+        .select('id, email, name, active, verified_at, cf_destination_id, added_at, added_by')
         .order('added_at', { ascending: true });
       if (cancelled) return;
       setRows(data || []);

@@ -30,6 +30,14 @@ export function AuthProvider({ children }) {
     if (!isConfigured) { setLoading(false); return; }
     let cancelled = false;
     const load = async () => {
+      // v0.16.13 — `select('*')` justified: the club row is the central
+      // app-wide state, consumed by dozens of components reading
+      // varying combinations of fields (branding palette, timezone,
+      // tier, feature flags, guest settings, departments, member
+      // tiers, etc.). Tightening means enumerating every consumer
+      // and re-auditing on every column add. The `clubs` table has
+      // no hidden secret columns; RLS gates this read to anon+ for
+      // public branding and to staff for tier/flags. Acceptable.
       const { data, error } = await supabase
         .from('clubs')
         .select('*')
@@ -86,6 +94,13 @@ export function AuthProvider({ children }) {
       setPermissions({});
       return;
     }
+    // v0.16.13 — `select('*')` justified: this is the user's OWN
+    // member row (RLS-gated to user_id = auth.uid()). Consumed
+    // app-wide for name, photo, tier, hcp, locker, allow_dms,
+    // display_mode, status, notes, terms_accepted_*, etc. — every
+    // field is read somewhere. The `members` table has no
+    // server-secret columns. Tightening here would mean updating
+    // this read on every column add.
     let { data: m } = await supabase
       .from('members')
       .select('*')
@@ -98,6 +113,8 @@ export function AuthProvider({ children }) {
     if (!m) {
       const { data: claimed } = await supabase.rpc('claim_member_by_email', { p_club_id: club.id });
       if (claimed) {
+        // v0.16.13 — `select('*')` justified: refetch of the same
+        // self-row claimed above; identical scope justification.
         const refetch = await supabase
           .from('members')
           .select('*')
@@ -120,6 +137,10 @@ export function AuthProvider({ children }) {
     // service role, then re-query. Limit to ONE retry to avoid loops.
     let g = null;
     if (!m) {
+      // v0.16.13 — `select('*')` justified: user's own guest row
+      // (RLS-gated to user_id = auth.uid()). Consumed app-wide
+      // for status/access_level/expires_at/visit_type/referring
+      // member/etc. No server-secret columns on `guests`.
       const { data: gRow } = await supabase
         .from('guests')
         .select('*')
@@ -131,6 +152,7 @@ export function AuthProvider({ children }) {
       if (!g) {
         try {
           await supabase.functions.invoke('guest-link');
+          // v0.16.13 — same self-row, post-link re-query.
           const { data: gRow2 } = await supabase
             .from('guests')
             .select('*')

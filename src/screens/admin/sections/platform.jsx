@@ -186,6 +186,11 @@ export function AllClubsAdmin() {
     if (!selected) { setFullClub(null); return; }
     let cancelled = false;
     const load = async () => {
+      // v0.16.13 — `select('*')` justified: this is the super_admin
+      // platform-level club editor that needs EVERY column to render
+      // a complete edit form. RLS gates this entire branch to
+      // super_admin. Listing columns here would be a maintenance
+      // bomb for the edit form; documented exception.
       const { data } = await supabase.from('clubs').select('*').eq('id', selected.id).single();
       if (!cancelled) setFullClub(data);
     };

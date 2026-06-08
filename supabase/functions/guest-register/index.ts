@@ -1,8 +1,20 @@
-// guest-register v11 — v0.14.13. Hardens the magic-link redirect
-// to ALWAYS use the canonical {slug}.{root}/ URL, ignoring whatever
-// the client posted as `redirect_to`. Fixes a bug where a guest
-// filling out the form on an old workers.dev URL got their magic
-// link sent back to that URL (which served 'nothing here yet').
+// guest-register v12 — v0.16.13. Adds rate limiting (Phase 18
+// follow-up #2). v0.16.10's guest-flow audit confirmed RLS locked
+// down every write a guest could attempt, but the public POST to
+// this Edge Function was still uncapped. An attacker could loop
+// to flood `guests` or spam OTP magic links at a real person's
+// inbox. v12 now calls check_and_record_rate_limit() (migration
+// 0002_phase18_followup_guest_register_rate_limit) with both the
+// requester's IP and the submitted email. If either bucket is
+// exhausted, we 429 BEFORE doing any DB work.
+//
+// Buckets:
+//   ip    → 20 attempts per 10 min
+//   email →  5 attempts per  1 hour
+//
+// (For history: v11 / v0.14.13 hardened the magic-link redirect to
+// ALWAYS use the canonical {slug}.{root}/ URL, ignoring whatever the
+// client posted as `redirect_to`.)
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -80,6 +92,29 @@ async function verifyClubhouseToken(token: string, clubId: string, version: numb
 
 const TIER_RANK: Record<string, number> = { basic: 0, standard: 1, pro: 2 };
 
+// v0.16.13 — extract the requester's IP. Cloudflare puts the original
+// client IP in cf-connecting-ip; Supabase's edge runtime falls back to
+// x-forwarded-for (first hop). Anything else, label 'unknown' so we
+// still bucket abuse together rather than letting it slip through.
+function clientIp(req: Request): string {
+  const cf  = req.headers.get('cf-connecting-ip');
+  if (cf && cf.length > 0) return cf.trim();
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff && xff.length > 0) return xff.split(',')[0]!.trim();
+  return 'unknown';
+}
+
+// v0.16.13 — single 429 response shape.
+function tooMany(scope: 'ip' | 'email') {
+  return json({
+    ok:    false,
+    error: scope === 'ip'
+      ? 'Too many guest registrations from this network. Please try again in a few minutes.'
+      : 'Too many guest registrations for this email. Please check your inbox for the magic link, or try again later.',
+    retry_scope: scope,
+  }, 429);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405);
@@ -87,6 +122,24 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
   try {
+    // v0.16.13 — rate-limit on IP first (cheaper, no body parse needed).
+    // 20 attempts per 10 min. Legit guest registration is rare; a single
+    // household won't hit this in normal use.
+    const ip = clientIp(req);
+    const { data: ipOk, error: ipErr } = await admin.rpc('check_and_record_rate_limit', {
+      p_bucket:       'guest_register_ip',
+      p_key:          ip,
+      p_window_secs:  600,
+      p_max_attempts: 20,
+    });
+    if (ipErr) {
+      // Fail-open on a rate-limit infra error rather than blocking
+      // legitimate registrations. Bug surface to logs.
+      console.warn('[guest-register] rate-limit IP check failed:', ipErr.message);
+    } else if (ipOk === false) {
+      return tooMany('ip');
+    }
+
     const body = await req.json().catch(() => ({}));
     const {
       club_slug,
@@ -117,6 +170,23 @@ Deno.serve(async (req) => {
     }
     if (!zip || !validZip(String(zip))) {
       return json({ ok: false, error: 'A valid ZIP / postal code is required' }, 400);
+    }
+
+    // v0.16.13 — second-tier rate limit on the email itself. 5 attempts
+    // per hour. Stops magic-link inbox flooding even if attackers
+    // rotate IPs. Done AFTER email validation so a typo doesn't burn
+    // an email-bucket against the wrong address.
+    const emailLowerForRate = String(email).trim().toLowerCase();
+    const { data: emailOk, error: emailRateErr } = await admin.rpc('check_and_record_rate_limit', {
+      p_bucket:       'guest_register_email',
+      p_key:          emailLowerForRate,
+      p_window_secs:  3600,
+      p_max_attempts: 5,
+    });
+    if (emailRateErr) {
+      console.warn('[guest-register] rate-limit email check failed:', emailRateErr.message);
+    } else if (emailOk === false) {
+      return tooMany('email');
     }
 
     const { data: club } = await admin

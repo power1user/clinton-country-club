@@ -177,6 +177,50 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.13** — Phase 18 follow-ups #2 + #4: rate-limit guest-register
+  POST and `select('*')` tightening sweep.
+
+  **#2 Rate-limit guest-register.** The only public unauthenticated
+  write endpoint in the app. v0.16.10's audit confirmed RLS locks
+  down every sensitive guest write, but the POST itself was uncapped
+  — an attacker could loop to flood `guests` or spam OTP magic links
+  at a real person's inbox.
+
+  - **Migration `0002_phase18_followup_guest_register_rate_limit.sql`**
+    adds a tiny `rate_limit_events` table (RLS on, service-role only)
+    and a SECURITY DEFINER helper `check_and_record_rate_limit(bucket,
+    key, window_secs, max_attempts)` that returns boolean.
+  - **`guest-register` Edge Function v12** (deployed) calls the helper
+    twice per attempt:
+    - IP bucket: 20 attempts per 10 min
+    - email bucket: 5 attempts per 1 hour
+  - Either bucket exhausted → 429 before any DB work.
+  - Email check runs AFTER email validation so a typo can't burn the
+    bucket against the wrong address.
+  - IP source: `cf-connecting-ip` → `x-forwarded-for` first hop →
+    `'unknown'` (fail-grouped, not fail-open).
+  - Rate-limit infrastructure errors fail OPEN (warn-log) — better
+    to let legit traffic through than block during a Postgres blip.
+
+  Smoke-tested in prod: 6-attempt loop returns `true × 5` then `false`.
+
+  **#4 `select('*')` tightening.** 4 of 10 client `select('*')` calls
+  swapped to explicit column lists:
+  - `support_threads` list view (`sections.jsx:4231`)
+  - `support_threads` detail + `support_messages` (`sections.jsx:4411-4416`)
+  - `support_destinations` list (`sections.jsx:4731`)
+
+  The remaining 6 (`useAuth` self-hydration of clubs/members/guests,
+  + `platform.jsx`'s super_admin club editor) keep `*` with
+  security-justification comments: each reads the user's OWN
+  RLS-gated row into app-wide state, no table has secret-class
+  columns, and tightening would mean updating every read on every
+  column add. Documented exception, not an oversight.
+
+  Closes Phase 18 follow-ups #2 + #4 of 4. Remaining: #3
+  (5-topic clubhouse smoke test, Task #30) needs real devices —
+  on Marc.
+
 - **v0.16.12** — Phase 18 follow-up #1: confirm-modal sweep complete.
 
   v0.16.8 introduced the shared `<ConfirmProvider>` + `useConfirm()`
