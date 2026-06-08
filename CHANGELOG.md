@@ -177,6 +177,66 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.16** — Task #52 stage 2c finale: app writes refactored,
+  duplicate columns dropped, sync triggers retired. `people` is
+  the sole source of truth for name/email/phone/photo_url/zip.
+
+  **Closes Task #52 (originally queued during Phase 16, v0.15.0).**
+
+  **Migration `0007_phase18_followup_drop_duplicate_columns_finalize.sql`:**
+
+  1. **DB function rewrites** to remove all references to the
+     soon-to-be-dropped columns:
+     - `claim_or_create_member` — looks up pre-auth members via
+       `people.email`, INSERTs new pending members with `person_id`
+       (was: `name` + `email` on members). Also stamps the auth
+       link on the existing pre-auth people row.
+     - `fn_guest_email_verified` — triggers on `auth.users` email
+       verification; finds guests via `people.email`, promotes
+       pending_authentication, stamps auth_user_id on the pre-auth
+       people row.
+     - `all_people_at_club` — pivoted from auth-user-centric to
+       person-centric. Reads name/email/phone/zip/photo_url
+       exclusively from `people`. **Bonus**: pre-auth members +
+       guests (`user_id` NULL) now appear in the admin People view
+       (they didn't before — the old query keyed off auth.users.id).
+
+  2. **Drop the 3 mirror triggers + functions** —
+     `fn_mirror_member_to_people`, `fn_mirror_guest_to_people`,
+     `fn_mirror_people_to_member_guest`. Their job (keeping
+     duplicates in sync) is no longer needed.
+
+  3. **Drop the duplicate columns:**
+     - `members.name`, `members.email`, `members.phone`, `members.photo_url`
+     - `guests.name`, `guests.email`, `guests.phone`, `guests.zip`
+     - `guests.UNIQUE(club_id, email)` auto-drops with `email`.
+
+  4. **Add `UNIQUE(club_id, person_id)`** on both `members` and
+     `guests` — enforces one membership/guest per person per club,
+     and serves as the new `ON CONFLICT` target.
+
+  **Client refactor:**
+  - `AllPeopleAdmin.jsx` — PersonEditModal save splits writes:
+    name/email/phone/photo_url (+zip for guests) → `people`,
+    per-club fields → `members`/`guests`. CSV import does the
+    same per row (upsert person by email, then upsert member).
+    Photo upload from edit modal targets `people.photo_url`.
+  - `ProfilePhotoCard.jsx` — upload and remove target
+    `people.photo_url` via `member.person_id` (lifted onto the
+    member object by useAuth's `*, people(...)` select).
+
+  **Edge Function:** `guest-register` v13 deployed (v19 in
+  Supabase) — upserts `people` by email first, then upserts
+  `guests` by `(club_id, person_id)`. Maintains rate-limiting
+  + canonical-redirect from v12.
+
+  **Verified post-migration:**
+  - members + guests schemas no longer have name/email/phone/zip/photo_url
+  - 9/9 members + 3/3 guests all linked via `person_id`
+  - 12 `people` rows total, 4 pre-auth (`auth_user_id` NULL)
+  - Zero DB functions reference the dropped columns
+  - Build: 1897 modules, 1.38MB bundle. Tests: 56/56 passing.
+
 - **v0.16.15** — Task #52 stage 2a + 2b: schema + triggers for
   Path A. DB-only checkpoint before the app-write refactor.
 

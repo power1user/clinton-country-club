@@ -292,6 +292,45 @@
 //             instead of via members.name/etc. Then drop the
 //             duplicate columns + retire the bidirectional sync
 //             triggers.
+//             v0.16.16 — Task #52 stage 2c finale. App writes
+//             refactored to people-canonical pattern, duplicate
+//             columns DROPPED, sync triggers retired. `people` is
+//             now the sole source of truth for name/email/phone/
+//             photo_url/zip across the entire app. Task #52 closed.
+//
+//             Migration 0007:
+//             · Rewrote claim_or_create_member, fn_guest_email_
+//               verified, all_people_at_club to read from `people`
+//               and write member/guest rows with person_id. Bonus:
+//               all_people_at_club now SHOWS pre-auth records too
+//               (was bug: keyed off auth.users.id).
+//             · Dropped 3 mirror triggers + functions.
+//             · Dropped members.{name,email,phone,photo_url}
+//               + guests.{name,email,phone,zip}.
+//             · Added UNIQUE(club_id, person_id) on both tables
+//               (replaces guests' UNIQUE(club_id, email)).
+//
+//             Client refactor (4 files):
+//             · AllPeopleAdmin PersonEditModal save — splits writes
+//               between people (stable fields) + members/guests
+//               (per-club fields). Same for CSV import (per-row
+//               loop). Photo upload from modal targets people.
+//             · ProfilePhotoCard — upload + remove target people.
+//
+//             Edge Function: guest-register v13 (live v19) upserts
+//             people first, then guests by (club_id, person_id).
+//
+//             Architecture invariants going forward:
+//             · members/guests rows hold ONLY per-club fields
+//               (membership_number, tier, hcp, locker, status,
+//               visit_date, access_level, etc.) + the person_id FK.
+//             · people rows hold name/email/phone/zip/street/city/
+//               state/photo_url/notes. auth_user_id stamped at
+//               first auth via claim flow.
+//             · One person → many memberships across clubs
+//               (UNIQUE(club_id, person_id) enforces one-per-club).
+//             · Pre-auth admin-added records are first-class —
+//               same schema, just auth_user_id=NULL until claim.
 //             Phase 18 architecture as built:
 //
 //             ┌─────────────────────────────────────────────────┐
@@ -685,7 +724,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.15';
+export const VERSION = '0.16.16';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

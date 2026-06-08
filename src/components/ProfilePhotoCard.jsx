@@ -76,12 +76,14 @@ export default function ProfilePhotoCard() {
       // auth.uid() is in the policy) or a network problem.
       const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
       const url = `${pub.publicUrl}?v=${Date.now()}`;
+      // v0.16.16 — Task #52 stage 2c: photo_url canonical home is people.
+      if (!member.person_id) throw new Error('No person_id on member — cannot save photo');
       const { error: dbErr } = await supabase
-        .from('members')
+        .from('people')
         .update({ photo_url: url })
-        .eq('id', member.id);
+        .eq('id', member.person_id);
       if (dbErr) {
-        console.error('[avatar] members.update failed', { memberId: member.id, error: dbErr });
+        console.error('[avatar] people.update failed', { personId: member.person_id, error: dbErr });
         throw new Error(`Saving photo to your profile failed: ${dbErr.message || JSON.stringify(dbErr)}`);
       }
 
@@ -123,7 +125,9 @@ export default function ProfilePhotoCard() {
       } catch (storageErr) {
         console.warn('[avatar] remove of storage files failed (non-fatal)', storageErr);
       }
-      const { error } = await supabase.from('members').update({ photo_url: null }).eq('id', member.id);
+      // v0.16.16 — Task #52 stage 2c: photo_url canonical home is people.
+      if (!member.person_id) throw new Error('No person_id on member — cannot remove photo');
+      const { error } = await supabase.from('people').update({ photo_url: null }).eq('id', member.person_id);
       if (error) throw error;
       await refreshMember?.();
     } catch (e) {

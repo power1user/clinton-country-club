@@ -13,9 +13,14 @@
 // uses `member.name` directly, the column is still there and
 // still synced — no breakage.
 //
-// v0.16.15 (stage 2) drops the duplicate columns, drops the
-// mirror triggers, and the `?? row.X` fallbacks below become
-// dead code (harmless — they evaluate to undefined undefined).
+// v0.16.16 (stage 2c) dropped the duplicate columns, dropped the
+// mirror triggers. The `?? row.X` fallbacks below are now dead
+// code — m.name and friends are always undefined post-drop, so the
+// fallback path never wins. Kept the fallbacks for two reasons:
+//   1. Safety net if a stale client is still in flight during deploy
+//   2. Minimal diff from v0.16.14's stage 1 commit
+// They can be stripped in a future cleanup; until then they're
+// harmless (a few extra undefined-coalesce ops per row).
 
 // Stage 1 PostgREST embed strings. Use exactly as-is in
 // `select('id, ..., people_member_select')` calls.

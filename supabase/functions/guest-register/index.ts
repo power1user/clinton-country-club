@@ -1,20 +1,15 @@
-// guest-register v12 — v0.16.13. Adds rate limiting (Phase 18
-// follow-up #2). v0.16.10's guest-flow audit confirmed RLS locked
-// down every write a guest could attempt, but the public POST to
-// this Edge Function was still uncapped. An attacker could loop
-// to flood `guests` or spam OTP magic links at a real person's
-// inbox. v12 now calls check_and_record_rate_limit() (migration
-// 0002_phase18_followup_guest_register_rate_limit) with both the
-// requester's IP and the submitted email. If either bucket is
-// exhausted, we 429 BEFORE doing any DB work.
+// guest-register v13 — v0.16.16. Task #52 stage 2c: write
+// name/email/phone/zip to the canonical `people` row, not the
+// (now-dropped) duplicate columns on `guests`. Upserts people
+// first by email, then upserts guests by (club_id, person_id).
 //
-// Buckets:
+// (For history: v12 / v0.16.13 added IP + email rate limiting;
+// v11 / v0.14.13 locked the magic-link redirect to the canonical
+// {slug}.{root}/ URL.)
+//
+// Buckets (unchanged):
 //   ip    → 20 attempts per 10 min
 //   email →  5 attempts per  1 hour
-//
-// (For history: v11 / v0.14.13 hardened the magic-link redirect to
-// ALWAYS use the canonical {slug}.{root}/ URL, ignoring whatever the
-// client posted as `redirect_to`.)
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -268,15 +263,51 @@ Deno.serve(async (req) => {
       ? check_in_method
       : (resolvedMemberId ? 'member_qr' : (clubhouseValidated ? 'clubhouse_qr' : 'staff_manual'));
 
+    // v0.16.16 — Task #52 stage 2c: write to `people` first, then
+    // upsert guests by (club_id, person_id). Reuse an existing
+    // pre-auth people row if one matches by email so admin-created
+    // members or prior guest registrations don't get a duplicate.
+    const cleanName  = String(name).trim();
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanZip   = String(zip).trim().toUpperCase();
+
+    let personId: string | null = null;
+    {
+      const { data: existing } = await admin.from('people')
+        .select('id')
+        .is('auth_user_id', null)
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+      if (existing) {
+        personId = existing.id;
+        // Keep name/phone/zip fresh on the existing pre-auth row.
+        await admin.from('people').update({
+          name:  cleanName,
+          phone: phoneToStore,
+          zip:   cleanZip,
+        }).eq('id', personId);
+      }
+    }
+    if (!personId) {
+      const { data: newPerson, error: pErr } = await admin.from('people')
+        .insert({
+          name:  cleanName,
+          email: cleanEmail,
+          phone: phoneToStore,
+          zip:   cleanZip,
+        })
+        .select('id')
+        .single();
+      if (pErr) return json({ ok: false, error: `Could not create person: ${pErr.message}` }, 500);
+      personId = newPerson.id;
+    }
+
     const { data: guest, error: gErr } = await admin
       .from('guests')
       .upsert(
         {
           club_id: club.id,
-          name: String(name).trim(),
-          email: String(email).trim().toLowerCase(),
-          phone: phoneToStore,
-          zip: String(zip).trim().toUpperCase(),
+          person_id: personId,
           referring_member_id: resolvedMemberId,
           visit_type: vType,
           visit_date: todayLocal,
@@ -285,9 +316,9 @@ Deno.serve(async (req) => {
           expires_at,
           terms_accepted_at: new Date().toISOString(),
         },
-        { onConflict: 'club_id,email' },
+        { onConflict: 'club_id,person_id' },
       )
-      .select('id, club_id, name, email, status, access_level, expires_at')
+      .select('id, club_id, status, access_level, expires_at')
       .single();
 
     if (gErr) {

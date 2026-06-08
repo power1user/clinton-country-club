@@ -640,19 +640,17 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
       // `notes` (new free-form staff-only column added in migration
       // v0_15_16_notes_columns_and_reason_param).
       // v0.16.14 — Task #52 stage 1: pull stable per-person fields
-      // (name/email/phone/photo_url/zip) from the embedded people
-      // row instead of the duplicate columns on members/guests.
-      // Lifted onto the row object below for backwards-compatible
-      // consumer access. Stage 2 drops the duplicate columns and
-      // the `?? row.X` fallbacks become dead.
+      // from embedded people. v0.16.16 stage 2c: also select person_id
+      // so the save handler can target the canonical people row for
+      // name/email/phone/photo_url writes.
       const memberQ = person.is_member
         ? supabase.from('members')
-            .select('id, name, membership_number, email, phone, tier, member_since, hcp, locker, cart, parking, status, photo_url, notes, people(name, email, phone, photo_url)')
+            .select('id, person_id, membership_number, tier, member_since, hcp, locker, cart, parking, status, notes, people(name, email, phone, photo_url)')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id).maybeSingle()
         : Promise.resolve({ data: null });
       const guestQ = person.is_guest
         ? supabase.from('guests')
-            .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, notes, people(name, email, phone, zip)')
+            .select('id, person_id, visit_type, visit_date, access_level, status, expires_at, notes, people(name, email, phone, zip)')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id)
             .order('created_at', { ascending: false }).limit(1)
         : Promise.resolve({ data: [] });
@@ -834,13 +832,49 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     if (Object.keys(v).length > 0) { setFieldErrors(v); return; }
     setFieldErrors({});
     setBusy(true); setErr(null);
+    // v0.16.16 — Task #52 stage 2c: write name/email/phone (+ photo_url
+    // for members, zip for guests) directly to the `people` row.
+    // Members/guests rows hold ONLY per-club fields. For new inserts:
+    // create or reuse a `people` row first, then insert the
+    // member/guest with `person_id` pointing at it.
+    const personFields = {
+      name:  form.name.trim(),
+      email: form.email.trim() || null,
+      phone: (form.phone || '').trim() || null,
+    };
+    if (kind === 'guest') {
+      personFields.zip = (form.zip || '').trim() || null;
+    }
+
+    let personId = isAdd ? null : (memberRow?.person_id || guestRow?.person_id || null);
+
+    if (isAdd) {
+      // Try to reuse an existing pre-auth person row by email
+      if (personFields.email) {
+        const { data: existing } = await supabase.from('people')
+          .select('id').is('auth_user_id', null).ilike('email', personFields.email).maybeSingle();
+        if (existing) {
+          personId = existing.id;
+          await supabase.from('people').update(personFields).eq('id', personId);
+        }
+      }
+      if (!personId) {
+        const { data: newP, error: pErr } = await supabase.from('people')
+          .insert(personFields).select('id').single();
+        if (pErr) { setBusy(false); setErr(pErr.message); return; }
+        personId = newP.id;
+      }
+    } else if (personId) {
+      const { error: pErr } = await supabase.from('people')
+        .update(personFields).eq('id', personId);
+      if (pErr) { setBusy(false); setErr(pErr.message); return; }
+    }
+
     if (kind === 'member') {
       const row = {
         club_id: club.id,
-        name: form.name.trim(),
+        person_id: personId,
         membership_number: form.membership_number.trim(),
-        email: form.email.trim() || null,
-        phone: (form.phone || '').trim() || null,
         tier: form.tier || null,
         member_since: form.member_since || null,
         hcp: form.hcp || null,
@@ -859,10 +893,7 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
     } else {
       const row = {
         club_id: club.id,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || null,
-        zip:   form.zip.trim()   || null,
+        person_id: personId,
         visit_type:   form.visit_type   || 'public_play',
         access_level: form.access_level || 'read_only',
         status:       form.status       || 'active',
@@ -970,9 +1001,12 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
 
       const { data: pub } = supabase.storage.from('club-assets').getPublicUrl(path);
       const url = `${pub.publicUrl}?v=${Date.now()}`;
-      const { error: dbErr } = await supabase.from('members')
+      // v0.16.16 — Task #52 stage 2c: photo_url canonical home is people.
+      const personId = memberRow?.person_id;
+      if (!personId) throw new Error('No person_id on member — cannot save photo');
+      const { error: dbErr } = await supabase.from('people')
         .update({ photo_url: url })
-        .eq('id', memberId);
+        .eq('id', personId);
       if (dbErr) throw dbErr;
 
       setPhotoUrlOverride(url);
@@ -1578,28 +1612,73 @@ function PeopleCsvImportModal({ club, onClose, onSaved }) {
       header.forEach((h, i) => { obj[h] = (cells[i] ?? '').trim(); });
       return obj;
     });
-    const out = rows.map(r => ({
-      club_id: club.id,
+    const parsed = rows.map(r => ({
       name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim(),
       membership_number: r.membership_number || r.member_number || r.member || r.number || '',
       email: r.email || null,
+      phone: r.phone || null,
       tier: r.tier || 'Full Member',
       member_since: r.member_since || r.since || null,
       hcp: r.hcp || r.handicap || null,
       locker: r.locker || null,
       cart: r.cart || null,
       parking: r.parking || null,
-      status: 'pending',
     })).filter(r => r.name && r.membership_number);
-    if (!out.length) {
+    if (!parsed.length) {
       setBusy(false);
       setResult({ error: 'No valid rows. CSV needs at least name + membership_number columns.' });
       return;
     }
-    const { data, error } = await supabase.from('members').upsert(out, { onConflict: 'club_id,membership_number' }).select('id');
+
+    // v0.16.16 — Task #52 stage 2c: people-canonical write. For each
+    // row, upsert a `people` row (reusing an existing pre-auth row
+    // matched by email, case-insensitive), then upsert the `members`
+    // row with `person_id` set. N round trips — CSV import is rare
+    // and admin-triggered; tradeoff is OK for correctness.
+    let okCount = 0;
+    let firstError = null;
+    for (const r of parsed) {
+      try {
+        let personId = null;
+        if (r.email) {
+          const { data: existing } = await supabase.from('people')
+            .select('id').is('auth_user_id', null).ilike('email', r.email).maybeSingle();
+          if (existing) personId = existing.id;
+        }
+        if (personId) {
+          await supabase.from('people')
+            .update({ name: r.name, phone: r.phone })
+            .eq('id', personId);
+        } else {
+          const { data: newP, error: pErr } = await supabase.from('people')
+            .insert({ name: r.name, email: r.email, phone: r.phone })
+            .select('id').single();
+          if (pErr) throw pErr;
+          personId = newP.id;
+        }
+        const memberRow = {
+          club_id: club.id,
+          person_id: personId,
+          membership_number: r.membership_number,
+          tier: r.tier,
+          member_since: r.member_since,
+          hcp: r.hcp,
+          locker: r.locker,
+          cart: r.cart,
+          parking: r.parking,
+          status: 'pending',
+        };
+        const { error: mErr } = await supabase.from('members')
+          .upsert(memberRow, { onConflict: 'club_id,membership_number' });
+        if (mErr) throw mErr;
+        okCount++;
+      } catch (e) {
+        if (!firstError) firstError = e?.message || String(e);
+      }
+    }
     setBusy(false);
-    if (error) { setResult({ error: error.message }); return; }
-    setResult({ ok: data?.length || 0 });
+    if (firstError && okCount === 0) { setResult({ error: firstError }); return; }
+    setResult({ ok: okCount, partialErr: firstError });
     onSaved?.();
   };
 
