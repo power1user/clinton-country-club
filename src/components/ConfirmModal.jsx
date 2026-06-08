@@ -28,6 +28,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { G } from '../theme.js';
+import { useModalBackClose } from '../hooks/useModalBackClose.js'; // v0.16.18 — phone back-button closes the dialog instead of cascading to admin nav
 
 const ConfirmCtx = createContext(null);
 
@@ -106,6 +107,13 @@ function ConfirmDialog({ state, onClose }) {
   } = state;
 
   const isAlert = kind === 'alert';
+
+  // v0.16.18 — phone back-button closes the dialog (not cascade
+  // through AdminPanel's popstate handler, which would unwind a
+  // nav level and pop the user out of admin entirely). Also
+  // increments modalOpenCount so AdminPanel correctly bails on
+  // popstate while this dialog is up.
+  useModalBackClose(true, () => onClose(isAlert));
   const confirmBg = danger ? G.clsBg : G.green;
   const confirmFg = '#F2EDE0';
 

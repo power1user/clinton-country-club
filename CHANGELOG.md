@@ -177,6 +177,30 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.18** — Hotfix: ConfirmModal now hooks the phone back button.
+
+  Root cause for the "back button exits admin" regression Marc
+  reported alongside v0.16.16: `ConfirmModal` (the shared confirm/
+  alert dialog from v0.16.8) was the only modal in the app that
+  did NOT call `useModalBackClose`. Every other modal (PersonEdit
+  Modal, AddPersonPicker, BottomSheetModal, PersonPillModals) does.
+
+  When a confirm dialog was open and the user pressed the phone
+  back button:
+  - Browser popped the top history entry (whatever was there)
+  - AdminPanel's popstate handler ran. `modalOpenCount` was 0 (the
+    confirm dialog never incremented it), so it didn't bail.
+  - AdminPanel ran its nav-unwind logic → setSec(null) or
+    setArea(null) → user was popped out of where they were.
+
+  Fix: `ConfirmDialog` now calls `useModalBackClose(true, () =>
+  onClose(isAlert))`. Back button now closes the dialog (resolving
+  to false for confirms, true for alerts — same semantics as ESC
+  + backdrop click). `modalOpenCount` increments on dialog mount,
+  AdminPanel correctly bails while the dialog is up.
+
+  Build: 1897 modules, 1.38MB bundle. Tests: 56/56 passing.
+
 - **v0.16.17** — Hotfix: People admin row identity collision for pre-auth records.
 
   **Bug:** v0.16.16's `all_people_at_club` rewrite started correctly
