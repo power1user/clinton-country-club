@@ -177,6 +177,61 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.15** — Task #52 stage 2a + 2b: schema + triggers for
+  Path A. DB-only checkpoint before the app-write refactor.
+
+  Path A's premise: make `people` the source of truth for
+  EVERYONE — including pre-auth admin-added members and guests
+  (CSV imports, "Add Person" before claim). Today's sync triggers
+  explicitly skip when `user_id IS NULL`, so pre-auth records live
+  ONLY on the duplicate `members.name/email/phone` columns. That
+  blocks stage 2c (column drop) — pre-auth records would lose
+  their identity.
+
+  **3 migrations applied:**
+
+  - **`0004_phase18_followup_members_guests_person_id_link.sql`** —
+    Adds `members.person_id` + `guests.person_id` (NOT NULL FK to
+    `people.id`). Backfilled: auth-linked rows via existing
+    `user_id ↔ auth_user_id` link; pre-auth rows via fresh people
+    row creation from the duplicate columns (with email-collision
+    reuse). `people.auth_user_id` relaxed from NOT NULL → nullable
+    so pre-auth `people` rows are first-class. Indexes added.
+
+  - **`0005_phase18_followup_person_aware_triggers.sql`** — Sync
+    triggers now key off `person_id`, not `user_id ↔ auth_user_id`.
+    `BEFORE INSERT` auto-creates a `people` row + sets `NEW.person_id`
+    when missing, so legacy `members.insert({name, email, ...})`
+    code keeps working through the bake. `UPDATE` mirrors changes
+    through the `person_id` link. The `auth_user_id` gets stamped
+    automatically when a previously pre-auth member acquires a
+    `user_id` via the claim flow.
+
+  - **`0006_phase18_followup_drop_redundant_user_id_people_fks.sql`** —
+    Drops the redundant `members.user_id` ↔ `people.auth_user_id`
+    FKs (added in v0.16.14, before `person_id` existed). With
+    `person_id` as the canonical FK, PostgREST sees a single
+    unambiguous path. The `user_id` column itself stays — it still
+    FKs `auth.users.id` for auth lookups.
+
+  **Verified post-migration:**
+  - 9 members all have `person_id` set, no orphans
+  - 3 guests all have `person_id` set, no orphans
+  - 12 `people` rows total (was 8 — 4 new for pre-auth members)
+  - 4 pre-auth `people` rows (auth_user_id NULL, identity only)
+
+  **No client changes in this commit.** The v0.16.14 read embeds
+  (`select('..., people(name, email, ...)')`) now resolve via
+  the new `person_id` FK with no syntax changes needed — AND
+  pre-auth members finally embed correctly (they couldn't via the
+  old `user_id` FK because `user_id` was NULL).
+
+  **Remaining for stage 2c (v0.16.16):** refactor app writes
+  (PersonEditModal, ProfilePhotoCard, CSV import, guest-register
+  Edge Function) to write name/email/phone/photo_url to `people`
+  DIRECTLY. Then drop the duplicate columns + retire the
+  bidirectional sync triggers.
+
 - **v0.16.14** — Task #52 stage 1: route every read of the stable
   per-person fields through `people`.
 

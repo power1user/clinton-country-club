@@ -253,6 +253,45 @@
 //             the synced duplicate column — no breakage. Stage 2
 //             (v0.16.15) drops the columns + triggers after this
 //             bakes.
+//             v0.16.15 — Task #52 stage 2a + 2b (DB-only checkpoint).
+//             Path A: make `people` the source of truth for
+//             EVERYONE, including pre-auth admin-added members and
+//             guests.
+//
+//             What landed (3 migrations):
+//             · 0004 — Add members.person_id + guests.person_id
+//               (NOT NULL FK to people.id). Backfilled: auth-linked
+//               rows via existing user_id ↔ auth_user_id link;
+//               pre-auth rows via fresh people row creation from
+//               the duplicate columns. people.auth_user_id relaxed
+//               from NOT NULL → nullable (pre-auth people are now
+//               first-class). Indexes added.
+//             · 0005 — Sync triggers now key off person_id, not
+//               user_id ↔ auth_user_id. BEFORE INSERT auto-creates
+//               a people row + sets NEW.person_id when missing,
+//               so legacy `members.insert({name, email, ...})`
+//               code keeps working through the bake. UPDATE
+//               mirrors changes through person_id link. Pre-auth
+//               members no longer get skipped.
+//             · 0006 — Drop the redundant members.user_id ↔
+//               people.auth_user_id FKs (added in v0.16.14, before
+//               person_id existed). person_id is now the only
+//               PostgREST embed path — no disambiguation needed.
+//
+//             Effect: every member + guest row now has a single
+//             canonical link to a people row. The v0.16.14 reads
+//             via `people(name, email, ...)` embed now resolve
+//             unambiguously, AND pre-auth members (which couldn't
+//             embed via the old user_id FK because user_id was
+//             NULL) now correctly return their name/email/phone.
+//
+//             Remaining for stage 2c (v0.16.16): refactor the app
+//             write sites (PersonEditModal, ProfilePhotoCard, CSV
+//             import, guest-register Edge Function) to write
+//             name/email/phone/photo_url to people DIRECTLY
+//             instead of via members.name/etc. Then drop the
+//             duplicate columns + retire the bidirectional sync
+//             triggers.
 //             Phase 18 architecture as built:
 //
 //             ┌─────────────────────────────────────────────────┐
@@ -646,7 +685,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.14';
+export const VERSION = '0.16.15';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

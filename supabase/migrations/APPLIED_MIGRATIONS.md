@@ -103,8 +103,11 @@ For the SQL that defines the current security boundary, see `0001_phase18_baseli
 | 20260607020100 | v0_15_30_all_people_at_club_use_column |
 | 20260607193000 | 0002_phase18_followup_guest_register_rate_limit |
 | 20260607200000 | 0003_phase18_followup_members_guests_people_fk |
+| 20260608013000 | 0004_phase18_followup_members_guests_person_id_link |
+| 20260608014000 | 0005_phase18_followup_person_aware_triggers |
+| 20260608015000 | 0006_phase18_followup_drop_redundant_user_id_people_fks |
 
-91 migrations total.
+94 migrations total.
 
 ## Phase boundaries (rough)
 
