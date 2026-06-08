@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { liftMembersRelation } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { useAuth } from './useAuth.jsx';
 import { clubLocalParts, DEFAULT_TIMEZONE, todayInClubTz } from '../lib/timezone.js';
 
@@ -586,12 +587,15 @@ export function useBulletinPosts() {
     //     member row lacks a linked auth user (still has a name),
     //     SQL/admin-tool inserts with null or mismatched member_id.
     const load = async () => {
-      const { data: rows } = await supabase
+      // v0.16.14 — Task #52 stage 1: read name + photo_url from embedded
+      // people row. tier + member_since + user_id stay on members.
+      const { data: rowsRaw } = await supabase
         .from('bulletin_posts')
-        .select('id, category, title, body, hidden, created_at, member_id, members(name, tier, member_since, user_id, photo_url)')
+        .select('id, category, title, body, hidden, created_at, member_id, members(tier, member_since, user_id, people(name, photo_url))')
         .eq('club_id', club.id)
         .eq('hidden', false)
         .order('created_at', { ascending: false });
+      const rows = liftMembersRelation(rowsRaw, 'members');
       if (cancelled) return;
       if (rows) {
         setData(rows.map(r => ({
@@ -648,11 +652,14 @@ export function usePartnerPosts() {
       // v0.9.3: select game_type + spots_needed (Migration 50) and the
       // author's allow_dms so the Contact button can decide DM vs.
       // clubhouse-fallback vs. hide-with-plaintext per Marc's spec.
-      const { data: rows } = await supabase
+      // v0.16.14 — Task #52 stage 1: read name + photo_url from embedded
+      // people row; tier/member_since/user_id/allow_dms stay on members.
+      const { data: rowsRawP } = await supabase
         .from('partner_posts')
-        .select('id, category, game_type, spots_needed, title, body, hcp, is_open, date_wanted, created_at, member_id, members(name, tier, member_since, user_id, photo_url, allow_dms)')
+        .select('id, category, game_type, spots_needed, title, body, hcp, is_open, date_wanted, created_at, member_id, members(tier, member_since, user_id, allow_dms, people(name, photo_url))')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
+      const rows = liftMembersRelation(rowsRawP, 'members');
       if (cancelled) return;
       if (rows) {
         setData(rows.map(r => ({

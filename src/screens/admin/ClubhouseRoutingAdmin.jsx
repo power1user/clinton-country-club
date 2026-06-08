@@ -152,11 +152,12 @@ export default function ClubhouseRoutingAdmin({ club }) {
     // Resolve display names from members table + user_roles fallback
     const idsArr = Array.from(ids);
     const [{ data: members }, { data: roles }] = await Promise.all([
-      supabase.from('members').select('user_id, name').eq('club_id', club.id).in('user_id', idsArr),
+      // v0.16.14 — Task #52 stage 1: name via embedded people row.
+      supabase.from('members').select('user_id, people(name)').eq('club_id', club.id).in('user_id', idsArr),
       supabase.from('user_roles').select('user_id, display_name').in('user_id', idsArr),
     ]);
     const nameMap = {};
-    (members || []).forEach(m => { nameMap[m.user_id] = m.name; });
+    (members || []).forEach(m => { nameMap[m.user_id] = m.people?.name ?? m.name; });
     (roles || []).forEach(r => { if (!nameMap[r.user_id]) nameMap[r.user_id] = r.display_name; });
     const names = idsArr.map(id => nameMap[id] || `(${id.slice(0, 8)}…)`).sort();
     setPreview({ count: idsArr.length, names, fallback: false });

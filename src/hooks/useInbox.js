@@ -237,7 +237,8 @@ export function useInbox() {
         const senderMap = {};
         if (senderIds.length) {
           const [mb, rl] = await Promise.all([
-            supabase.from('members').select('user_id, name')
+            // v0.16.14 — Task #52 stage 1: name via embedded people row.
+            supabase.from('members').select('user_id, people(name)')
               .eq('club_id', club.id).in('user_id', senderIds),
             supabase.from('user_roles').select('user_id, role, display_name')
               .in('user_id', senderIds)
@@ -247,7 +248,8 @@ export function useInbox() {
             senderMap[r.user_id] = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
           });
           (mb.data || []).forEach(m => {
-            if (!senderMap[m.user_id]) senderMap[m.user_id] = m.name;
+            // v0.16.14 — Task #52 stage 1: name lives on embedded people.
+            if (!senderMap[m.user_id]) senderMap[m.user_id] = m.people?.name ?? m.name;
           });
         }
         // Filter out notifications the member has explicitly hidden.

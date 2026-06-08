@@ -3,6 +3,7 @@ import { G, gCfg } from '../theme.js';
 import { BackHeader } from '../components/Headers.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { liftMember, liftMembers, liftGuests } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { useClubStatus, usePaceOfPlay, usePinPlacements, effectiveState, useDusk, useDawn } from '../hooks/useClubData.jsx';
 import { DEFAULT_TIMEZONE } from '../lib/timezone.js';
 import { useCommsUnread } from '../lib/commsUnread.js';
@@ -1640,18 +1641,29 @@ function PeopleAdmin({ club }) {
     if (!club) return;
     let cancelled = false;
     (async () => {
-      const [{ data: m }, { data: g }, { data: r }] = await Promise.all([
+      // v0.16.14 — Task #52 stage 1: stable per-person fields come
+      // from the embedded people row; lift onto each row so legacy
+      // consumers (`row.name`, `row.email`, etc.) keep working.
+      const [{ data: mRaw }, { data: gRaw }, { data: r }] = await Promise.all([
         supabase.from('members')
-          .select('id, name, membership_number, tier, status, email, user_id, photo_url, created_at')
+          .select('id, membership_number, tier, status, user_id, created_at, people(name, email, phone, photo_url)')
           .eq('club_id', club.id),
         supabase.from('guests')
-          .select('id, name, email, phone, visit_type, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name)')
+          .select('id, visit_type, access_level, status, expires_at, created_at, referring_member_id, people(name, email, phone, zip), members:referring_member_id(user_id, people(name))')
           .eq('club_id', club.id),
         supabase.from('user_roles')
           .select('user_id, role, display_name')
           .eq('club_id', club.id),
       ]);
       if (cancelled) return;
+      // v0.16.14 — lift embedded people fields. Guests carry a
+      // nested members:referring_member_id with its own people
+      // embed; lift that too.
+      const m = liftMembers(mRaw);
+      const g = liftGuests(gRaw)?.map(row => ({
+        ...row,
+        members: liftMember(row.members),
+      }));
       setMembers(m || []);
       setGuests(g || []);
       setRoles(r || []);
@@ -2602,16 +2614,18 @@ function StaffAdmin({ club }) {
           .eq('club_id', club.id)
           .in('role', ['club_manager', 'club_admin'])
           .order('created_at', { ascending: true }),
+        // v0.16.14 — Task #52 stage 1: read name/email via embedded people row.
         supabase
           .from('members')
-          .select('id, user_id, name, membership_number, email')
+          .select('id, user_id, membership_number, people(name, email)')
           .eq('club_id', club.id)
           .not('user_id', 'is', null),
       ]);
       if (cancelled) return;
       setStaff(roles || []);
       const staffUserIds = new Set((roles || []).map(r => r.user_id));
-      setMemberPool((m || []).filter(x => !staffUserIds.has(x.user_id)));
+      const liftedM = liftMembers(m);
+      setMemberPool((liftedM || []).filter(x => !staffUserIds.has(x.user_id)));
       setLoading(false);
     })();
     return () => { cancelled = true; };

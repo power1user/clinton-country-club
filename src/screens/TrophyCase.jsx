@@ -27,6 +27,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useScrollRestore } from '../hooks/useScrollRestore.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { liftMembers } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import Badge from '../components/Badge.jsx';
 import Avatar from '../components/Avatar.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
@@ -66,14 +67,15 @@ export default function TrophyCase() {
           .select('id, badge_id, member_id, awarded_at, awarded_by, notes')
           .eq('club_id', club.id)
           .order('awarded_at', { ascending: false }),
+        // v0.16.14 — Task #52 stage 1: name + photo_url via embedded people row.
         supabase.from('members')
-          .select('id, name, photo_url')
+          .select('id, people(name, photo_url)')
           .eq('club_id', club.id),
       ]);
       if (cancelled) return;
       setBadges(b || []);
       setAssignments(a || []);
-      setMembers(m || []);
+      setMembers(liftMembers(m) || []);
     };
     load();
 

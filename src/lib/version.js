@@ -212,6 +212,47 @@
 //             Closes Phase 18 follow-ups 2 + 4 of 4. Remaining: #3
 //             (5-topic clubhouse smoke test, Task #30) needs real
 //             devices and is on Marc.
+//             v0.16.14 — Task #52 stage 1: route every client read of
+//             the stable per-person fields (name/email/phone/zip/
+//             photo_url) through the canonical `people` table.
+//
+//             Background: Phase 16 (v0.15.0) created `people` as the
+//             source of truth. v0.15.19 added bidirectional sync
+//             triggers (members↔people, guests↔people) so the
+//             duplicate columns stayed in sync. v0.16.14 starts the
+//             expand-and-contract migration to eliminate the
+//             duplication entirely — at 50-club scale the dual-
+//             source architecture becomes a debugging trap.
+//
+//             What landed:
+//             · Migration 0003 — adds FKs members.user_id +
+//               guests.user_id → people.auth_user_id, so PostgREST
+//               exposes `.people(name, email, …)` embeds. Both cols
+//               already have FKs to auth.users; this adds a SECOND
+//               FK so the relation is named `people`.
+//             · src/lib/peopleLift.js — lift helpers
+//               (liftMember/liftGuest/liftMembers/liftGuests/
+//               liftMembersRelation/liftGuestsRelation) that
+//               promote the embedded people fields onto the parent
+//               row, so legacy consumers (m.name, row.members.name)
+//               keep working unchanged.
+//             · ~20 read sites refactored across useAuth (4 self
+//               reads), AllPeopleAdmin (2), AdminPanel (3),
+//               AdminDashboard (4), useInbox, ClubhouseRoutingAdmin,
+//               DepartmentsAdmin (2), MemberDirectory, Thread (3),
+//               TrophyCase, useClubData (2 relation),
+//               Replies (1 relation), platform.jsx, and sections.jsx
+//               (food orders, event registrations, bulletin/partner
+//               moderation, clubhouse threads, two guests views,
+//               visit-history CSV, lesson requests).
+//
+//             Safety net: duplicate columns + the 3 sync triggers
+//             (fn_mirror_member_to_people / fn_mirror_guest_to_people
+//             / fn_mirror_people_to_member_guest) STAY RUNNING for
+//             this stage. If a read site was missed, it still pulls
+//             the synced duplicate column — no breakage. Stage 2
+//             (v0.16.15) drops the columns + triggers after this
+//             bakes.
 //             Phase 18 architecture as built:
 //
 //             ┌─────────────────────────────────────────────────┐
@@ -605,7 +646,7 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.16.13';
+export const VERSION = '0.16.14';
 
 // Parent platform brand. Shown as 'Powered by The Grounds' in the
 // sign-in footer, the loading splash, and the About row in MyClub.

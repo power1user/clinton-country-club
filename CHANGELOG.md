@@ -177,6 +177,54 @@ items; structural work sequences across v0.16.1-3, closeout at v0.16.4.
 
 ---
 
+- **v0.16.14** — Task #52 stage 1: route every read of the stable
+  per-person fields through `people`.
+
+  Phase 16 created `people` as the source of truth for name/email/
+  phone/zip/photo_url; v0.15.19 added bidirectional sync triggers
+  so the duplicate columns on `members`/`guests` stayed in sync.
+  v0.16.14 begins an expand-and-contract migration to eliminate
+  the duplication. At 50-club scale, "two sources of truth" stops
+  being a smell and starts being a debugging trap.
+
+  **Migration `0003_phase18_followup_members_guests_people_fk.sql`:**
+  Adds FKs from `members.user_id` and `guests.user_id` →
+  `people.auth_user_id` (in addition to the existing FKs to
+  `auth.users.id`). PostgREST sees the relationship and exposes
+  `.from('members').select('..., people(name, email, ...)')`.
+
+  **New helper `src/lib/peopleLift.js`:**
+  Lifts the embedded `people` fields onto the parent row so
+  legacy consumers (`m.name`, `row.members?.name`) keep working
+  unchanged. Exports `liftMember`/`liftGuest`/`liftMembers`/
+  `liftGuests`/`liftMembersRelation`/`liftGuestsRelation`.
+
+  **~20 read sites refactored:**
+  - `useAuth.jsx` (4 self-hydration reads with inline lift)
+  - `AllPeopleAdmin.jsx` (2 sites — member + guest editor)
+  - `AdminPanel.jsx` (3 — people list + staff promote/demote)
+  - `AdminDashboard.jsx` (4 — new members, badges, news, pending)
+  - `useInbox.js` (sender name lookup)
+  - `ClubhouseRoutingAdmin.jsx` (preview names)
+  - `DepartmentsAdmin.jsx` (2 — detail list + add-staff picker)
+  - `MemberDirectory.jsx` (member list, lifted + sorted post-fetch)
+  - `Thread.jsx` (3 — sender map, food-order ctx, DM participant)
+  - `TrophyCase.jsx` (members for trophy display)
+  - `useClubData.jsx` (2 — bulletin + partner posts join)
+  - `Replies.jsx` (post-reply author name)
+  - `admin/sections/platform.jsx` (super_admin member pool)
+  - `admin/sections.jsx` (8 — food orders, event registrations,
+    bulletin/partner moderation, clubhouse threads, two guests
+    views, visit-history CSV, lesson requests)
+
+  **Safety net:** duplicate columns + the 3 sync triggers stay
+  running through stage 1. If a read site was missed, it still
+  pulls the (synced) duplicate — no breakage. Stage 2 (v0.16.15)
+  drops the columns + triggers after this bakes.
+
+  Build: 1897 modules, 1.38MB bundle (no growth).
+  Tests: 56/56 passing.
+
 - **v0.16.13** — Phase 18 follow-ups #2 + #4: rate-limit guest-register
   POST and `select('*')` tightening sweep.
 

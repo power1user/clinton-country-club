@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth.jsx';
 import { useNav } from '../../hooks/useNav.jsx';
 import { useFlag } from '../../hooks/useFlag.js';
 import { supabase } from '../../lib/supabase.js';
+import { liftMember, liftGuest, liftGuests, liftMembersRelation, liftGuestsRelation } from '../../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { useClubStatus } from '../../hooks/useClubData.jsx';
 import { COMMON_TIMEZONES } from '../../lib/timezone.js';
 import { listFeatures, listFeaturesByCategory, featureState, withFlagChange, withFlagLock, withAddonChange, isAddonEnabled, TIER_LABEL, TIER_DESCRIPTION, TIER_RANK } from '../../lib/features.js';
@@ -515,12 +516,14 @@ export function FoodOrdersAdmin() {
       // v0.10.15 — also pulls order_type + requested_pickup_time so
       // the queue row can render the Delivery/To-Go chip and the
       // pickup time without an extra round-trip.
-      const { data } = await supabase
+      // v0.16.14 — Task #52 stage 1: name via embedded people row.
+      const { data: dRaw } = await supabase
         .from('food_orders')
-        .select('id, status, items, subtotal, hole, location_note, order_type, requested_pickup_time, created_at, member_id, members(name, membership_number)')
+        .select('id, status, items, subtotal, hole, location_note, order_type, requested_pickup_time, created_at, member_id, members(membership_number, people(name))')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false })
         .limit(100);
+      const data = liftMembersRelation(dRaw, 'members');
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);
@@ -842,11 +845,13 @@ export function EventRegistrationsAdmin({ mode = 'grouped' } = {}) {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
+      // v0.16.14 — Task #52 stage 1: name via embedded people row.
+      const { data: dRaw } = await supabase
         .from('event_registrations')
-        .select('id, status, guests_count, notes, registered_at, member_id, event_id, members(name, membership_number), events(title, event_date, spots)')
+        .select('id, status, guests_count, notes, registered_at, member_id, event_id, members(membership_number, people(name)), events(title, event_date, spots)')
         .eq('club_id', club.id)
         .order('registered_at', { ascending: false });
+      const data = liftMembersRelation(dRaw, 'members');
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);
@@ -3067,18 +3072,21 @@ export function MemberPostsAdmin() {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
-      const [{ data: b }, { data: p }] = await Promise.all([
+      // v0.16.14 — Task #52 stage 1: name via embedded people row.
+      const [{ data: bRaw }, { data: pRaw }] = await Promise.all([
         supabase.from('bulletin_posts')
-          .select('id, category, title, body, hidden, created_at, member_id, members(name, membership_number)')
+          .select('id, category, title, body, hidden, created_at, member_id, members(membership_number, people(name))')
           .eq('club_id', club.id)
           .order('created_at', { ascending: false })
           .limit(200),
         supabase.from('partner_posts')
-          .select('id, category, title, body, hcp, is_open, created_at, member_id, members(name, membership_number)')
+          .select('id, category, title, body, hcp, is_open, created_at, member_id, members(membership_number, people(name))')
           .eq('club_id', club.id)
           .order('created_at', { ascending: false })
           .limit(200),
       ]);
+      const b = liftMembersRelation(bRaw, 'members');
+      const p = liftMembersRelation(pRaw, 'members');
       if (cancelled) return;
       setBulletin(b || []); setPartner(p || []);
       setLoading(false);
@@ -3219,13 +3227,18 @@ export function ClubhouseInboxAdmin() {
             .eq('thread_id', t.id)
             .order('created_at', { ascending: false })
             .limit(1).maybeSingle(),
+          // v0.16.14 — Task #52 stage 1: name via embedded people row.
           supabase.from('thread_participants')
-            .select('user_id, role, members(name, membership_number)')
+            .select('user_id, role, members(membership_number, people(name))')
             .eq('thread_id', t.id)
             .eq('role', 'member')
             .limit(1).maybeSingle(),
         ]);
-        return { ...t, preview: lastMsg, starter: parts };
+        // v0.16.14 — Task #52 stage 1: lift members.name from the
+        // embedded people row so `t.starter?.members?.name` keeps
+        // working unchanged.
+        const starter = parts ? { ...parts, members: liftMember(parts.members) } : null;
+        return { ...t, preview: lastMsg, starter };
       }));
 
       setThreads(enriched);
@@ -3345,12 +3358,18 @@ export function GuestRegistrationsFeed() {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
+      // v0.16.14 — Task #52 stage 1: name/email/phone/zip via embedded
+      // people row on guests; referring member name via embedded people.
+      const { data: dRaw } = await supabase
         .from('guests')
-        .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name, membership_number)')
+        .select('id, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, people(name, email, phone, zip), members:referring_member_id(membership_number, people(name))')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false })
         .limit(100);
+      const data = liftGuests(dRaw)?.map(row => ({
+        ...row,
+        members: liftMember(row.members),
+      }));
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);
@@ -3744,13 +3763,19 @@ function GuestList({ club }) {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      // v0.16.14 — Task #52 stage 1: name/email/phone/zip via embedded
+      // people row on guests; referring member name via embedded people.
       let query = supabase
         .from('guests')
-        .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, members:referring_member_id(name)')
+        .select('id, visit_type, visit_date, access_level, status, expires_at, created_at, referring_member_id, people(name, email, phone, zip), members:referring_member_id(people(name))')
         .eq('club_id', club.id)
         .order('visit_date', { ascending: false })
         .limit(500);
-      const { data } = await query;
+      const { data: dRaw } = await query;
+      const data = liftGuests(dRaw)?.map(row => ({
+        ...row,
+        members: liftMember(row.members),
+      }));
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);
@@ -3837,9 +3862,11 @@ function GuestList({ club }) {
   // referring_member) that the guest list shows.
   const exportVisitHistoryCsv = async () => {
     // Build the query against guest_visits with joined guest info.
+    // v0.16.14 — Task #52 stage 1: guest fields + referring member name
+    // via embedded people row.
     let query = supabase
       .from('guest_visits')
-      .select('id, visit_date, visit_type, access_level, check_in_method, referring_member_id, created_at, guests(name, email, phone, zip), members:referring_member_id(name)')
+      .select('id, visit_date, visit_type, access_level, check_in_method, referring_member_id, created_at, guests(people(name, email, phone, zip)), members:referring_member_id(people(name))')
       .eq('club_id', club.id)
       .order('visit_date', { ascending: false })
       .limit(2000);
@@ -4018,14 +4045,16 @@ export function LessonRequestsAdmin({ mode = 'all' } = {}) {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
+      // v0.16.14 — Task #52 stage 1: name + email via embedded people row.
       let q = supabase
         .from('pro_shop_inquiries')
-        .select('id, kind, pro, preferred_date, preferred_time, skill_level, focus_areas, notes, status, created_at, member_id, members(name, membership_number, email, user_id)')
+        .select('id, kind, pro, preferred_date, preferred_time, skill_level, focus_areas, notes, status, created_at, member_id, members(membership_number, user_id, people(name, email))')
         .eq('club_id', club.id)
         .order('created_at', { ascending: false });
       if (mode === 'lessons')   q = q.eq('kind', 'lesson');
       if (mode === 'inquiries') q = q.neq('kind', 'lesson');
-      const { data } = await q;
+      const { data: dRaw } = await q;
+      const data = liftMembersRelation(dRaw, 'members');
       if (cancelled) return;
       setRows(data || []);
       setLoading(false);

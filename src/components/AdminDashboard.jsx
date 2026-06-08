@@ -27,6 +27,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { G } from '../theme.js';
 import { supabase } from '../lib/supabase.js';
+import { liftMembers, liftMembersRelation } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { formatMessageTimestamp } from '../lib/timeFormat.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import {
@@ -898,13 +899,13 @@ function NewMembersTile({ clubId }) {
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('members')
-        .select('id, name, created_at')
+        .select('id, created_at, people(name)') // v0.16.14 — Task #52 stage 1
         .eq('club_id', clubId)
         .gt('created_at', since)
         .order('created_at', { ascending: false })
         .limit(20);
       if (cancelled) return;
-      setRows(Array.isArray(data) ? data : []);
+      setRows(Array.isArray(data) ? liftMembers(data) : []);
     })();
     return () => { cancelled = true; };
   }, [clubId]);
@@ -973,11 +974,13 @@ function RecentBadgesTile({ clubId }) {
       // members.name + badges.name/color. RLS on member_badges +
       // badges should both scope by club via their respective
       // policies.
-      const { data } = await supabase
+      const { data: dRaw } = await supabase
         .from('member_badges')
-        .select('id, awarded_at, members(name), badges(name, color, club_id)')
+        // v0.16.14 — Task #52 stage 1: name via embedded people row.
+        .select('id, awarded_at, members(people(name)), badges(name, color, club_id)')
         .order('awarded_at', { ascending: false })
         .limit(15);
+      const data = liftMembersRelation(dRaw, 'members');
       if (cancelled) return;
       // Client-side filter to this club's badges (member_badges has
       // no club_id directly; the join's badges.club_id is what
@@ -1043,12 +1046,14 @@ function RecentBulletinTile({ clubId }) {
     if (!clubId) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data: dRaw } = await supabase
         .from('bulletin_posts')
-        .select('id, title, body, created_at, members(name)')
+        // v0.16.14 — Task #52 stage 1: name via embedded people row.
+        .select('id, title, body, created_at, members(people(name))')
         .eq('club_id', clubId)
         .order('created_at', { ascending: false })
         .limit(5);
+      const data = liftMembersRelation(dRaw, 'members');
       if (cancelled) return;
       setRows(Array.isArray(data) ? data : []);
     })();
@@ -1478,12 +1483,12 @@ function PendingApprovalsTile({ clubId }) {
     (async () => {
       const { data } = await supabase
         .from('members')
-        .select('id, name, email, created_at')
+        .select('id, created_at, people(name, email)') // v0.16.14 — Task #52 stage 1
         .eq('club_id', clubId).eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(20);
       if (cancelled) return;
-      setRows(Array.isArray(data) ? data : []);
+      setRows(Array.isArray(data) ? liftMembers(data) : []);
     })();
     return () => { cancelled = true; };
   }, [clubId]);

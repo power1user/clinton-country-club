@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import { G } from '../../../theme.js';
 import { useAuth } from '../../../hooks/useAuth.jsx';
 import { supabase } from '../../../lib/supabase.js';
+import { liftMembers } from '../../../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { COMMON_TIMEZONES } from '../../../lib/timezone.js';
 import { useConfirm } from '../../../components/ConfirmModal.jsx';   // v0.16.8b
 // ClubSettingsForm + FeaturesPanel still live in sections.jsx (they're
@@ -52,16 +53,17 @@ export function SuperAdminsAdmin() {
           .select('id, user_id, display_name, created_at')
           .eq('role', 'super_admin')
           .order('created_at', { ascending: true }),
+        // v0.16.14 — Task #52 stage 1: name + email via embedded people row.
         supabase
           .from('members')
-          .select('id, user_id, name, email, membership_number')
+          .select('id, user_id, membership_number, people(name, email)')
           .eq('club_id', club.id)
           .not('user_id', 'is', null),
       ]);
       if (cancelled) return;
       setAdmins(sa || []);
       const saIds = new Set((sa || []).map(r => r.user_id));
-      setMemberPool((members || []).filter(m => !saIds.has(m.user_id)));
+      setMemberPool(liftMembers(members || []).filter(m => !saIds.has(m.user_id)));
       setLoading(false);
     })();
     return () => { cancelled = true; };

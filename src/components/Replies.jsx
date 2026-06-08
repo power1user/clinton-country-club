@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { G } from '../theme.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase, isConfigured } from '../lib/supabase.js';
+import { liftMembersRelation } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { useConfirm } from './ConfirmModal.jsx';
 
 // Short relative time — "just now", "5m", "2h", "Mar 4"
@@ -51,13 +52,15 @@ export default function Replies({ postTable, postId, defaultOpen = false }) {
     if (!isConfigured || !club || !postId) { setLoading(false); return; }
     let cancelled = false;
     const load = async () => {
-      const { data } = await supabase
+      // v0.16.14 — Task #52 stage 1: name via embedded people row.
+      const { data: dataRaw } = await supabase
         .from('post_replies')
-        .select('id, body, member_id, user_id, created_at, members(name)')
+        .select('id, body, member_id, user_id, created_at, members(people(name))')
         .eq('post_table', postTable)
         .eq('post_id', postId)
         .eq('hidden', false)
         .order('created_at', { ascending: true });
+      const data = liftMembersRelation(dataRaw, 'members');
       if (cancelled) return;
       setReplies(data || []);
       setLoading(false);

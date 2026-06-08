@@ -639,21 +639,41 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
       // v0.15.16 — also pull `phone` (now surfaced on Identity row) and
       // `notes` (new free-form staff-only column added in migration
       // v0_15_16_notes_columns_and_reason_param).
+      // v0.16.14 — Task #52 stage 1: pull stable per-person fields
+      // (name/email/phone/photo_url/zip) from the embedded people
+      // row instead of the duplicate columns on members/guests.
+      // Lifted onto the row object below for backwards-compatible
+      // consumer access. Stage 2 drops the duplicate columns and
+      // the `?? row.X` fallbacks become dead.
       const memberQ = person.is_member
         ? supabase.from('members')
-            .select('id, name, membership_number, email, phone, tier, member_since, hcp, locker, cart, parking, status, photo_url, notes')
+            .select('id, name, membership_number, email, phone, tier, member_since, hcp, locker, cart, parking, status, photo_url, notes, people(name, email, phone, photo_url)')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id).maybeSingle()
         : Promise.resolve({ data: null });
       const guestQ = person.is_guest
         ? supabase.from('guests')
-            .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, notes')
+            .select('id, name, email, phone, zip, visit_type, visit_date, access_level, status, expires_at, notes, people(name, email, phone, zip)')
             .eq('club_id', club.id).eq('user_id', person.auth_user_id)
             .order('created_at', { ascending: false }).limit(1)
         : Promise.resolve({ data: [] });
       const [mRes, gRes] = await Promise.all([memberQ, guestQ]);
       if (cancelled) return;
-      const m = mRes.data || null;
-      const g = (Array.isArray(gRes.data) ? gRes.data[0] : gRes.data) || null;
+      const mRaw = mRes.data || null;
+      const m = mRaw ? {
+        ...mRaw,
+        name:      mRaw.people?.name      ?? mRaw.name,
+        email:     mRaw.people?.email     ?? mRaw.email,
+        phone:     mRaw.people?.phone     ?? mRaw.phone,
+        photo_url: mRaw.people?.photo_url ?? mRaw.photo_url,
+      } : null;
+      const gRaw = (Array.isArray(gRes.data) ? gRes.data[0] : gRes.data) || null;
+      const g = gRaw ? {
+        ...gRaw,
+        name:  gRaw.people?.name  ?? gRaw.name,
+        email: gRaw.people?.email ?? gRaw.email,
+        phone: gRaw.people?.phone ?? gRaw.phone,
+        zip:   gRaw.people?.zip   ?? gRaw.zip,
+      } : null;
       setMemberRow(m); setMemberId(m?.id || null);
       setGuestRow(g);  setGuestId(g?.id || null);
       const f = initialFormFor(kind, kind === 'member' ? m : g, person);

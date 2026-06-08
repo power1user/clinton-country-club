@@ -12,6 +12,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { supabase } from '../lib/supabase.js';
+import { liftMembers } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import PendingGuard from '../components/PendingGuard.jsx';
 import Avatar from '../components/Avatar.jsx';
 import Badge from '../components/Badge.jsx';
@@ -46,15 +47,25 @@ export default function MemberDirectory() {
     // members who've opted out (v0.6.3). user_id filter keeps
     // out members who haven't claimed their account yet.
     const load = async () => {
+      // v0.16.14 — Task #52 stage 1: read name + photo_url from
+      // embedded people row; lift onto each member for legacy
+      // `m.name` / `m.photo_url` consumer paths. Order-by switched
+      // to the still-existing members.name column (which is kept in
+      // sync by triggers through stage 1) so PostgREST can sort
+      // server-side; stage 2 will move this to an explicit
+      // post-lift sort.
       const { data, error } = await supabase
         .from('members')
-        .select('id, user_id, name, membership_number, tier, status, allow_dms, photo_url')
+        .select('id, user_id, membership_number, tier, status, allow_dms, people(name, photo_url)')
         .eq('club_id', club.id)
         .not('user_id', 'is', null)
-        .neq('status', 'inactive')
-        .order('name', { ascending: true });
+        .neq('status', 'inactive');
       if (cancelled) return;
-      if (!error) setMembers(data || []);
+      if (!error) {
+        const lifted = liftMembers(data || []);
+        lifted.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        setMembers(lifted);
+      }
       setLoading(false);
     };
     setLoading(true);

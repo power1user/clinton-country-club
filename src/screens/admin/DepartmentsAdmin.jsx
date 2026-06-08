@@ -334,12 +334,14 @@ function DepartmentDetailModal({ department, club, memberCount, existingNames, e
     const ids = (assignments || []).map(a => a.user_id);
     if (ids.length === 0) { setMembers([]); setLoading(false); return; }
     const [{ data: m }, { data: roles }] = await Promise.all([
-      supabase.from('members').select('user_id, name, photo_url').eq('club_id', club.id).in('user_id', ids),
+      // v0.16.14 — Task #52 stage 1: name + photo_url via embedded people row.
+      supabase.from('members').select('user_id, people(name, photo_url)').eq('club_id', club.id).in('user_id', ids),
       supabase.from('user_roles').select('user_id, role, display_name').in('user_id', ids),
     ]);
     const nameMap = {};
     const roleLabel = {};
-    (m || []).forEach(r => { nameMap[r.user_id] = r.name; });
+    // v0.16.14 — Task #52 stage 1: name lives on embedded people.
+    (m || []).forEach(r => { nameMap[r.user_id] = r.people?.name ?? r.name; });
     (roles || []).forEach(r => {
       if (!nameMap[r.user_id]) nameMap[r.user_id] = r.display_name;
       const lbl = r.role === 'club_manager' ? 'Manager' : r.role === 'club_admin' ? 'Admin' : r.role === 'super_admin' ? 'Super Admin' : null;
@@ -576,9 +578,10 @@ function AddStaffToDepartmentModal({ department, club, alreadyAssignedUserIds, o
       const ids = pool.map(p => p.user_id);
       let names = {};
       if (ids.length) {
+        // v0.16.14 — Task #52 stage 1: name via embedded people row.
         const { data: members } = await supabase
-          .from('members').select('user_id, name').eq('club_id', club.id).in('user_id', ids);
-        (members || []).forEach(m => { names[m.user_id] = m.name; });
+          .from('members').select('user_id, people(name)').eq('club_id', club.id).in('user_id', ids);
+        (members || []).forEach(m => { names[m.user_id] = m.people?.name ?? m.name; });
       }
       if (cancelled) return;
       setCandidates(pool.map(p => ({

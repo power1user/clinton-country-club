@@ -11,6 +11,7 @@ import { useNav } from '../hooks/useNav.jsx';
 import { useAnalytics } from '../hooks/useAnalytics.js';
 import Avatar from '../components/Avatar.jsx';
 import { supabase } from '../lib/supabase.js';
+import { liftMember, liftMembersRelation } from '../lib/peopleLift.js'; // v0.16.14 — Task #52 stage 1
 import { formatMessageTimestamp } from '../lib/timeFormat.js';
 import { markThreadRead, hideThread } from '../hooks/useInbox.js';
 import PendingGuard from '../components/PendingGuard.jsx';
@@ -81,7 +82,8 @@ export default function Thread({ params }) {
       let senderMap = {};
       if (senderIds.length) {
         const [mb, rl] = await Promise.all([
-          supabase.from('members').select('user_id, name, photo_url')
+          // v0.16.14 — Task #52 stage 1: name + photo_url via embedded people row.
+          supabase.from('members').select('user_id, people(name, photo_url)')
             .eq('club_id', t.club_id).in('user_id', senderIds),
           supabase.from('user_roles').select('user_id, role, display_name')
             .in('user_id', senderIds)
@@ -95,12 +97,15 @@ export default function Thread({ params }) {
           senderMap[r.user_id] = { name: label, kind: 'staff', photoUrl: null };
         });
         (mb.data || []).forEach(m => {
+          // v0.16.14 — Task #52 stage 1: name + photo_url live on people.
+          const mName  = m.people?.name      ?? m.name;
+          const mPhoto = m.people?.photo_url ?? m.photo_url;
           if (!senderMap[m.user_id]) {
-            senderMap[m.user_id] = { name: m.name, kind: 'member', photoUrl: m.photo_url || null };
+            senderMap[m.user_id] = { name: mName, kind: 'member', photoUrl: mPhoto || null };
           } else {
             // Staff that's also a member of this club — keep the staff
             // label but bring in their photo.
-            senderMap[m.user_id].photoUrl = m.photo_url || null;
+            senderMap[m.user_id].photoUrl = mPhoto || null;
           }
         });
       }
@@ -129,17 +134,22 @@ export default function Thread({ params }) {
       let ctx = null;
       let other = null;
       if (t.kind === 'order' && t.context_table === 'food_orders' && t.context_id) {
-        const { data: ord } = await supabase
+        // v0.16.14 — Task #52 stage 1: name via embedded people row;
+        // lift onto the members embed so consumers reading
+        // `ord.members?.name` keep working.
+        const { data: ordRaw } = await supabase
           .from('food_orders')
-          .select('id, status, items, subtotal, hole, location_note, created_at, member_id, members(name)')
+          .select('id, status, items, subtotal, hole, location_note, created_at, member_id, members(people(name))')
           .eq('id', t.context_id)
           .maybeSingle();
-        ctx = ord;
+        ctx = ordRaw ? { ...ordRaw, members: liftMember(ordRaw.members) } : null;
       } else if (t.kind === 'dm') {
-        const { data: parts } = await supabase
+        // v0.16.14 — Task #52 stage 1: lift members.name through embedded people.
+        const { data: partsRaw } = await supabase
           .from('thread_participants')
-          .select('user_id, member_id, members(name, membership_number)')
+          .select('user_id, member_id, members(membership_number, people(name))')
           .eq('thread_id', threadId);
+        const parts = liftMembersRelation(partsRaw, 'members');
         const otherPart = (parts || []).find(p => p.user_id !== session?.user?.id);
         if (otherPart) other = otherPart;
       }

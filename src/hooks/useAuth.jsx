@@ -94,33 +94,56 @@ export function AuthProvider({ children }) {
       setPermissions({});
       return;
     }
-    // v0.16.13 — `select('*')` justified: this is the user's OWN
-    // member row (RLS-gated to user_id = auth.uid()). Consumed
-    // app-wide for name, photo, tier, hcp, locker, allow_dms,
-    // display_mode, status, notes, terms_accepted_*, etc. — every
-    // field is read somewhere. The `members` table has no
-    // server-secret columns. Tightening here would mean updating
-    // this read on every column add.
+    // v0.16.14 — Task #52 stage 1: embed people(name, email, phone,
+    // photo_url) so the stable per-person fields come from the
+    // canonical people table. We then LIFT the people fields onto
+    // the member object below so app-wide consumers (member.name,
+    // member.email, etc., in dozens of screens) don't need to
+    // change. `select('*')` still pulls every per-club column
+    // (tier, hcp, locker, allow_dms, display_mode, status, notes,
+    // terms_accepted_*); during stage 1 the duplicate name/email/
+    // phone/photo_url cols also come along but the lift below
+    // prefers the people values. Stage 2 (v0.16.15) drops the
+    // duplicates from members and the `?? m.X` fallbacks become
+    // dead.
     let { data: m } = await supabase
       .from('members')
-      .select('*')
+      .select('*, people(name, email, phone, photo_url)')
       .eq('club_id', club.id)
       .eq('user_id', session.user.id)
       .maybeSingle();
+    if (m) {
+      m = {
+        ...m,
+        name:      m.people?.name      ?? m.name,
+        email:     m.people?.email     ?? m.email,
+        phone:     m.people?.phone     ?? m.phone,
+        photo_url: m.people?.photo_url ?? m.photo_url,
+      };
+    }
 
     // If no member row is linked yet, try to claim a pending one with the
     // matching email (set up by staff via "Add Member" or CSV import).
     if (!m) {
       const { data: claimed } = await supabase.rpc('claim_member_by_email', { p_club_id: club.id });
       if (claimed) {
-        // v0.16.13 — `select('*')` justified: refetch of the same
-        // self-row claimed above; identical scope justification.
+        // v0.16.14 — embed people + lift, same pattern as above.
         const refetch = await supabase
           .from('members')
-          .select('*')
+          .select('*, people(name, email, phone, photo_url)')
           .eq('id', claimed)
           .maybeSingle();
-        m = refetch.data;
+        if (refetch.data) {
+          m = {
+            ...refetch.data,
+            name:      refetch.data.people?.name      ?? refetch.data.name,
+            email:     refetch.data.people?.email     ?? refetch.data.email,
+            phone:     refetch.data.people?.phone     ?? refetch.data.phone,
+            photo_url: refetch.data.people?.photo_url ?? refetch.data.photo_url,
+          };
+        } else {
+          m = null;
+        }
       }
     }
 
@@ -137,29 +160,40 @@ export function AuthProvider({ children }) {
     // service role, then re-query. Limit to ONE retry to avoid loops.
     let g = null;
     if (!m) {
-      // v0.16.13 — `select('*')` justified: user's own guest row
-      // (RLS-gated to user_id = auth.uid()). Consumed app-wide
-      // for status/access_level/expires_at/visit_type/referring
-      // member/etc. No server-secret columns on `guests`.
+      // v0.16.14 — Task #52 stage 1: embed people + lift, same
+      // pattern as members above. guests table has duplicate
+      // name/email/phone/zip cols that get dropped in stage 2.
       const { data: gRow } = await supabase
         .from('guests')
-        .select('*')
+        .select('*, people(name, email, phone, zip)')
         .eq('club_id', club.id)
         .eq('user_id', session.user.id)
         .maybeSingle();
-      g = gRow || null;
+      g = gRow ? {
+        ...gRow,
+        name:  gRow.people?.name  ?? gRow.name,
+        email: gRow.people?.email ?? gRow.email,
+        phone: gRow.people?.phone ?? gRow.phone,
+        zip:   gRow.people?.zip   ?? gRow.zip,
+      } : null;
 
       if (!g) {
         try {
           await supabase.functions.invoke('guest-link');
-          // v0.16.13 — same self-row, post-link re-query.
+          // v0.16.14 — same self-row, post-link re-query with lift.
           const { data: gRow2 } = await supabase
             .from('guests')
-            .select('*')
+            .select('*, people(name, email, phone, zip)')
             .eq('club_id', club.id)
             .eq('user_id', session.user.id)
             .maybeSingle();
-          g = gRow2 || null;
+          g = gRow2 ? {
+            ...gRow2,
+            name:  gRow2.people?.name  ?? gRow2.name,
+            email: gRow2.people?.email ?? gRow2.email,
+            phone: gRow2.people?.phone ?? gRow2.phone,
+            zip:   gRow2.people?.zip   ?? gRow2.zip,
+          } : null;
         } catch (e) {
           console.warn('[guest-link] failed (non-fatal):', e?.message);
         }
