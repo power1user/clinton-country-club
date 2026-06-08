@@ -1,14 +1,22 @@
-// manual.ts — v0.15.31 GroundsLive Admin AI manual content.
+// manual.ts — v0.16.19 GroundsLive Admin AI manual content.
 //
-// Last refresh covers everything through v0.15.31. Phase 17
-// (Departments + clubhouse topic routing) and the v0.15.16
-// PersonEditModal redesign (identity strip with status + role
-// pills, avatar photo upload, More details expander, notes
-// textarea) are now reflected in this manual. Also: server-side
-// People-list pagination (v0.15.28), configurable membership
-// tiers (v0.15.20). Imported into index.ts and injected as
-// cached system prompt content so prompt caching engages on
-// every admin question.
+// Last refresh covers everything through v0.16.19. Phase 18
+// (Security & Hardening Pass) closed 21 audit findings across
+// 3 review rounds. Task #52 finished the people-table
+// consolidation — duplicate name/email/phone/zip/photo_url
+// columns DROPPED from members + guests; canonical identity
+// lives ONLY on the `people` table; every member/guest links
+// via person_id NOT NULL FK. The bidirectional sync triggers
+// are retired. Confirm-modal pattern retired all native
+// confirm()/alert() calls. Rate limiting on guest-register
+// (IP + email buckets). Mobile back-button cascade fixed
+// across useNav + AdminPanel + useModalBackClose + ConfirmModal.
+//
+// Earlier coverage carried forward: Phase 17 (Departments +
+// topic routing), v0.15.16 PersonEditModal redesign, server-
+// side People list pagination, configurable tiers. Imported
+// into index.ts and injected as cached system prompt content
+// so prompt caching engages on every admin question.
 //
 // AUTHORING NOTES:
 // - Keep BYTE-STABLE for prompt caching. No timestamps, no UUIDs,
@@ -555,9 +563,20 @@ Older path: **People → Manage Staff** still works for the same operations + pe
 - **Workspaces are per-(user, club).** A super_admin viewing a club they don't usually manage sees the default workspace, not their own.
 - **The Member Guide is the member-side help.** When a member opens Help & Support from MyClub, they see pages from Member Guide plus a "Contact Club Staff" form that routes to the Clubhouse Messages sub-queue.
 - **support@groundslive.com is the platform team.** Inbound goes to the super_admin's Support inbox. Use the Contact Support modal in-app instead of email when possible — it auto-captures context.
-- **The \`people\` table is the canonical identity (Phase 16).** Stable per-person attributes (name, email, phone, photo, notes) live in \`people\` keyed by auth.user_id. \`members\` and \`guests\` hold per-club relations + per-club fields (handicap, locker, access_level, etc.). Bidirectional sync triggers (v0.15.19) keep \`members\` and \`guests\` shadow columns in sync with \`people\` — the shadow columns will eventually be dropped (deferred until the soak window completes).
+- **The \`people\` table is the canonical identity (Phase 16, finalized v0.16.16).** Stable per-person attributes (name, email, phone, photo, zip, notes) live ONLY in \`people\`. Every \`members\` row and every \`guests\` row links to a \`people\` row via the NOT NULL \`person_id\` FK. The shadow name/email/phone/zip/photo_url columns are DROPPED — they no longer exist on members or guests. The bidirectional sync triggers (v0.15.19) are retired. \`UNIQUE (club_id, person_id)\` on both tables enforces one membership/guest per person per club. One person can be a member at multiple clubs. **Pre-auth records are first-class** — admin can add a person before they ever log in (\`auth_user_id\` stays NULL on the \`people\` row until the claim flow stamps it via magic-link verification).
 - **Every lifecycle transition is audited.** \`people_audit_log\` captures who-did-what-when, including the reason text the admin supplied at the pill sub-modal. Trigger-based capture on members + guests (v0.15.18) means even direct-SQL changes show up in the log. Manager-only view inside PersonEditModal.
 - **Departments ≠ roles (Phase 17).** \`user_roles.role\` controls *permissions* (what you can do). \`user_departments\` controls *routing* (where work gets pushed). A person can be both a club_admin AND in the "Dining" department, OR just in a department without any user_role (a notification-target staffer).
+
+## 16b. Security & hardening (Phase 18)
+
+Phase 18 (v0.16.0–v0.16.19) closed a 21-finding external code audit across 3 review rounds. As an admin you don't see most of it — it's plumbing — but if you ever wonder "is X secure?" the answer is documented here.
+
+- **Permissions are tested.** A 56-test Vitest suite pins the permission matrix (16 tests), the \`meetsRequirements\` auth-gate predicate (16 tests), and the CORS allowlist (24 tests). If a regression flips a section from "manager-only" to "everyone-sees", the test suite catches it before merge.
+- **All Edge Functions are authenticated.** \`send-push\` has a shared-secret gate. \`check-club-health\` (the diagnostic ping) is super_admin only. CORS is narrowed from \`*\` to a \`*.groundslive.com\` allowlist via a shared helper.
+- **Repo is the schema source of truth.** Every DB change ships as a numbered \`.sql\` file in \`supabase/migrations/\` BEFORE being applied to prod. If you ever see drift between repo + DB, that's a bug — flag it.
+- **Confirm modal everywhere.** All destructive actions (delete, demote, remove) prompt with the shared \`<ConfirmProvider>\` dialog instead of the native browser \`confirm()\`. The dialog is back-button-aware (ESC cancels, backdrop cancels, phone back closes).
+- **Rate limiting on the guest-register endpoint.** Public guest registration is capped at 20 attempts per 10 min per IP and 5 attempts per hour per email. Prevents inbox-flood attacks. Returns 429 before any DB work.
+- **Defense in depth on mutations.** Admin update/delete queries scope by both \`id\` AND \`club_id\` — RLS would catch a cross-tenant attempt anyway, but the explicit scoping prevents a future RLS bug from becoming data corruption.
 
 ## 17. When to escalate to platform support
 

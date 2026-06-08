@@ -1,4 +1,14 @@
-// member-ai-chat manual.ts — v0.14.6 member-facing manual content.
+// member-ai-chat manual.ts — v0.16.19 member-facing manual content.
+//
+// Last refresh after Phase 18 (Security & Hardening) + Task #52
+// (people-table consolidation). Most of Phase 18's work is
+// server-side and invisible to members. Member-facing changes
+// of note: profile photo updates now write to the canonical
+// \`people\` row, destructive member-app actions (remove photo,
+// decline ToU) use the shared styled in-app confirm dialog
+// instead of the native OS prompt, and the phone back button
+// correctly closes modals before unwinding any surrounding
+// nav state.
 //
 // Mirrors the admin manual pattern. Imported into index.ts +
 // injected into the cached system prompt. Updating this file is
