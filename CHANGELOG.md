@@ -164,6 +164,77 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.17.x — Phase 19: QR onboarding codes
+
+A unified code-redemption flow that turns the universal QR (printable
+on golf balls, business cards, sales-meeting handouts) into a real
+onboarding pipeline. The QR carries zero secret; the code is the
+credential, given separately. Single landing page, four code types
+(only C + J implemented in v0.17.0), single magic-link flow,
+fully audited + rate-limited.
+
+---
+
+- **v0.17.0** — Phase 19 opens: QR onboarding (C + J codes shipping).
+
+  Migration `0009_phase19_qr_onboarding_codes.sql`:
+  - `pending_codes` table — single table, 4 prefix flavors:
+    `C-XXXXX` (create club), `J-XXXXX` (join member),
+    `S-XXXXX` (staff invite — scaffolded), `G-XXXXX` (guest day
+    pass — scaffolded). 5-digit numeric tail per prefix = 100K
+    combos each. Per-code wrong-attempt counter locks at 10.
+    Optional email-lock for high-stakes codes. Configurable
+    `max_redemptions` (1 = one-shot, N = multi-use, NULL = unlimited).
+  - `clubs.is_public_listed` (default `true`) — opt-in flag for
+    the public marketing landing page club lookup.
+  - RPCs: `get_public_club_brand(slug)` (anon-callable for the
+    landing page), `generate_pending_code(prefix)` (mint with
+    collision retry), `validate_code(code, email)` (pre-auth
+    check called by Edge Function before magic link),
+    `consume_code(code)` (post-auth atomic provisioning — creates
+    new club + grants `club_manager` for C-codes; creates pending
+    member for J-codes; increments redemption count; updates audit
+    fields).
+  - RLS: super_admin full access; club_manager full access to
+    codes scoped to their own club (J/S/G only).
+
+  Edge Function `redeem-code` v1 (deployed):
+  - Two stages in one function. `stage: 'request'` (pre-auth,
+    validates code + sends magic link to email). `stage: 'consume'`
+    (post-auth, atomically provisions).
+  - Rate limiting via Phase 18's `rate_limit_events` table:
+    `redeem_code_request_ip` (10/10min), `redeem_code_request_email`
+    (5/1hr), `redeem_code_consume_ip` (20/1hr).
+  - Request stage returns generic errors to prevent code probing;
+    consume stage exposes specific reasons (user already proved
+    code ownership by clicking the magic link).
+
+  Public pages (new):
+  - `src/screens/CodeLanding.jsx` at `/code` and `/code?c=<slug>`.
+    Detects club brand via `get_public_club_brand`; renders generic
+    OR club-branded pitch. Code + email entry, auto-uppercases
+    code and auto-inserts the dash after the prefix letter.
+  - `src/screens/CodeFinish.jsx` at `/code/finish?code=<code>`.
+    Magic-link landing. Polls for session, calls `consume-code`,
+    redirects to the returned club URL. Friendly error states for
+    every defined error code.
+
+  Admin (super_admin):
+  - New "Onboarding Codes" section under Platform area.
+  - `OnboardingCodesAdmin.jsx` — list view with status pills
+    (Active / Redeemed / Expired / Revoked), copy + revoke
+    actions, "+ Generate Club Code" modal. Form: club name,
+    slug (auto-derived from name unless manually edited), optional
+    email-lock, expiry days (default 30). On generate: shows the
+    code BIG in a copy-friendly card.
+
+  Coming in v0.17.1: club_manager UI for J-codes (member-join QR
+  campaigns), S-codes (staff invites), G-codes (guest day passes).
+
+  Build: 1898 modules, 1.39MB bundle. Tests: 56/56 passing.
+
+---
+
 ## v0.16.x — Phase 18: Security & Hardening Pass
 
 External code audit surfaced 8 findings — 3 verified bugs (support push

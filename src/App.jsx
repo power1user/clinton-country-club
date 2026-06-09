@@ -57,6 +57,8 @@ import Settings from './screens/Settings.jsx';
 import Support from './screens/Support.jsx';
 import TermsGate from './screens/TermsGate.jsx';
 import GuestRegister from './screens/GuestRegister.jsx';
+import CodeLanding from './screens/CodeLanding.jsx';   // v0.17.0 — Phase 19
+import CodeFinish from './screens/CodeFinish.jsx';     // v0.17.0 — Phase 19
 import GuestThankYou from './screens/GuestThankYou.jsx';
 import MemberGuestQR from './screens/MemberGuestQR.jsx';
 
@@ -293,6 +295,18 @@ function isOnGuestRegistrationRoute() {
   return /^\/guest\/[a-z0-9-]+/i.test(window.location.pathname);
 }
 
+// v0.17.0 — Phase 19 QR onboarding code routes. Both live OUTSIDE
+// the normal auth Gate (anyone with a QR + code can land here, even
+// without an existing session).
+function isOnCodeLandingRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/code\/?$/i.test(window.location.pathname);
+}
+function isOnCodeFinishRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/code\/finish\/?$/i.test(window.location.pathname);
+}
+
 // v0.11.14 — deep-link detection. Returns a "deep link" sentinel that
 // NavProvider applies on mount. Today only `/admin` is recognized —
 // drops the manager directly onto the admin panel, skipping the
@@ -326,6 +340,17 @@ function Gate() {
   // Shows the branded landing + form before any other gate logic fires.
   if (isOnGuestRegistrationRoute()) {
     return <GuestRegister />;
+  }
+
+  // v0.17.0 — Phase 19 QR onboarding code routes. Both fire BEFORE
+  // any club/session checks. The landing page is the universal QR
+  // target. The finish page handles the magic-link callback and
+  // calls the consume endpoint.
+  if (isOnCodeLandingRoute()) {
+    return <CodeLanding />;
+  }
+  if (isOnCodeFinishRoute()) {
+    return <CodeFinish />;
   }
 
   // v0.16.1 — if the club row failed to load (bad slug, RLS issue,

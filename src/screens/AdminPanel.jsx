@@ -25,6 +25,8 @@ import AIUsageAdmin from './admin/AIUsageAdmin.jsx';
 // in members/guests/user_roles).
 import AllPeopleAdmin from './admin/AllPeopleAdmin.jsx';
 import DepartmentsAdmin from './admin/DepartmentsAdmin.jsx';
+// v0.17.0 — Phase 19 QR onboarding codes.
+import OnboardingCodesAdmin from './admin/OnboardingCodesAdmin.jsx';
 import ClubhouseRoutingAdmin from './admin/ClubhouseRoutingAdmin.jsx';
 import MemberTiersAdmin from './admin/MemberTiersAdmin.jsx';
 // v0.14.9 — Floating Admin AI bubble for the MOBILE shell. Desktop
@@ -286,6 +288,8 @@ const AREAS = [
     sections: [
       { id: 'superadmins',   l: 'Super Admins',   d: 'Promote / demote platform admins',  icon: IconShield  },
       { id: 'allclubs',      l: 'All Clubs',      d: 'Manage every club on the platform', icon: IconFlag    },
+      // v0.17.0: Phase 19 — QR onboarding codes (club-create flow).
+      { id: 'onboardingcodes', l: 'Onboarding Codes', d: 'Generate C-codes for prospect clubs (QR sign-up)', icon: IconList },
       // v0.7.7: audit log of every Cloudflare provision attempt.
       { id: 'provisionlog',  l: 'Provision Log',  d: 'Cloudflare DNS automation history', icon: IconList    },
       // v0.13.1: support inbox + team management (Phase 14).
@@ -378,6 +382,7 @@ export function SectionContent({ sec, club, isManager, isSuperAdmin, isAdmin, ha
       {sec === 'guests'         && <GuestManagementAdmin />}
       {sec === 'superadmins'    && <SuperAdminsAdmin />}
       {sec === 'allclubs'       && <AllClubsAdmin />}
+      {sec === 'onboardingcodes' && <OnboardingCodesAdmin />}
       {sec === 'provisionlog'   && <ProvisionLogAdmin />}
       {sec === 'aiusage'        && <AIUsageAdmin />}
       {sec === 'support'        && <SupportAdmin />}
