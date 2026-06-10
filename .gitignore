@@ -27,3 +27,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code session-specific (launch.json with absolute paths, etc.)
+.claude/
+
+# Supabase CLI temp
+supabase/.temp/

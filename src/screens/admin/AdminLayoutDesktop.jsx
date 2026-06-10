@@ -216,7 +216,7 @@ export default function AdminLayoutDesktop({
         {/* Sidebar header — Grounds platform mark at top, then the
             club identity (eyebrow + title), then the v0.11.11
             workspace switcher chip. Visual hierarchy from top
-            establishes "this is The Grounds platform; you're
+            establishes "this is Grounds Live platform; you're
             administering Clinton CC inside it." */}
         <div style={{
           padding: '14px 18px',
@@ -244,7 +244,7 @@ export default function AdminLayoutDesktop({
               color: '#C4A040',
               letterSpacing: '0.04em',
             }}>
-              The Grounds
+              Grounds Live
             </span>
           </div>
 

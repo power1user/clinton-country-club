@@ -1,4 +1,4 @@
-# The Grounds — Country Club Member App
+# Grounds Live — Country Club Member App
 
 A mobile-first member engagement platform for country clubs. Architected
 as a multi-tenant SaaS: one codebase + one database serves every club,
@@ -76,7 +76,7 @@ Cloudflare DNS provision — not a code change or a new deploy.
 
 > Phase 15 (v0.14.0-8) was **two-agent embedded AI** built on Claude
 > Haiku 4.5 with Anthropic prompt caching. **Admin AI** lives in the
-> admin topbar; knows the full admin manual + bills to The Grounds.
+> admin topbar; knows the full admin manual + bills to Grounds Live.
 > **Member AI** is a dismissible floating bubble on every member
 > screen, gated per-club by `feature_flags.member_ai` (default OFF);
 > has 5 live-data tools and bills per-club. One `ai_usage_log` table;
@@ -110,7 +110,7 @@ who's on the bulletin board — alongside a real messaging inbox
 flow, all backed by a shared admin panel staff use to run day-to-day
 ops.
 
-The "platform" layer ("The Grounds") sits above each club: same
+The "platform" layer ("Grounds Live") sits above each club: same
 codebase + database, isolated by `club_id`, white-labeled per club via
 logo + 3 brand colors + hero photo + tagline.
 
@@ -241,11 +241,11 @@ logo + 3 brand colors + hero photo + tagline.
 - Realtime palette sync — manager edits push to every open session
 - Logo + hero in `club-assets` bucket (RLS-scoped per club)
 
-### 🏷️ Parent Brand ("The Grounds")
+### 🏷️ Parent Brand ("Grounds Live")
 - Loading splash with grounds-icon + wordmark + tagline (min 1500ms floor
   so brand is actually visible on fast loads)
-- Sign-in footer "Powered by The Grounds"
-- MyClub bottom: "Powered by The Grounds · v{VERSION}" (reads from `version.js`)
+- Sign-in footer "Powered by Grounds Live"
+- MyClub bottom: "Powered by Grounds Live · v{VERSION}" (reads from `version.js`)
 - Favicon + Apple touch icon + PWA manifest icons all use the platform mark
 - Service worker push notification badge uses the platform mark
 
@@ -853,6 +853,6 @@ See [`CHANGELOG.md`](./CHANGELOG.md) for the per-version history and
 
 ## License + attribution
 
-Private project. "Powered by The Grounds" appears in three places per
+Private project. "Powered by Grounds Live" appears in three places per
 the platform-brand design (loading splash, sign-in footer, MyClub
 footer). Country club content is owned by each club.

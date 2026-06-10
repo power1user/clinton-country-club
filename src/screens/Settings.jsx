@@ -24,7 +24,8 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { useNav } from '../hooks/useNav.jsx';
 import { PLATFORM_NAME, VERSION } from '../lib/version.js';
-import { termsSections, CURRENT_TERMS_DATE } from '../lib/terms.js';
+import { CURRENT_TERMS_DATE, CURRENT_TERMS_VERSION } from '../lib/terms.js';
+import MarketingPrefsCard from '../components/MarketingPrefsCard.jsx';
 
 export default function Settings() {
   const { member, club, isGuest } = useAuth();
@@ -32,12 +33,6 @@ export default function Settings() {
   const displayModeOn = useFlag('display_mode');
   const profilePhotosOn = useFlag('profile_photos');
   const guestFlagOn = useFlag('guest_registration');
-  // v0.7.12: About section's collapsible Terms re-view. Default
-  // collapsed so the section stays short; expanding renders the
-  // full terms inline (no separate screen / modal needed —
-  // termsSections() returns the same body TermsGate uses on first
-  // accept).
-  const [termsOpen, setTermsOpen] = useState(false);
 
   // v0.7.10: once a member visits Settings, they know the persistent
   // Install entry lives here — no need to keep showing the MyClub
@@ -74,6 +69,18 @@ export default function Settings() {
 
         <SectionHeading>Notifications</SectionHeading>
         <NotificationsToggle />
+
+        {/* v0.18.0 — Marketing communications. Email + SMS toggles, each
+            independent; every change writes a consent_log row. Hidden
+            for guests (they pass through their own consent at QR
+            registration; managing prefs is a member feature). */}
+        {!isGuest && member?.person_id && (
+          <>
+            <div style={{ marginTop: 18 }} />
+            <SectionHeading>Communications</SectionHeading>
+            <MarketingPrefsCard />
+          </>
+        )}
 
         {/* Privacy — DM opt-out auto-hides itself when the club's
             dms flag is off, so no manual condition needed here. */}
@@ -167,53 +174,52 @@ export default function Settings() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Help & Support</p>
             <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0', lineHeight: 1.4 }}>
-              FAQs, contact The Grounds, or reach your club directly
+              FAQs, contact {PLATFORM_NAME}, or reach your club directly
             </p>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
         </div>
 
-        {/* About — v0.7.12. Five rows, all read-only:
-              · Review Terms of Use (expand inline)
-              · Privacy is covered in the ToU — surfaced as a sub-
-                line under the ToU row so members searching for
-                "privacy" land here without a separate stub
-              · App version (matches MyClub footer)
-              · Powered by The Grounds
-              · Support contact — club email if set, otherwise the
-                platform's support inbox
-            Keeps members from having to dig elsewhere for legal /
-            version / contact info. */}
+        {/* About — v0.18.0. Six rows, all read-only:
+              · Terms of Use → opens /terms in new tab
+              · Privacy Policy → opens /privacy in new tab
+              · App version
+              · Powered by Grounds Live
+              · Support contact */}
         <div style={{ marginTop: 18 }} />
         <SectionHeading>About</SectionHeading>
         <div style={{ background: G.card, border: `1px solid ${G.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          {/* Terms of Use — expandable */}
-          <div onClick={() => setTermsOpen(o => !o)} data-tap style={{ padding: '12px 14px', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Terms of Use</p>
-                <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
-                  Includes privacy policy · last updated {CURRENT_TERMS_DATE}
-                </p>
-              </div>
-              <svg
-                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"
-                style={{ transform: termsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.18s' }}
-              ><path d="M9 18l6-6-6-6" /></svg>
+          {/* Terms of Use — external link */}
+          <a
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', textDecoration: 'none' }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Terms of Use</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                Version {CURRENT_TERMS_VERSION} · last updated {CURRENT_TERMS_DATE}
+              </p>
             </div>
-          </div>
-          {termsOpen && (
-            <div style={{ borderTop: `1px solid ${G.border}`, padding: '14px 16px', background: G.bg, maxHeight: 360, overflowY: 'auto' }}>
-              {termsSections(club?.name || 'your club').map((s, i) => (
-                <div key={i} style={{ marginBottom: 12 }}>
-                  {s.heading && (
-                    <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 12, fontWeight: 700, color: G.text, margin: '0 0 4px' }}>{s.heading}</p>
-                  )}
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.text, lineHeight: 1.6, margin: 0 }}>{s.paragraph}</p>
-                </div>
-              ))}
+            <ExternalIcon />
+          </a>
+
+          {/* Privacy Policy — external link */}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}`, textDecoration: 'none' }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500, margin: 0 }}>Privacy Policy</p>
+              <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '2px 0 0' }}>
+                How your information is used and protected
+              </p>
             </div>
-          )}
+            <ExternalIcon />
+          </a>
 
           {/* App version */}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}` }}>
@@ -227,16 +233,14 @@ export default function Settings() {
             <span style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 13, color: G.brass }}>{PLATFORM_NAME}</span>
           </div>
 
-          {/* Support contact — prefer the club's email, fall back to
-              a platform support address. mailto: works on every
-              device including PWAs. */}
+          {/* Support contact */}
           <a
-            href={`mailto:${club?.contact_email || 'support@thegrounds.app'}`}
+            href={`mailto:${club?.contact_email || 'support@groundslive.com'}`}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderTop: `1px solid ${G.border}`, textDecoration: 'none' }}
           >
             <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.text, fontWeight: 500 }}>Contact support</span>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.brass, textDecoration: 'underline', textUnderlineOffset: 2 }}>
-              {club?.contact_email || 'support@thegrounds.app'}
+              {club?.contact_email || 'support@groundslive.com'}
             </span>
           </a>
         </div>
@@ -250,5 +254,15 @@ function SectionHeading({ children }) {
     <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.muted, letterSpacing: '0.14em', textTransform: 'uppercase', margin: '4px 0 8px', fontWeight: 700 }}>
       {children}
     </p>
+  );
+}
+
+function ExternalIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
   );
 }

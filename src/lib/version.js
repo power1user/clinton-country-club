@@ -490,10 +490,10 @@
 //             sentinel); both scenarios (real user back + Save
 //             button) tested.
 //   v0.14.x — Phase 15: GroundsLive AI. Two-agent, prompt-cached
-//             AI assistant embedded throughout The Grounds. The
+//             AI assistant embedded throughout Grounds Live. The
 //             Admin AI ships first (manager onboarding payoff is
 //             biggest) — accessed from the admin topbar, knows the
-//             admin manual + live club data, bills to The Grounds
+//             admin manual + live club data, bills to Grounds Live
 //             via mode='admin' rows in ai_usage_log. The Member AI
 //             ships as a floating bubble on member surfaces, gated
 //             per-club by feature_flags.member_ai (default OFF),
@@ -724,9 +724,11 @@
 // README cadence: README.md is refreshed at every MINOR bump (0.X.0).
 // PATCH bumps don't touch the README — CHANGELOG.md is the source of
 // truth between minor releases.
-export const VERSION = '0.17.0';
+export const VERSION = '0.18.0';
 
-// Parent platform brand. Shown as 'Powered by The Grounds' in the
+// Parent platform brand. Shown as 'Powered by Grounds Live' in the
 // sign-in footer, the loading splash, and the About row in MyClub.
-export const PLATFORM_NAME = 'The Grounds';
+// v0.18.0 — rebrand from "Grounds Live" → "Grounds Live" to align with
+// the public groundslive.com domain + the trademark search outcome.
+export const PLATFORM_NAME = 'Grounds Live';
 export const PLATFORM_TAGLINE = 'Your club. Your community. Always on.';

@@ -23,9 +23,9 @@
 //   ("Food & Drink" tab, not "Food tab").
 // - Markdown is fine — Haiku 4.5 reads it well.
 
-export const MEMBER_MANUAL = `# The Grounds — Member App Guide
+export const MEMBER_MANUAL = `# Grounds Live — Member App Guide
 
-Operating manual for the MyClub app — the member-facing PWA for clubs on The Grounds platform.
+Operating manual for the MyClub app — the member-facing PWA for clubs on Grounds Live platform.
 
 ## 1. What MyClub is
 
@@ -112,7 +112,7 @@ Personal hub. Top to bottom:
   - **Pro Shop** — catalog of items for sale (golf balls, tees, apparel, etc.). Tap an item to file an inquiry (no checkout — the pro coordinates the actual sale).
   - **Book a Lesson** — request a lesson with one of the club pros. Pick the pro, a date, leave notes.
   - **Member Guide** — the club's onboarding/reference content (house rules, FAQs, facility info). Managed by the manager.
-  - **Help & Support** — FAQs + contact your club + contact The Grounds platform.
+  - **Help & Support** — FAQs + contact your club + contact Grounds Live platform.
 
 In the header:
 - **Settings (gear icon)** — notifications (push toggle), DM opt-out, display mode (light/medium/dark — only if enabled), profile photo upload (only if enabled), Install as App (PWA), app version.

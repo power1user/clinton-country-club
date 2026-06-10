@@ -43,7 +43,7 @@ async function checkSuperAdmin(authHeader: string): Promise<{ ok: boolean; user_
   });
   const { data: u } = await sb.auth.getUser();
   if (!u?.user) return { ok: false, error: "invalid token" };
-  // v0.13.7 hotfix — The Grounds names the tenant column `club_id`
+  // v0.13.7 hotfix — Grounds Live names the tenant column `club_id`
   // (the supabase-rbac skill template used the generic `tenant_id`,
   // which doesn't exist in this schema). super_admin rows have
   // club_id IS NULL (platform-wide); other roles are club-scoped.

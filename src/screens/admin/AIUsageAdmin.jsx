@@ -83,7 +83,7 @@ export default function AIUsageAdmin() {
   return (
     <div>
       <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
-        Per-call AI cost log, rolled up per club, per user, per mode. Admin AI bills to The Grounds; Member AI rolls up per club. Window:
+        Per-call AI cost log, rolled up per club, per user, per mode. Admin AI bills to Grounds Live; Member AI rolls up per club. Window:
       </p>
 
       {/* Window picker */}

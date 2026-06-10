@@ -234,7 +234,7 @@ async function executeTool(name: string, input: any, clubId: string): Promise<st
   }
 }
 
-const SYSTEM_INSTRUCTIONS = `You are GroundsLive AI, an embedded helper inside the MyClub member app for a country club on The Grounds platform.
+const SYSTEM_INSTRUCTIONS = `You are GroundsLive AI, an embedded helper inside the MyClub member app for a country club on Grounds Live platform.
 
 Your audience is club members and (occasionally) guests visiting the club. Help them use the MyClub app: where to find things, how to do things, what the screens mean. You ALSO have access to live data tools — use them when the answer requires current information about THIS club.
 

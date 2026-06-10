@@ -51,7 +51,7 @@ async function requireSuperAdmin(req: Request): Promise<{ ok: true } | { ok: fal
   });
   const { data: u } = await anon.auth.getUser();
   if (!u?.user) return { ok: false, status: 401, error: "invalid token" };
-  // The Grounds schema: user_roles.club_id (not tenant_id — see
+  // Grounds Live schema: user_roles.club_id (not tenant_id — see
   // v0.13.7 hotfix). super_admin rows have club_id IS NULL.
   const { data: roles, error } = await anon
     .from("user_roles")

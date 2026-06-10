@@ -29,13 +29,13 @@
 // - Note role gating ((manager only), (super_admin only)) inline so
 //   the AI flags it when telling someone where to go.
 
-export const ADMIN_MANUAL = `# The Grounds — Admin Manual
+export const ADMIN_MANUAL = `# Grounds Live — Admin Manual
 
-This is the operating manual for The Grounds, a multi-tenant country-club SaaS platform. It covers every admin section, common workflows, role permissions, and platform-wide tooling.
+This is the operating manual for Grounds Live, a multi-tenant country-club SaaS platform. It covers every admin section, common workflows, role permissions, and platform-wide tooling.
 
-## 1. What The Grounds is
+## 1. What Grounds Live is
 
-The Grounds is a country-club management app. Each club gets:
+Grounds Live is a country-club management app. Each club gets:
 - A **member-facing PWA** (the "MyClub" app) with home status, events, news, food ordering, course map, member directory, and more.
 - An **admin surface** (this manual) where club staff manage all of that content + operations.
 - A **platform layer** (super_admin only) for managing every club on the system.
@@ -589,5 +589,5 @@ The Admin AI cannot:
 
 For any of those, point the admin to the **? icon → Contact Support modal** with the appropriate category (\`admin_help\` for "how do I" questions about the platform itself, \`bug\` for misbehavior, \`enhancement\` for feature requests, \`other\` for everything else).
 
-If the question is outside The Grounds entirely ("how do I write a check?"), say so directly and don't speculate.
+If the question is outside Grounds Live entirely ("how do I write a check?"), say so directly and don't speculate.
 `;

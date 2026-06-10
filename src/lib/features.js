@@ -181,7 +181,7 @@ export const FEATURES = {
   // ─── Add-Ons ───────────────────────────────────────────────────────
   // Paid extras gated by clubs.addons (migration 57). Manager only
   // sees a working toggle when super_admin has enabled the addon for
-  // this club. Otherwise the row renders as "Contact The Grounds to
+  // this club. Otherwise the row renders as "Contact Grounds Live to
   // enable" with the toggle disabled. The flag.addon property is the
   // marker — see featureState resolution below.
   sponsor_banners: {
@@ -192,7 +192,7 @@ export const FEATURES = {
     default_enabled: false,
     category:        'Add-Ons',
     addon:           true,
-    addon_blurb:     'Adds advertising banner placements on members\' Home + Golf screens. Drives sponsor revenue. Contact The Grounds to enable for your club.',
+    addon_blurb:     'Adds advertising banner placements on members\' Home + Golf screens. Drives sponsor revenue. Contact Grounds Live to enable for your club.',
   },
 
   // ─── Messaging ─────────────────────────────────────────────────────
@@ -344,7 +344,7 @@ export function isFeatureOn(club, flagKey) {
 }
 
 // Detailed state for admin UI — distinguishes "off because tier-locked"
-// from "off because manager turned it off" from "off because The Grounds
+// from "off because manager turned it off" from "off because Grounds Live
 // pinned it off" from "off because the add-on hasn't been purchased."
 // Lets us render different affordances in the Features panel.
 //

@@ -19,7 +19,7 @@ import { G } from '../theme.js';
 import { supabase, CLUB_SLUG } from '../lib/supabase.js';
 
 const PITCH_GENERIC = {
-  eyebrow: 'The Grounds',
+  eyebrow: 'Grounds Live',
   title: 'Welcome',
   body: "A country-club platform built for clubs that want their own member experience. Have a code from someone at a club? Enter it below.",
 };
@@ -109,7 +109,7 @@ export default function CodeLanding() {
   };
 
   // Color theming: if we have club brand, use their colors; otherwise
-  // fall back to The Grounds palette.
+  // fall back to Grounds Live palette.
   const primaryBg = brand?.primary_color || G.green;
   const accentBg  = brand?.accent_color  || G.brass;
   const titleColor = '#F2EDE0';
@@ -124,7 +124,7 @@ export default function CodeLanding() {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img
             src={brand?.logo_url || '/grounds-icon.png'}
-            alt={brand?.name || 'The Grounds'}
+            alt={brand?.name || 'Grounds Live'}
             style={{ width: 72, height: 72, borderRadius: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', objectFit: 'cover' }}
           />
         </div>
@@ -231,7 +231,7 @@ export default function CodeLanding() {
       {/* Footer attribution */}
       <div style={{ padding: '0 24px 24px', textAlign: 'center' }}>
         <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: 'rgba(242,237,224,0.4)', margin: 0, letterSpacing: '0.08em' }}>
-          Powered by The Grounds
+          Powered by Grounds Live
         </p>
       </div>
     </div>

@@ -228,7 +228,7 @@ export function AllClubsAdmin() {
           <FeaturesPanel
             club={fullClub}
             mode="platform"
-            headerNote="Toggles below write to this club's feature_flags. Hit 'Lock for this club' under any flag to pin the current value into feature_flags_locked — the manager will see 'Set by The Grounds' and the toggle will be disabled in their Features area."
+            headerNote="Toggles below write to this club's feature_flags. Hit 'Lock for this club' under any flag to pin the current value into feature_flags_locked — the manager will see 'Set by Grounds Live' and the toggle will be disabled in their Features area."
           />
         </div>
       </div>

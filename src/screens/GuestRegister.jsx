@@ -44,6 +44,8 @@ import { useBrand } from '../hooks/useBrand.jsx';
 import { usePWAInstall } from '../hooks/usePWAInstall.js';
 import { supabase, CLUB_SLUG } from '../lib/supabase.js';
 import { PLATFORM_NAME } from '../lib/version.js';
+import ConsentCheckboxes, { EMPTY_CONSENT, isConsentValid } from '../components/ConsentCheckboxes.jsx';
+import { CONSENT_TEXT, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from '../lib/terms.js';
 
 // Parse the URL params once at module load (the page is a single-load
 // surface — guests don't navigate within it).
@@ -72,7 +74,7 @@ export default function GuestRegister() {
   const [email, setEmail]     = useState('');
   const [phone, setPhone]     = useState('');
   const [zip, setZip]         = useState('');
-  const [accept, setAccept]   = useState(false);
+  const [consent, setConsent] = useState(EMPTY_CONSENT);
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState(null);
   const [submitted, setSubmitted] = useState(false);
@@ -93,13 +95,14 @@ export default function GuestRegister() {
   const pwaRequired       = !!club?.guest_pwa_required;
   const pwaRequirementMet = !pwaRequired || isStandalone;
 
+  const hasPhone = phone.trim().length >= 5;
   const formValid =
     pwaRequirementMet &&
     name.trim().length >= 2 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     zip.trim().length >= 5 &&
-    accept &&
-    (!phoneRequired || phone.trim().length >= 5);
+    isConsentValid(consent) &&
+    (!phoneRequired || hasPhone);
 
   const handleInstall = async () => {
     if (pwaBusy) return;
@@ -137,6 +140,16 @@ export default function GuestRegister() {
           visit_type: via === 'member_qr' ? 'member_guest' : 'public_play',
           check_in_method: via === 'member_qr' ? 'member_qr' : 'clubhouse_qr',
           redirect_to: `${window.location.origin}/`,
+          // v0.18.0 — TCPA/CAN-SPAM: 4 unbundled consents. The server
+          // writes consent_log rows for each + updates people.opt_in
+          // columns under service role. We pass the exact text strings
+          // shown to the user so the log is verbatim evidence.
+          consents: {
+            terms_and_privacy: { value: true, text: CONSENT_TEXT.terms_and_privacy, terms_version: CURRENT_TERMS_VERSION, privacy_version: CURRENT_PRIVACY_VERSION },
+            age_18_plus:       { value: true, text: CONSENT_TEXT.age_18_plus },
+            email_marketing:   { value: !!consent.emailMarketing, text: CONSENT_TEXT.email_marketing },
+            sms_marketing:     { value: !!(consent.smsMarketing && hasPhone), text: CONSENT_TEXT.sms_marketing },
+          },
         },
       });
       if (error || !data?.ok) {
@@ -247,17 +260,14 @@ export default function GuestRegister() {
             <input value={zip} onChange={e => setZip(e.target.value)} placeholder="60010" style={inputStyle} autoComplete="postal-code" inputMode="text" />
           </Field>
 
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 0 18px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={accept}
-              onChange={e => setAccept(e.target.checked)}
-              style={{ marginTop: 3, flexShrink: 0 }}
+          <div style={{ padding: '8px 0 14px' }}>
+            <ConsentCheckboxes
+              values={consent}
+              onChange={setConsent}
+              hasPhone={hasPhone}
+              compact
             />
-            <span style={{ fontFamily: '"Lora",serif', fontSize: 12, color: G.muted, lineHeight: 1.55 }}>
-              I agree to the club's terms of use and acknowledge that guest access is time-limited and may be revoked by club staff at any time.
-            </span>
-          </label>
+          </div>
 
           {err && (
             <div style={{ padding: '10px 14px', marginBottom: 12, background: 'rgba(167,67,55,0.10)', border: `1px solid ${G.clsDot}`, borderRadius: 4 }}>

@@ -1,7 +1,7 @@
-// guest-register v13 — v0.16.16. Task #52 stage 2c: write
-// name/email/phone/zip to the canonical `people` row, not the
-// (now-dropped) duplicate columns on `guests`. Upserts people
-// first by email, then upserts guests by (club_id, person_id).
+// guest-register v14 — v0.18.0. Accepts 4-consent payload, validates
+// Terms+Privacy and 18+ as required, writes consent_log rows + updates
+// people.opt_in / age columns. Previous v13 (v0.16.16) introduced the
+// people-canonical writes (Task #52 stage 2c).
 //
 // (For history: v12 / v0.16.13 added IP + email rate limiting;
 // v11 / v0.14.13 locked the magic-link redirect to the canonical
@@ -147,6 +147,7 @@ Deno.serve(async (req) => {
       clubhouse_token,
       visit_type,
       check_in_method,
+      consents,         // v0.18.0 — TCPA/CAN-SPAM 4-consent payload
     } = body || {};
     // v0.14.13: client-supplied `redirect_to` is now IGNORED. We always
     // use the canonical {slug}.{ROOT_DOMAIN}/ URL we look up server-side.
@@ -165,6 +166,20 @@ Deno.serve(async (req) => {
     }
     if (!zip || !validZip(String(zip))) {
       return json({ ok: false, error: 'A valid ZIP / postal code is required' }, 400);
+    }
+
+    // v0.18.0 — required-consent gate. Both Terms+Privacy and 18+ must
+    // be affirmatively true. Marketing consents are optional but the
+    // payload must declare them either way so the consent_log captures
+    // an explicit "no" rather than silence.
+    if (!consents || typeof consents !== 'object') {
+      return json({ ok: false, error: 'Missing consent acknowledgments' }, 400);
+    }
+    if (consents.terms_and_privacy?.value !== true) {
+      return json({ ok: false, error: 'Terms of Use and Privacy Policy must be accepted' }, 400);
+    }
+    if (consents.age_18_plus?.value !== true) {
+      return json({ ok: false, error: 'Age 18+ confirmation is required' }, 400);
     }
 
     // v0.16.13 — second-tier rate limit on the email itself. 5 attempts
@@ -334,6 +349,68 @@ Deno.serve(async (req) => {
       referring_member_id: resolvedMemberId,
       check_in_method: checkInMethod,
     });
+
+    // v0.18.0 — write consent_log rows (append-only, evidence). Service
+    // role bypasses RLS; the no-update/no-delete triggers still apply.
+    // auth_user_id is null here because the magic-link sign-in hasn't
+    // happened yet — the consent_log row links via person_id, which is
+    // stable across the guest → magic-link → session transition.
+    const emailLowerForConsent = String(email).trim().toLowerCase();
+    const consentRows = [
+      {
+        person_id: personId,
+        club_id: club.id,
+        consent_type: 'terms_and_privacy',
+        consent_value: true,
+        consent_text: String(consents.terms_and_privacy?.text || 'I agree to the Terms of Use and Privacy Policy.').slice(0, 2000),
+        contact_value: emailLowerForConsent,
+        source: 'registration',
+        terms_version: consents.terms_and_privacy?.terms_version ?? null,
+        privacy_version: consents.terms_and_privacy?.privacy_version ?? null,
+      },
+      {
+        person_id: personId,
+        club_id: club.id,
+        consent_type: 'age_18_plus',
+        consent_value: true,
+        consent_text: String(consents.age_18_plus?.text || 'I confirm that I am 18 years of age or older.').slice(0, 2000),
+        contact_value: emailLowerForConsent,
+        source: 'registration',
+      },
+      {
+        person_id: personId,
+        club_id: club.id,
+        consent_type: 'email_marketing',
+        consent_value: consents.email_marketing?.value === true,
+        consent_text: String(consents.email_marketing?.text || '').slice(0, 2000),
+        contact_value: emailLowerForConsent,
+        source: 'registration',
+      },
+      {
+        person_id: personId,
+        club_id: club.id,
+        consent_type: 'sms_marketing',
+        consent_value: consents.sms_marketing?.value === true && !!phoneToStore,
+        consent_text: String(consents.sms_marketing?.text || '').slice(0, 2000),
+        contact_value: phoneToStore || emailLowerForConsent,
+        source: 'registration',
+      },
+    ];
+    const { error: consentErr } = await admin.from('consent_log').insert(consentRows);
+    if (consentErr) {
+      console.error('[guest-register] consent_log insert failed:', consentErr.message);
+      // Not a fatal failure — guest is already registered. Log + continue.
+    }
+
+    // Mirror to people.opt_in / age columns so send-time checks are O(1).
+    await admin.from('people').update({
+      age_affirmed_18: true,
+      age_affirmed_18_at: new Date().toISOString(),
+      email_marketing_opt_in: consents.email_marketing?.value === true,
+      email_marketing_opt_in_at: new Date().toISOString(),
+      sms_marketing_opt_in: consents.sms_marketing?.value === true && !!phoneToStore,
+      sms_marketing_opt_in_at: new Date().toISOString(),
+    }).eq('id', personId);
 
     // v0.14.13: ALWAYS use the canonical URL. Never trust the client.
     const canonicalRedirect = `https://${club.slug}.${ROOT_DOMAIN}/`;

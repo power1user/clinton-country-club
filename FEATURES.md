@@ -1,7 +1,7 @@
-# The Grounds — Feature Catalog
+# Grounds Live — Feature Catalog
 
 Comprehensive inventory of every fully-live, tested feature shipped on
-The Grounds platform. Organized first by audience (Front-Facing for
+Grounds Live platform. Organized first by audience (Front-Facing for
 members + guests, Admin for club staff + platform), then by category.
 
 Excludes: placeholder features (e.g. Tee Time Booking — UI only, no

@@ -61,6 +61,8 @@ import CodeLanding from './screens/CodeLanding.jsx';   // v0.17.0 — Phase 19
 import CodeFinish from './screens/CodeFinish.jsx';     // v0.17.0 — Phase 19
 import GuestThankYou from './screens/GuestThankYou.jsx';
 import MemberGuestQR from './screens/MemberGuestQR.jsx';
+import TermsPublic from './screens/TermsPublic.jsx';   // v0.18.0 — public /terms
+import PrivacyPublic from './screens/PrivacyPublic.jsx'; // v0.18.0 — public /privacy
 
 const SCREENS = {
   home: Home,
@@ -307,6 +309,18 @@ function isOnCodeFinishRoute() {
   return /^\/code\/finish\/?$/i.test(window.location.pathname);
 }
 
+// v0.18.0 — public legal pages. Anyone (signed-in or not) can read the
+// canonical ToU + Privacy Policy. Linked from the TermsGate, signup
+// screens, Settings, and from each document to the other.
+function isOnTermsRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/terms\/?$/i.test(window.location.pathname);
+}
+function isOnPrivacyRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/privacy\/?$/i.test(window.location.pathname);
+}
+
 // v0.11.14 — deep-link detection. Returns a "deep link" sentinel that
 // NavProvider applies on mount. Today only `/admin` is recognized —
 // drops the manager directly onto the admin panel, skipping the
@@ -351,6 +365,14 @@ function Gate() {
   }
   if (isOnCodeFinishRoute()) {
     return <CodeFinish />;
+  }
+
+  // v0.18.0 — public legal pages. No session check, no club lookup.
+  if (isOnTermsRoute()) {
+    return <TermsPublic />;
+  }
+  if (isOnPrivacyRoute()) {
+    return <PrivacyPublic />;
   }
 
   // v0.16.1 — if the club row failed to load (bad slug, RLS issue,
@@ -405,7 +427,7 @@ function Gate() {
           style={{ width: 96, height: 96, marginBottom: 18, borderRadius: 18, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}
         />
         <h1 style={{ fontFamily: '"Playfair Display",serif', fontSize: 32, fontWeight: 700, color: '#F2EDE0', margin: '0 0 4px', letterSpacing: '0.04em', textAlign: 'center' }}>
-          The Grounds
+          Grounds Live
         </h1>
         <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#C4A040', letterSpacing: '0.22em', textTransform: 'uppercase', margin: '0 0 18px', fontWeight: 600 }}>
           Member Experience Platform

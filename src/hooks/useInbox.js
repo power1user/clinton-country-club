@@ -245,7 +245,7 @@ export function useInbox() {
               .or(`club_id.eq.${club.id},club_id.is.null`),
           ]);
           (rl.data || []).forEach(r => {
-            senderMap[r.user_id] = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
+            senderMap[r.user_id] = r.display_name || (r.role === 'super_admin' ? 'Grounds Live' : 'Staff');
           });
           (mb.data || []).forEach(m => {
             // v0.16.14 — Task #52 stage 1: name lives on embedded people.

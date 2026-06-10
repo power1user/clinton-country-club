@@ -93,7 +93,7 @@ export default function Thread({ params }) {
         // photo always comes from the members row (staff don't have
         // photo_url on user_roles — they have a member row too).
         (rl.data || []).forEach(r => {
-          const label = r.display_name || (r.role === 'super_admin' ? 'The Grounds' : 'Staff');
+          const label = r.display_name || (r.role === 'super_admin' ? 'Grounds Live' : 'Staff');
           senderMap[r.user_id] = { name: label, kind: 'staff', photoUrl: null };
         });
         (mb.data || []).forEach(m => {
@@ -112,11 +112,11 @@ export default function Thread({ params }) {
       const enrichedMsgs = (msgs || []).map(m => {
         if (m.is_system) {
           // System messages get a kind-aware attribution:
-          //   · order threads → "The Grounds" (status notifications)
+          //   · order threads → "Grounds Live" (status notifications)
           //   · clubhouse threads → "The Clubhouse"
           //   · DMs → no attribution (system msgs don't really happen here)
           const label =
-            t.kind === 'order'     ? 'The Grounds' :
+            t.kind === 'order'     ? 'Grounds Live' :
             t.kind === 'clubhouse' ? 'The Clubhouse' :
                                      'System';
           return { ...m, sender_label: label, sender_kind: 'system' };
@@ -560,7 +560,7 @@ function ContextStrip({ thread, context, otherMember }) {
 // Every non-own message renders with the sender's name above the bubble so
 // you can tell who's talking — important in clubhouse threads where multiple
 // staff may answer, in DMs where the partner's name disappears as you scroll,
-// and in order threads where "The Grounds" should be visibly distinct from a
+// and in order threads where "Grounds Live" should be visibly distinct from a
 // human reply. System messages render as a chip with the same attribution.
 function MessageBubble({ message, ownUserId, showPhotos = false }) {
   if (message.is_system) {

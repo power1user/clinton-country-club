@@ -28,7 +28,7 @@
 // BILLING AXIS:
 //   Every row inserted into ai_usage_log carries mode='admin' —
 //   regardless of which club_id the calling manager belongs to.
-//   That's the "bills to The Grounds" attribution from the strategy
+//   That's the "bills to Grounds Live" attribution from the strategy
 //   thread. club_id is set for analytics (which clubs use admin AI)
 //   but NOT for billing aggregation.
 
@@ -98,13 +98,13 @@ async function checkAdmin(authHeader: string, postedClubId: string | null) {
 // discount automatically. Keep this BYTE-STABLE — no timestamps,
 // no user-specific interpolation, no UUIDs. Anything dynamic goes
 // in the user message turn.
-const SYSTEM_PROMPT_STATIC = `You are GroundsLive Admin Assistant, an embedded helper inside The Grounds — a multi-tenant SaaS country-club admin platform built by Marc Abla.
+const SYSTEM_PROMPT_STATIC = `You are GroundsLive Admin Assistant, an embedded helper inside Grounds Live — a multi-tenant SaaS country-club admin platform built by Marc Abla.
 
 Your audience is platform administrators (super_admin) and club managers/admins using the desktop or mobile admin surfaces.
 
 == YOUR JOB ==
 
-Help admins use The Grounds. Answer "how do I…" questions about the admin UI, explain what specific screens or features do, walk through workflows step-by-step, and triage problems by suggesting what to check.
+Help admins use Grounds Live. Answer "how do I…" questions about the admin UI, explain what specific screens or features do, walk through workflows step-by-step, and triage problems by suggesting what to check.
 
 == STYLE ==
 
@@ -115,7 +115,7 @@ Help admins use The Grounds. Answer "how do I…" questions about the admin UI, 
 
 == SCOPE BOUNDARIES ==
 
-You answer ONLY using the context provided in this conversation (the admin manual content, tool call results, and the user's question). If a question falls outside what The Grounds admin supports, say so plainly and suggest the most likely actual surface: "That sounds like a member-side question — members handle that from the MyClub app." or "For platform-level account changes, contact support@groundslive.com."
+You answer ONLY using the context provided in this conversation (the admin manual content, tool call results, and the user's question). If a question falls outside what Grounds Live admin supports, say so plainly and suggest the most likely actual surface: "That sounds like a member-side question — members handle that from the MyClub app." or "For platform-level account changes, contact support@groundslive.com."
 
 If you don't have enough context to answer confidently, say so. Don't invent admin features, screen names, or workflows that haven't been described to you.
 
@@ -129,7 +129,7 @@ End EVERY reply with the line:
 
 == REFERENCE MANUAL ==
 
-The full admin manual follows. Treat it as your authoritative source of truth about every screen, section, role, and workflow in The Grounds. When the user asks "how do I…" or "where do I find…", quote labels from this manual exactly.
+The full admin manual follows. Treat it as your authoritative source of truth about every screen, section, role, and workflow in Grounds Live. When the user asks "how do I…" or "where do I find…", quote labels from this manual exactly.
 
 ${ADMIN_MANUAL}
 `;
@@ -297,7 +297,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Log to ai_usage_log (every call — success and failure) ────
   // Mode is 'admin' regardless of which club the manager belongs to —
-  // admin AI bills to The Grounds, not the club.
+  // admin AI bills to Grounds Live, not the club.
   try {
     await admin.from("ai_usage_log").insert({
       club_id:               clubId,

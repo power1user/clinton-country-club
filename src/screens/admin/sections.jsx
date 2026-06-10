@@ -1290,7 +1290,7 @@ export function FeaturesAdmin() {
     <FeaturesPanel
       club={club}
       mode="manager"
-      headerNote="Each feature below controls a member-facing surface. Toggling off hides it from every member immediately — no rebuild, no re-deploy. Some flags require a higher subscription tier; those show locked. The Grounds can pin specific features on or off for your club; those show 'Set by The Grounds' and your toggle is disabled."
+      headerNote="Each feature below controls a member-facing surface. Toggling off hides it from every member immediately — no rebuild, no re-deploy. Some flags require a higher subscription tier; those show locked. Grounds Live can pin specific features on or off for your club; those show 'Set by Grounds Live' and your toggle is disabled."
     />
   );
 }
@@ -1302,7 +1302,7 @@ export function FeaturesAdmin() {
 //
 // mode='manager':
 //   · Reads/writes club.feature_flags via withFlagChange
-//   · feature_flags_locked entries render as 'Set by The Grounds' +
+//   · feature_flags_locked entries render as 'Set by Grounds Live' +
 //     disabled toggle (manager can't undo a platform lock)
 //   · Tier-locked flags render as a lock icon + upgrade hint
 //
@@ -1443,8 +1443,8 @@ function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle, o
             <span style={{ fontFamily: '"Lora",serif', fontSize: 9, color: G.brass, background: 'rgba(155,122,30,0.12)', padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>Coming soon</span>
           )}
           {platformLocked && (
-            <span title="Pinned by The Grounds" style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>
-              {isPlatform ? `Locked ${st.value ? 'On' : 'Off'}` : 'Set by The Grounds'}
+            <span title="Pinned by Grounds Live" style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', background: G.brass, padding: '1px 7px', borderRadius: 10, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {isPlatform ? `Locked ${st.value ? 'On' : 'Off'}` : 'Set by Grounds Live'}
             </span>
           )}
         </div>
@@ -1453,7 +1453,7 @@ function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle, o
         </p>
         {tierLocked && (
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
-            Requires {TIER_LABEL[flag.min_tier]} tier — contact The Grounds to upgrade.
+            Requires {TIER_LABEL[flag.min_tier]} tier — contact Grounds Live to upgrade.
           </p>
         )}
         {/* Manager-mode addon copy when not purchased — explains why
@@ -1462,7 +1462,7 @@ function FeatureRow({ flag, club, mode, busy, isFirst, onToggle, onLockToggle, o
             below (so super_admin doesn't see this duplicate). */}
         {addonGated && !isPlatform && (
           <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 10, color: G.brass, margin: '4px 0 0' }}>
-            {flag.addon_blurb || 'Add-On — Contact The Grounds to enable for your club.'}
+            {flag.addon_blurb || 'Add-On — Contact Grounds Live to enable for your club.'}
           </p>
         )}
         {/* Platform-mode addon enable/disable affordance. Distinct
@@ -1686,7 +1686,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
 
       {/* v0.10.14 — Club Manager Support entry. Manager mode only
           (super_admin platform editing doesn't need this — they
-          ARE The Grounds). Separate inbox from general member
+          ARE Grounds Live). Separate inbox from general member
           support so escalations from clubs jump the line. mailto:
           subject is prefixed with the club name so routing is
           instant. */}
@@ -1705,7 +1705,7 @@ export function ClubSettingsForm({ club, mode = 'manager', headerNote }) {
               <p style={{ fontFamily: '"Lora",serif', fontSize: 9, color: '#F2E5C0', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, margin: 0 }}>Priority</p>
               <p style={{ fontFamily: '"Playfair Display",serif', fontSize: 14, fontWeight: 700, color: '#F2EDE0', margin: '1px 0 0' }}>Club Manager Support</p>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 10, color: '#A8D8B8', margin: '2px 0 0', lineHeight: 1.4 }}>
-                Direct line to The Grounds platform team — separate from the member queue
+                Direct line to Grounds Live platform team — separate from the member queue
               </p>
             </div>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 11, color: '#F2E5C0', flexShrink: 0 }}>managers@groundslive.com</span>

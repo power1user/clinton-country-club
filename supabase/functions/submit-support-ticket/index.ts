@@ -45,7 +45,7 @@ async function checkAdmin(authHeader: string, postedClubId: string | null) {
   const { data: u } = await sb.auth.getUser();
   if (!u?.user) return { ok: false, error: "invalid token" };
 
-  // The Grounds schema: user_roles.club_id (not tenant_id — see
+  // Grounds Live schema: user_roles.club_id (not tenant_id — see
   // v0.13.7 hotfix). super_admin rows have club_id IS NULL; other
   // admin roles have a specific club_id.
   const { data: roles } = await sb
@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
 
   const contextLines = [
     `--`,
-    `Submitted via The Grounds admin`,
+    `Submitted via Grounds Live admin`,
     url       ? `Page: ${url}`         : null,
     userAgent ? `Browser: ${userAgent}` : null,
     clubId    ? `Club: ${clubId}`       : null,

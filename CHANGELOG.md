@@ -164,6 +164,81 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.18.0 — Phase 20: "Grounds Live" rebrand + TCPA/CAN-SPAM consent compliance
+
+Two things shipping in one minor: the public-facing brand becomes
+**Grounds Live** (matching the `groundslive.com` domain and the
+Illinois trademark search outcome), and the platform now captures
+TCPA / CAN-SPAM-grade marketing consent + privacy compliance at every
+signup surface and in member Settings.
+
+Shipping plan (single-commit minor):
+
+- New canonical Terms of Use (Version 2, effective 2026-06-09) and
+  Privacy Policy (Version 1) both hosted publicly at `/terms` and
+  `/privacy`. Source: `docs/Grounds-Live-Terms-of-Use.docx` +
+  `docs/Grounds-Live-Privacy-Policy.docx`. Legacy "The Grounds"
+  references in operative clauses (arbitration, liability cap,
+  indemnification) normalized to "Grounds Live" per the rebrand.
+- **Migration 0010** adds the `consent_log` append-only table
+  (no UPDATE, no DELETE — enforced at both trigger AND policy layer),
+  plus `people.{email_marketing_opt_in, sms_marketing_opt_in,
+  age_affirmed_18}` mirror columns for O(1) send-time checks, plus
+  the `record_consent` SECURITY DEFINER RPC that's the single entry
+  point for consent writes. RLS gates SELECT to own row + super_admin
+  audit access.
+- **`CURRENT_TERMS_VERSION`** bumped 1 → 2. Existing members
+  re-flow through the rebuilt **TermsGate** on next login. The gate
+  now captures four consents in one screen with no forced scroll:
+  Terms+Privacy (required), 18+ age (required), email marketing
+  (optional, unchecked), and SMS marketing (optional, unchecked,
+  full TCPA disclosure visible inline). SMS box auto-disables for
+  users with no phone on file.
+- **GuestRegister, CodeFinish, CodeLanding** all adopt the same
+  4-checkbox pattern via the new shared `<ConsentCheckboxes>`
+  component. `guest-register` Edge Function (v14, deployed) writes
+  the consent_log rows server-side under service role and validates
+  that Terms+Privacy and 18+ are explicitly true. SMS opt-in honored
+  only if the guest provided a phone — never claims an opt-in
+  without a delivery channel.
+- **Settings** gets a new **Communications** section (`<MarketingPrefsCard>`)
+  with email + SMS toggles; every change writes a consent_log row
+  with `source='settings'` for audit trail. About section's inline
+  ToU expander replaced with crisp links to `/terms` and `/privacy`.
+- **`src/lib/messaging.js`** + **`supabase/functions/_shared/messaging.ts`**
+  classify every message category as transactional or marketing and
+  provide `shouldSend(category, person, channel)` → `{send, reason}`
+  for the consent-at-send-time pattern. Anything not explicitly
+  catalogued is fail-safe-treated as marketing (won't accidentally
+  send marketing without consent if someone forgets to register a
+  new category). SMS sending is NOT wired yet — this is scaffold
+  for the day Twilio (or equivalent) goes live.
+- **Rebrand sweep**: `PLATFORM_NAME` flipped from "The Grounds" → "Grounds Live".
+  ~50 user-facing strings updated across 26 files (UI screens, AI
+  prompts, Edge Function copy, README, FEATURES.md, manifest, public
+  landing arch HTML). Logo unchanged — the existing G icon is brand-
+  agnostic. Internal infrastructure names (Supabase project, Worker,
+  repo folder) intentionally left alone — no user-facing benefit
+  and non-trivial migration cost.
+- Historical `CHANGELOG.md` and the partner-review snapshot under
+  `docs/state-of-codebase-2026-06-07/` left as-is (those are
+  archival records of what shipped at each prior point in time).
+
+Manual / legal follow-up:
+
+- Legal should spot-check `src/screens/TermsPublic.jsx` because the
+  source .docx mixed "The Grounds" and "Grounds Live" in operative
+  clauses (arbitration line 17, liability cap section 14, etc.); the
+  rebrand sweep normalized all to "Grounds Live" — verify the
+  binding-arbitration / liability-cap text reads as intended before
+  any public launch.
+- New Terms of Use binds users to arbitration in Macon County, IL.
+- Phone field stays optional everywhere. Minors are categorically
+  not account-holders per ToU §1 and Privacy §10 — parents/guardians
+  hold accounts for under-18 junior members.
+
+---
+
 ## v0.17.x — Phase 19: QR onboarding codes
 
 A unified code-redemption flow that turns the universal QR (printable

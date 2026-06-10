@@ -1,7 +1,7 @@
 {
-  "name": "The Grounds",
-  "short_name": "The Grounds",
-  "description": "Country club member app, white-labeled per club, by The Grounds.",
+  "name": "Grounds Live",
+  "short_name": "Grounds Live",
+  "description": "Country club member app, white-labeled per club, by Grounds Live.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

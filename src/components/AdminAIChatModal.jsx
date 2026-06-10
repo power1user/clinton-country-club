@@ -316,7 +316,7 @@ export default function AdminAIChatModal({ open, onClose }) {
                 GroundsLive Admin AI
               </h3>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: 0, fontStyle: 'italic' }}>
-                Ask anything about managing The Grounds
+                Ask anything about managing Grounds Live
               </p>
             </div>
           </div>
@@ -333,7 +333,7 @@ export default function AdminAIChatModal({ open, onClose }) {
             // Empty state — starter chips
             <div>
               <p style={{ fontFamily: '"Lora",serif', fontSize: 14, color: G.text, lineHeight: 1.55, margin: '0 0 14px' }}>
-                Hi! I know every screen and workflow in The Grounds admin. Try:
+                Hi! I know every screen and workflow in Grounds Live admin. Try:
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {STARTERS.map(s => (

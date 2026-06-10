@@ -1,6 +1,6 @@
 # Supabase
 
-The Grounds' database, RLS, Edge Functions, and migration history. As of v0.16.3 (Phase 18), this folder is the **authoritative source for the Supabase side of the project** — no more out-of-band changes.
+Grounds Live' database, RLS, Edge Functions, and migration history. As of v0.16.3 (Phase 18), this folder is the **authoritative source for the Supabase side of the project** — no more out-of-band changes.
 
 ## Layout
 
