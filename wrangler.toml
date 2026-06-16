@@ -1,4 +1,4 @@
-# Cloudflare Pages / Workers Static Assets config.
+name = "the-grounds"# Cloudflare Pages / Workers Static Assets config.
 #
 # Cloudflare migrated Pages projects to the unified Workers + Static
 # Assets backend; the old `_redirects` SPA pattern (/* /index.html 200)
