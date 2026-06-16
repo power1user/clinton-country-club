@@ -8,10 +8,12 @@
 //     · inbox_food     — food_orders in active statuses
 //     · inbox_lessons  — pro_shop_inquiries (kind=lesson) not closed
 //     · inbox_proshop  — pro_shop_inquiries (other) not closed
+//     · inbox_clubhouse — threads where the last non-system message
+//                          is from a non-staff sender (member wrote,
+//                          staff hasn't replied yet — v0.19.4)
 //
 //   ACTIVITY FEED (badge = items added since last viewed)
 //     · inbox_guests     — new guest registrations
-//     · inbox_clubhouse  — new clubhouse threads
 //     · inbox_rsvps      — new event registrations
 //
 // Original v0.9.4 used "since last viewed" for every queue. That
@@ -125,6 +127,61 @@ export function useCommsUnread(clubId) {
       return count || 0;
     };
 
+    // v0.19.4 — Clubhouse threads moved from ACTIVITY-FEED ("new threads
+    // since last viewed") to OPEN-WORK ("threads where the last
+    // non-system message is from a non-staff sender"). Implemented
+    // client-side because MCP scope on the country club project was
+    // unavailable when this hotfix landed; if perf becomes a concern
+    // at scale, lift to a SECURITY DEFINER RPC.
+    const cOpenClubhouse = async () => {
+      const [staffRes, threadRes] = await Promise.all([
+        supabase
+          .from('user_roles')
+          .select('user_id, role, club_id'),
+        supabase
+          .from('threads')
+          .select('id')
+          .eq('club_id', clubId)
+          .eq('kind', 'clubhouse')
+          .limit(500),
+      ]);
+      const staffIds = new Set(
+        (staffRes.data || [])
+          .filter(r => r.role === 'super_admin' || r.club_id === clubId)
+          .map(r => r.user_id)
+      );
+      const threads = threadRes.data || [];
+      if (threads.length === 0) return 0;
+      const threadIds = threads.map(t => t.id);
+
+      // One round-trip for every non-system message across all threads,
+      // ordered newest-first. We walk the result and keep only the FIRST
+      // (= most recent) sender per thread.
+      const { data: messages } = await supabase
+        .from('messages')
+        .select('thread_id, sender_user_id, created_at')
+        .in('thread_id', threadIds)
+        .eq('is_system', false)
+        .order('created_at', { ascending: false });
+
+      const lastSender = new Map();
+      for (const m of (messages || [])) {
+        if (!lastSender.has(m.thread_id)) lastSender.set(m.thread_id, m.sender_user_id);
+      }
+
+      let open = 0;
+      for (const id of threadIds) {
+        // A thread is OPEN when:
+        //   · It has no non-system messages yet (brand-new system marker
+        //     only) — staff should look.
+        //   · OR its last non-system sender is not a staff member.
+        if (!lastSender.has(id)) { open++; continue; }
+        const sender = lastSender.get(id);
+        if (!sender || !staffIds.has(sender)) open++;
+      }
+      return open;
+    };
+
     const [food, lessons, proshop, guests, rsvps, clubhouse] = await Promise.all([
       // OPEN-WORK queues — server-truth count of actionable items.
       cOpen('food_orders',         FOOD_OPEN),
@@ -133,10 +190,8 @@ export function useCommsUnread(clubId) {
       // ACTIVITY-FEED queues — items added since lastViewed (per-device).
       cSince('guests',              since('inbox_guests'),    'created_at'),
       cSince('event_registrations', since('inbox_rsvps'),     'registered_at'),
-      // Clubhouse messages: threads-since-last-viewed for now. A
-      // future patch can refine to messages.created_at for true
-      // new-message-since-last-view tracking.
-      cSince('threads',             since('inbox_clubhouse'), 'created_at', q => q.eq('kind', 'clubhouse')),
+      // v0.19.4 — Clubhouse is OPEN-WORK now.
+      cOpenClubhouse(),
     ]);
 
     setCounts({
@@ -170,7 +225,11 @@ export function useCommsUnread(clubId) {
       // Activity feeds: INSERT only (status doesn't affect count).
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'guests',              filter: `club_id=eq.${clubId}` }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_registrations', filter: `club_id=eq.${clubId}` }, bump)
+      // Clubhouse: open-work now. Both thread INSERTs (new member start)
+      // and message INSERTs (staff reply OR member follow-up) flip the
+      // open-count, so subscribe to both. v0.19.4.
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads',             filter: `club_id=eq.${clubId}` }, bump)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, bump)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [clubId]);

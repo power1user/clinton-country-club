@@ -164,6 +164,35 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.4 — Clubhouse Messages badge now counts open/unanswered threads
+
+The v0.19.3 list fix surfaced a separate semantic mismatch: the
+sidebar badge showed `12` while the list (correctly) showed all `24`
+threads. They were measuring different things — badge was
+"new since last viewed," list was total. Marc's preferred semantic:
+badge should count **threads that need staff attention.**
+
+`commsUnread.js` moves the `inbox_clubhouse` queue from ACTIVITY-FEED
+to OPEN-WORK. A thread is OPEN when:
+- It has no non-system messages yet (brand-new system marker only —
+  staff should look), OR
+- Its most recent non-system message was sent by a non-staff user
+  (member wrote, staff hasn't replied yet).
+
+Implementation is client-side (no migration) because MCP scope on
+the country club project was unavailable when this hotfix landed.
+Three round-trips total: `user_roles` for staff IDs, `threads` for
+thread IDs, `messages` for all non-system messages across those
+threads (deduped client-side to last-sender-per-thread). If perf
+becomes a concern at scale, lift to a SECURITY DEFINER RPC in a
+follow-up.
+
+Realtime subscription updated: `messages` INSERT now bumps the
+recount so a staff reply drops the badge immediately (was only
+listening to `threads` INSERT under the old activity-feed semantic).
+
+---
+
 ## v0.19.3 — Hotfix: Clubhouse Messages admin showed empty while badge said N
 
 Marc spotted: admin Communications → Clubhouse Messages sidebar badge
