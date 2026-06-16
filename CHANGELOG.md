@@ -164,6 +164,71 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.0 — Event recurrence redesign
+
+A from-scratch rewrite of the events recurrence engine + picker UI.
+The v0.12.3 surface ("Weekly (or every N weeks) on a weekday" plus
+three monthly variants in a single mega-dropdown) was technically
+capable but confusing for admins. v0.19.0 replaces it with a quick-
+preset dropdown + an inline Custom expansion that mirrors the
+capability ceiling of iOS Calendar — same shape, no copy.
+
+**Picker:** Never · Every Day · Every Week · Every 2 Weeks · Every
+Month · Every Year · Custom
+
+**Custom:** Frequency (Daily / Weekly / Monthly / Yearly) + Every N
+(1–99) + Weekly multi-day selector (e.g. Tue + Thu) + Monthly mode
+(same-date OR Nth weekday with first/second/third/fourth/last) + End
+condition (After N occurrences OR On a date) + live plain-English
+preview ("Repeats every 2 weeks on Wednesday until August 1, 2026").
+
+**New capabilities not in v0.12.3:**
+- Daily and Yearly frequencies
+- Weekly with multiple weekdays in one series
+- Monthly by-date (15th of every month) — not just by-weekday
+- Monthly "last [weekday]" (last Friday of every month)
+- Count-based end ("After 12 occurrences")
+- Plain-English preview for every rule shape
+
+**Kept from v0.12.3:**
+- Materialize-at-create-time pattern. Each occurrence is a real
+  `events` row, all sharing `recurrence_group_id`. Admins delete
+  the few they don't want for exception handling — no exceptions UI
+  needed.
+- Series-aware edit/delete via the "Apply to this only / This and
+  all future" radio.
+- Caps: 100 occurrences max per series; 50-year horizon as a
+  runtime sanity ceiling (real bound is the always-required end
+  condition).
+
+**Architecture:**
+- `src/lib/recurrence.js` — engine: `generateOccurrences`,
+  `describeRecurrence`, `presetToCustom`, `EMPTY_RECURRENCE`,
+  `PRESETS`. Pure functions, unit-testable.
+- `src/lib/recurrence.test.js` — 30 tests covering common patterns
+  (weekly board meeting, Tue+Thu multi-weekday, biweekly Wed, 15th
+  monthly, first Tuesday, last Friday, annual gala, Feb 29 leap-year
+  skip, hard caps, count vs date end).
+- `src/components/RecurrencePicker.jsx` — preset dropdown + inline
+  Custom expansion + live preview. Parent owns state (canonical
+  `EMPTY_RECURRENCE` shape).
+- `src/screens/admin/sections.jsx` EventsAdmin — uses the new
+  picker via one `<RecurrencePicker value={recurrence}
+  onChange={setRecurrence} startDate={form.event_date} />` line,
+  replacing ~90 lines of inline picker UI.
+
+**No schema migration.** `events.recurrence_group_id` already does
+the grouping; recurrence parameters were never stored on rows.
+
+**Bug fix dropped in:** the v0.12.3 yearly path I would have written
+naively had a Feb-29 + addYears bug where JS rolls Mar 1 and the
+"month matches" check passes. New engine tracks the intended month +
+date from start and verifies on every candidate.
+
+Build: clean. Tests: 86/86 (30 new for recurrence).
+
+---
+
 ## v0.18.0 — Phase 20: "Grounds Live" rebrand + TCPA/CAN-SPAM consent compliance
 
 Two things shipping in one minor: the public-facing brand becomes

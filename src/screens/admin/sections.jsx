@@ -20,6 +20,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSupportModal.jsx';
 import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
+import RecurrencePicker from '../../components/RecurrencePicker.jsx';   // v0.19.0
+import {
+  generateOccurrences,
+  recurrenceSummaryFromRows,
+  EMPTY_RECURRENCE,
+  toIso,
+} from '../../lib/recurrence.js';
 
 // ============================================================
 // Simple CRUDs (use CrudSection)
@@ -2069,111 +2076,14 @@ export function MenuItemsAdmin() {
 // series headers so a Thursday Cookout × 26 doesn't drown the list.
 // ============================================================
 const EVENT_CATEGORIES = ['Golf', 'Social', 'Dining'];
-const RECURRENCE_OPTIONS = [
-  { value: 'none',           label: 'Does not repeat' },
-  { value: 'weekly',         label: 'Weekly (or every N weeks) on a weekday' },
-  { value: 'monthly_first',  label: 'Monthly · first of the month' },
-  { value: 'monthly_last',   label: 'Monthly · last of the month' },
-  { value: 'monthly_nth',    label: 'Monthly · Nth weekday' },
-];
-const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const WEEKDAY_NAMES_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MAX_OCCURRENCES = 52;
-const MAX_RECUR_DAYS = 365;
-// v0.12.3 — interval cap for the weekly rule. 12 weeks (~quarterly) is
-// the largest interval any real club calendar will need; capping it
-// keeps the picker tidy and prevents accidental "every 52 weeks" rows.
-const MAX_WEEKLY_INTERVAL = 12;
 
-// Helpers used by the materializer and the preview-count line.
-function toIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function parseIsoLocal(iso) {
-  // Construct as local noon to dodge tz edge cases when we only
-  // care about the date (not the time-of-day).
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d, 12, 0, 0);
-}
-function firstWeekdayOf(year, month, dow) {
-  const d = new Date(year, month, 1, 12, 0, 0);
-  while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
-  return d;
-}
-function lastWeekdayOf(year, month, dow) {
-  const d = new Date(year, month + 1, 0, 12, 0, 0); // last day of month
-  while (d.getDay() !== dow) d.setDate(d.getDate() - 1);
-  return d;
-}
-function nthWeekdayOf(year, month, dow, n) {
-  const first = firstWeekdayOf(year, month, dow);
-  const d = new Date(first);
-  d.setDate(d.getDate() + 7 * (n - 1));
-  if (d.getMonth() !== month) return null; // overflow into next month
-  return d;
-}
-
-// Given a rule + start date + end-by date, return ISO date strings
-// for every occurrence. Capped at MAX_OCCURRENCES.
-//
-// v0.12.3 — adds `weeklyInterval` for the weekly rule: 1 = every
-// week (back-compat), 2 = biweekly, 3 = every 3 weeks, etc. Old
-// callers that omit the param fall through to the default of 1,
-// so existing recurrence_group_id rows + the materialized calendar
-// don't move underneath us.
-function generateOccurrences({ rule, startIso, endIso, weeklyDow, weeklyInterval, nth }) {
-  if (rule === 'none' || !startIso) return [startIso].filter(Boolean);
-  const start = parseIsoLocal(startIso);
-  const end = endIso ? parseIsoLocal(endIso) : null;
-  const hardCap = MAX_OCCURRENCES;
-  const out = [];
-
-  if (rule === 'weekly') {
-    const interval = Math.max(1, Math.min(MAX_WEEKLY_INTERVAL, Number(weeklyInterval) || 1));
-    // First occurrence: the soonest weeklyDow on/after startDate
-    const cursor = new Date(start);
-    while (cursor.getDay() !== weeklyDow) cursor.setDate(cursor.getDate() + 1);
-    while (out.length < hardCap) {
-      if (end && cursor > end) break;
-      out.push(toIso(cursor));
-      cursor.setDate(cursor.getDate() + 7 * interval);
-    }
-    return out;
-  }
-
-  if (rule === 'monthly_first' || rule === 'monthly_last' || rule === 'monthly_nth') {
-    const dow = weeklyDow;
-    let year = start.getFullYear();
-    let month = start.getMonth();
-    while (out.length < hardCap) {
-      let candidate;
-      if (rule === 'monthly_first')  candidate = firstWeekdayOf(year, month, dow);
-      else if (rule === 'monthly_last') candidate = lastWeekdayOf(year, month, dow);
-      else                              candidate = nthWeekdayOf(year, month, dow, nth);
-      if (candidate && candidate >= start && (!end || candidate <= end)) {
-        out.push(toIso(candidate));
-      }
-      // Advance one month
-      month += 1;
-      if (month > 11) { month = 0; year += 1; }
-      if (end && new Date(year, month, 1) > end) break;
-    }
-    return out;
-  }
-
-  return [startIso];
-}
-
-// Friendly summary for the series-header line in the admin list.
-function recurrenceSummary(rows) {
-  if (!rows || rows.length === 0) return '';
-  const first = rows[0]?.event_date;
-  const last = rows[rows.length - 1]?.event_date;
-  if (!first || !last) return `${rows.length} occurrences`;
-  const f = new Date(first + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const l = new Date(last  + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${rows.length} occurrences · ${f} → ${l}`;
-}
+// v0.19.0 — recurrence engine lives in src/lib/recurrence.js. Imports
+// at the top of this file expose: generateOccurrences (new shape
+// supporting daily / weekly / monthly / yearly, multi-weekday weekly,
+// monthly-by-date OR by-weekday with first/last, count-based end),
+// recurrenceSummaryFromRows (for series-header line), EMPTY_RECURRENCE
+// (default state for the editor), and toIso (used elsewhere in this
+// file for form init).
 
 // Auto-derive the denormalized display fields from event_date.
 function denormalize(form) {
@@ -2281,7 +2191,7 @@ export function EventsAdmin() {
                   {sorted[0]?.title || '(untitled series)'}
                 </p>
                 <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '2px 0 0' }}>
-                  {recurrenceSummary(sorted)}
+                  {recurrenceSummaryFromRows(sorted)}
                 </p>
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }}><path d="M6 9l6 6 6-6" /></svg>
@@ -2384,52 +2294,19 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
         spots: 0, price: '', description: '',
       });
 
-  // Recurrence settings — only used at create time.
-  const todayPlusYear = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + MAX_RECUR_DAYS);
-    return toIso(d);
-  })();
-  const [recurrence, setRecurrence] = useState({
-    rule: 'none',
-    weeklyDow: new Date(form.event_date + 'T12:00:00').getDay(),
-    // v0.12.3 — N-week interval for the weekly rule. 1 = old behavior
-    // ("every week on Thursday"). 2 = biweekly leagues. 4 = monthly-
-    // by-weekday-of-week (vs the monthly_first/_nth rules which lock
-    // to a position in the month). Capped at MAX_WEEKLY_INTERVAL.
-    weeklyInterval: 1,
-    nth: 1,
-    endIso: '',
-  });
-  // Re-anchor the weekly DOW when the user changes the start date
-  // (UNLESS they've already picked a custom weeklyDow).
-  const [dowTouched, setDowTouched] = useState(false);
-  const setEventDate = (v) => {
-    setForm(p => ({ ...p, event_date: v }));
-    if (!dowTouched && v) {
-      setRecurrence(p => ({ ...p, weeklyDow: new Date(v + 'T12:00:00').getDay() }));
-    }
-  };
-  const setRecurrenceField = (k, v) => {
-    if (k === 'weeklyDow') setDowTouched(true);
-    setRecurrence(p => ({ ...p, [k]: v }));
-  };
+  // Recurrence settings — only used at create time. Engine + UI live in
+  // src/lib/recurrence.js and src/components/RecurrencePicker.jsx
+  // (v0.19.0). The state object follows the canonical shape exported
+  // as EMPTY_RECURRENCE; RecurrencePicker handles all the user-facing
+  // toggles + the live plain-English preview.
+  const [recurrence, setRecurrence] = useState(EMPTY_RECURRENCE);
+  const setEventDate = (v) => setForm(p => ({ ...p, event_date: v }));
 
-  // Live preview of occurrence dates so the manager sees the count
-  // before they save. Effective endIso = min(picked, today+1y).
+  // Live preview of occurrence dates so save() can materialize the
+  // exact same set the picker showed the admin.
   const previewDates = useMemo(() => {
-    if (recurrence.rule === 'none' || !form.event_date) return [];
-    const cappedEnd = recurrence.endIso && recurrence.endIso < todayPlusYear
-      ? recurrence.endIso
-      : todayPlusYear;
-    return generateOccurrences({
-      rule: recurrence.rule,
-      startIso: form.event_date,
-      endIso: cappedEnd,
-      weeklyDow: recurrence.weeklyDow,
-      weeklyInterval: recurrence.weeklyInterval,
-      nth: recurrence.nth,
-    });
+    if (!form.event_date) return [];
+    return generateOccurrences(recurrence, form.event_date);
   }, [recurrence, form.event_date]);
 
   const [busy, setBusy] = useState(false);
@@ -2459,7 +2336,7 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
         event_date: form.event_date,
       });
       let payload;
-      if (recurrence.rule === 'none') {
+      if (recurrence.preset === 'none') {
         payload = [baseRow];
       } else {
         const groupId = crypto.randomUUID();
@@ -2589,7 +2466,7 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
           </select>
         </div>
         <div style={{ marginBottom: 10 }}>
-          <label style={label}>{isAdd && recurrence.rule !== 'none' ? 'First-occurrence date' : 'Date'} <span style={{ color: G.clsDot }}>*</span></label>
+          <label style={label}>{isAdd && recurrence.preset !== 'none' ? 'First-occurrence date' : 'Date'} <span style={{ color: G.clsDot }}>*</span></label>
           <input type="date" value={form.event_date} onChange={e => setEventDate(e.target.value)} style={input} />
         </div>
 
@@ -2622,100 +2499,17 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
           <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What members should know about this event." style={{ ...input, height: 100, resize: 'none', lineHeight: 1.5 }} />
         </div>
 
-        {/* Recurrence — only shown when adding a NEW event. Editing
-            an existing recurring event is per-occurrence (managed via
-            the Apply-to radio above) — changing the rule itself isn't
-            supported in v1; delete + recreate the series for that. */}
+        {/* v0.19.0 — Recurrence — quick-preset dropdown + inline Custom
+            expansion via RecurrencePicker. Only shown when adding a NEW
+            event: editing an existing recurring event is per-occurrence
+            (managed via the Apply-to radio above). To change the rule
+            itself, delete + recreate the series. */}
         {isAdd && (
-          <div style={{ marginBottom: 14, padding: '12px 12px', background: G.card, border: `1px solid ${G.border}`, borderRadius: 4 }}>
-            <label style={label}>Repeat</label>
-            <select value={recurrence.rule} onChange={e => setRecurrenceField('rule', e.target.value)} style={input}>
-              {RECURRENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-
-            {recurrence.rule === 'weekly' && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={label}>Every</label>
-                  <select
-                    value={recurrence.weeklyInterval}
-                    onChange={e => setRecurrenceField('weeklyInterval', Number(e.target.value))}
-                    style={input}
-                  >
-                    {Array.from({ length: MAX_WEEKLY_INTERVAL }, (_, i) => i + 1).map(n => (
-                      <option key={n} value={n}>
-                        {n === 1 ? 'week' : `${n} weeks`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={label}>On</label>
-                  <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
-                    {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
-            {(recurrence.rule === 'monthly_first' || recurrence.rule === 'monthly_last') && (
-              <div style={{ marginTop: 8 }}>
-                <label style={label}>Weekday</label>
-                <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
-                  {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                </select>
-              </div>
-            )}
-            {recurrence.rule === 'monthly_nth' && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={label}>Nth</label>
-                  <select value={recurrence.nth} onChange={e => setRecurrenceField('nth', Number(e.target.value))} style={input}>
-                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{['1st', '2nd', '3rd', '4th', '5th'][n - 1]}</option>)}
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={label}>Weekday</label>
-                  <select value={recurrence.weeklyDow} onChange={e => setRecurrenceField('weeklyDow', Number(e.target.value))} style={input}>
-                    {WEEKDAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {recurrence.rule !== 'none' && (
-              <>
-                <div style={{ marginTop: 8 }}>
-                  <label style={label}>Recurs until (max {todayPlusYear})</label>
-                  <input
-                    type="date"
-                    value={recurrence.endIso}
-                    max={todayPlusYear}
-                    min={form.event_date}
-                    onChange={e => setRecurrenceField('endIso', e.target.value)}
-                    style={input}
-                  />
-                </div>
-                {/* v0.12.3 — Pattern description line. Spells out the
-                    "every N weeks on Friday" cadence ahead of the
-                    occurrence count so the manager can verify before
-                    they commit a 26-row insert. Only shown for the
-                    weekly rule (the monthly rules describe themselves
-                    via the dropdown label). */}
-                {recurrence.rule === 'weekly' && (
-                  <p style={{ fontFamily: '"Lora",serif', fontSize: 11, color: G.muted, margin: '8px 0 0' }}>
-                    Pattern: {recurrence.weeklyInterval === 1
-                      ? `every ${WEEKDAY_NAMES_LONG[recurrence.weeklyDow]}`
-                      : `every ${recurrence.weeklyInterval} weeks on ${WEEKDAY_NAMES_LONG[recurrence.weeklyDow]}`}.
-                  </p>
-                )}
-                <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 11, color: previewDates.length === 0 ? G.clsDot : G.brass, margin: '8px 0 0', lineHeight: 1.45 }}>
-                  {previewDates.length === 0
-                    ? 'Pick an "until" date to preview occurrences.'
-                    : `Will create ${previewDates.length} occurrence${previewDates.length === 1 ? '' : 's'}${previewDates.length >= MAX_OCCURRENCES ? ` (capped at ${MAX_OCCURRENCES})` : ''} — first ${new Date(previewDates[0] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, last ${new Date(previewDates[previewDates.length - 1] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.`}
-                </p>
-              </>
-            )}
-          </div>
+          <RecurrencePicker
+            value={recurrence}
+            onChange={setRecurrence}
+            startDate={form.event_date}
+          />
         )}
 
         {err && (
@@ -2735,7 +2529,7 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
                 {busy
                   ? 'Saving…'
                   : (isAdd
-                      ? (recurrence.rule === 'none' ? 'Save Event' : `Save Series (${previewDates.length})`)
+                      ? (recurrence.preset === 'none' ? 'Save Event' : `Save Series (${previewDates.length})`)
                       : 'Save Changes')}
               </span>
             </div>
