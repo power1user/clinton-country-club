@@ -164,6 +164,33 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.2 — /dev/terms-preview dry-run route for super_admin
+
+Adds `/dev/terms-preview` — a super_admin-only URL that renders the
+real TermsGate with no-op accept/decline handlers so legal/UX changes
+to the gate can be verified end-to-end without bumping the previewer's
+own `members.terms_accepted_version` or losing their session.
+
+Mechanism:
+- `TermsGate` accepts optional `onAccept(consents)`, `onDecline()`,
+  and `previewBanner` props. Default behavior is unchanged: when the
+  override props aren't provided, accept writes consent_log + bumps
+  members.terms_accepted_version + refreshMember; decline runs the
+  confirm modal and signOut. When the overrides ARE provided, they
+  replace the DB-touching paths entirely.
+- `TermsGatePreview` wraps `TermsGate` with handlers that surface the
+  captured consent state in a banner above the gate, plus a "clear"
+  button to re-fire the preview.
+- `App.jsx` Gate adds one intercept BEFORE the normal routing:
+  `isOnDevTermsPreviewRoute() && role === 'super_admin'` → render
+  TermsGatePreview. Non-super_admin sessions fall through; the URL is
+  invisible to members.
+
+No new copy. No DB schema change. Production code path is unchanged
+when override props aren't passed (default-undefined args).
+
+---
+
 ## v0.19.1 — Hotfix: invisible checkboxes + radio buttons
 
 `src/index.css` had a blanket `appearance: none` on `input, textarea,

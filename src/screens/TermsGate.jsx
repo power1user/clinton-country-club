@@ -26,7 +26,7 @@ import {
 import { PLATFORM_NAME } from '../lib/version.js';
 import { useConfirm } from '../components/ConfirmModal.jsx';
 
-export default function TermsGate() {
+export default function TermsGate({ onAccept, onDecline, previewBanner }) {
   const { club, member, signOut, refreshMember } = useAuth();
   const confirmAsync = useConfirm();
 
@@ -40,8 +40,25 @@ export default function TermsGate() {
   const hasPhone = !!(member?.phone && String(member.phone).trim());
   const canAccept = agreeTermsPrivacy && age18Plus && !busy;
 
+  // v0.19.2 — when onAccept/onDecline are provided (TermsGatePreview),
+  // run those instead of the real DB writes + sign-out. Lets super_admin
+  // dry-run the gate without bumping their own terms_accepted_version
+  // or losing their session.
+  const acceptOverride = typeof onAccept === 'function';
+  const declineOverride = typeof onDecline === 'function';
+
   const accept = async () => {
-    if (!member?.id || !canAccept) return;
+    if (!canAccept) return;
+    if (acceptOverride) {
+      setBusy(true);
+      await Promise.resolve(onAccept({ agreeTermsPrivacy, age18Plus, emailMarketing, smsMarketing }));
+      setBusy(false);
+      // Reset so the preview can be re-fired.
+      setAgreeTermsPrivacy(false); setAge18Plus(false);
+      setEmailMarketing(false); setSmsMarketing(false);
+      return;
+    }
+    if (!member?.id) return;
     setBusy(true); setErr(null);
     try {
       // Required consents — both must be true when we get here.
@@ -109,6 +126,10 @@ export default function TermsGate() {
   };
 
   const decline = async () => {
+    if (declineOverride) {
+      onDecline();
+      return;
+    }
     if (!(await confirmAsync({
       title: 'Decline and sign out?',
       body: 'You can come back and agree later — these terms are required to use the app.',
@@ -120,6 +141,7 @@ export default function TermsGate() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: G.bg }}>
+      {previewBanner}
       {/* Header — branded, matches StatusBar pattern */}
       <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
       <div style={{ background: G.green, padding: '6px 24px 18px', flexShrink: 0 }}>

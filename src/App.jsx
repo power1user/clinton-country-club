@@ -63,6 +63,7 @@ import GuestThankYou from './screens/GuestThankYou.jsx';
 import MemberGuestQR from './screens/MemberGuestQR.jsx';
 import TermsPublic from './screens/TermsPublic.jsx';   // v0.18.0 — public /terms
 import PrivacyPublic from './screens/PrivacyPublic.jsx'; // v0.18.0 — public /privacy
+import TermsGatePreview from './screens/TermsGatePreview.jsx'; // v0.19.2 — super_admin dry-run of TermsGate
 
 const SCREENS = {
   home: Home,
@@ -321,6 +322,15 @@ function isOnPrivacyRoute() {
   return /^\/privacy\/?$/i.test(window.location.pathname);
 }
 
+// v0.19.2 — super_admin-only TermsGate dry-run at /dev/terms-preview.
+// Intercept only fires when the current role is 'super_admin' (resolved
+// inside Gate from useAuth). For everyone else, the URL falls through
+// to the normal app routing.
+function isOnDevTermsPreviewRoute() {
+  if (typeof window === 'undefined') return false;
+  return /^\/dev\/terms-preview\/?$/i.test(window.location.pathname);
+}
+
 // v0.11.14 — deep-link detection. Returns a "deep link" sentinel that
 // NavProvider applies on mount. Today only `/admin` is recognized —
 // drops the manager directly onto the admin panel, skipping the
@@ -336,7 +346,7 @@ function getInitialDeepLink() {
 }
 
 function Gate() {
-  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel, clubError } = useAuth();
+  const { session, loading, isConfigured, isPendingLocked, needsTermsAcceptance, isGuest, guestAccessLevel, clubError, role } = useAuth();
 
   // v0.8.7: minimum-duration splash. Tracks whether at least
   // SPLASH_MIN_MS has elapsed since mount; until that's true AND
@@ -373,6 +383,15 @@ function Gate() {
   }
   if (isOnPrivacyRoute()) {
     return <PrivacyPublic />;
+  }
+
+  // v0.19.2 — dev-only TermsGate dry-run, gated to super_admin. Renders
+  // the real TermsGate with no-op accept/decline so a super_admin can
+  // verify the gate UI without bumping their own terms_accepted_version
+  // or losing their session. Non-super_admin sessions fall through to
+  // the normal app routing.
+  if (isOnDevTermsPreviewRoute() && role === 'super_admin') {
+    return <TermsGatePreview />;
   }
 
   // v0.16.1 — if the club row failed to load (bad slug, RLS issue,
