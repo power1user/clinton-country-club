@@ -164,6 +164,63 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.8 — Clubhouse Messages: bulk-select, per-row archive, confirmation
+
+Two asks from Marc rolled into one minor patch:
+1. Add bulk-select tools so admin can clear a batch of conversations
+   in one go ("mark them read or delete them").
+2. Add a per-row delete button so admin doesn't have to drill into a
+   thread + use the kebab menu just to dismiss it.
+
+The verb is **archive**, not delete (Marc's call): the conversation
+stays on the member side and a fresh member message resurfaces it
+automatically. Admin queue stays tidy without losing history.
+
+DB layer — **migration `0011_phase21_threads_archived.sql`**:
+- `threads.archived_at` (timestamptz, nullable) + `threads.archived_by`
+  (uuid, FK to auth.users, nullable on user delete)
+- Index `idx_threads_club_kind_archived` on `(club_id, kind,
+  archived_at)` for the admin-list filter
+- Trigger `trg_unarchive_thread_on_member_message` on `messages`
+  INSERT → if the sender is NOT staff (not in user_roles for this
+  club, not super_admin) AND the thread is archived → set
+  archived_at = NULL. Staff replies on a thread they just archived
+  leave it archived; only a non-staff message resurfaces.
+
+Client layer — `ClubhouseInboxAdmin`:
+- List query filters `archived_at IS NULL`
+- New `Select` toggle in the section header; tapping toggles bulk-
+  select mode
+- In bulk mode: each row shows a checkbox (left); per-row archive
+  button is hidden; sticky action bar appears at the bottom with
+  `Mark read (N)` + `Archive (N)` buttons (disabled when N=0)
+- Out of bulk mode: each row shows a small archive icon (right,
+  before the chevron). Tap fires the confirmation modal for that
+  thread.
+- Archive flow uses the shared `useConfirm` modal: "Archive N
+  conversations?" with the body explaining the resurface-on-member-
+  message behavior so admins aren't surprised when an archived
+  thread comes back.
+- After archive: optimistic local removal + `markClubhouseThreadViewed`
+  so the badge drops in lock-step.
+
+Badge layer — `commsUnread.js cOpenClubhouse`:
+- Threads query also filters `archived_at IS NULL` so the badge
+  count excludes archived threads (otherwise an archived but un-
+  replied thread would keep contributing).
+
+No breaking change for the member side. No change to the member-
+facing Thread or inbox queries.
+
+(Side note: the existing Thread kebab "Delete conversation" still
+calls `hideThread` — a per-participant soft-hide on
+`thread_participants.hidden_at` that's a no-op for staff who aren't
+participants. Left as-is for now; the new admin-context flow makes
+that menu item less necessary. v0.19.9 candidate: relabel/replace
+that kebab when Thread is rendered embedded.)
+
+---
+
 ## v0.19.7 — Hotfix: delete in inline admin Thread bounces out of admin
 
 Same shape as the v0.19.5 back-arrow bug, different code path. When

@@ -2995,7 +2995,8 @@ export function MemberPostsAdmin() {
 // every other message.)
 // ============================================================
 export function ClubhouseInboxAdmin() {
-  const { club, hasPerm } = useAuth();
+  const { club, hasPerm, session } = useAuth();
+  const confirmAsync = useConfirm();
   const canReply = hasPerm('can_view_clubhouse_inbox');
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3003,6 +3004,11 @@ export function ClubhouseInboxAdmin() {
   // the list view so staff stays inside the admin shell. Back arrow
   // clears this back to the list.
   const [selectedThreadId, setSelectedThreadId] = useState(null);
+  // v0.19.8 — bulk-select mode. When `selecting`, rows show checkboxes
+  // and a sticky action bar appears with Mark-read / Archive / Cancel.
+  // `selectedIds` is the Set of thread IDs currently checked.
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   useEffect(() => {
     if (!club) return;
@@ -3017,11 +3023,17 @@ export function ClubhouseInboxAdmin() {
       // (which uses a count-only query) still showed the real total.
       // The embed was unused — the starter's name comes from the
       // thread_participants enrichment below, which IS lifted to people.
+      // v0.19.8 — filter out archived threads (admin "Archive" action
+      // sets threads.archived_at; member-side surfaces ignore the column).
+      // A new non-staff message resurfaces archived threads via DB
+      // trigger so an archived conversation can't silently swallow a
+      // member follow-up.
       const { data: rows } = await supabase
         .from('threads')
         .select('id, subject, last_message_at, created_at, created_by')
         .eq('club_id', club.id)
         .eq('kind', 'clubhouse')
+        .is('archived_at', null)
         .order('last_message_at', { ascending: false })
         .limit(200);
 
@@ -3072,6 +3084,47 @@ export function ClubhouseInboxAdmin() {
     return acc;
   }, {});
 
+  // v0.19.8 — bulk-select helpers + per-row archive.
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const exitSelecting = () => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  };
+  const markRead = (ids) => {
+    if (!club?.id) return;
+    for (const id of ids) markClubhouseThreadViewed(club.id, id);
+    exitSelecting();
+  };
+  const archive = async (ids) => {
+    if (!ids.length || !club?.id) return;
+    const ok = await confirmAsync({
+      title: ids.length === 1 ? 'Archive this conversation?' : `Archive ${ids.length} conversations?`,
+      body: 'Archived threads are hidden from the admin queue. The member can still see the conversation, and a new member message will resurface it here automatically.',
+      confirmLabel: ids.length === 1 ? 'Archive' : `Archive ${ids.length}`,
+      danger: false,
+    });
+    if (!ok) return;
+    const { error } = await supabase
+      .from('threads')
+      .update({ archived_at: new Date().toISOString(), archived_by: session?.user?.id ?? null })
+      .in('id', ids);
+    if (error) {
+      console.error('[ClubhouseInboxAdmin] archive failed:', error.message);
+      return;
+    }
+    // Mark archived threads as viewed too so the badge drops in lock-step.
+    for (const id of ids) markClubhouseThreadViewed(club.id, id);
+    exitSelecting();
+    // Optimistic local removal; realtime UPDATE will reconcile.
+    setThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
+  };
+
   // v0.19.5 — inline Thread view when a row is selected. Stays inside
   // the admin shell; back arrow clears the selection and returns to
   // the list. `embedded` suppresses Thread's own 44px status-bar
@@ -3088,14 +3141,41 @@ export function ClubhouseInboxAdmin() {
     );
   }
 
+  const selectedCount = selectedIds.size;
+
   return (
-    <div>
+    <div style={{ paddingBottom: selecting ? 72 : 0 }}>
       {/* v0.12.8 — typography pass round 2. Clubhouse inbox: topic
           header 14 → 16, thread count 11 → 13, starter primary
           13 → 15, preview 11 → 13, timestamp 10 → 12. */}
-      <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: '0 0 12px' }}>
-        Member-initiated conversations routed to the clubhouse, grouped by topic. {canReply ? 'Tap a thread to reply.' : 'You can read but not reply — ask your manager for write permission.'}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, margin: '0 0 12px' }}>
+        <p style={{ fontFamily: '"Lora",serif', fontStyle: 'italic', fontSize: 13, color: G.muted, margin: 0, flex: 1, minWidth: 0 }}>
+          Member-initiated conversations routed to the clubhouse, grouped by topic. {canReply ? 'Tap a thread to reply.' : 'You can read but not reply — ask your manager for write permission.'}
+        </p>
+        {/* v0.19.8 — Select toggle. Hidden when there's nothing to act
+            on; cancels by tapping again. */}
+        {!loading && threads.length > 0 && (
+          <div
+            onClick={() => (selecting ? exitSelecting() : setSelecting(true))}
+            data-tap
+            style={{
+              flexShrink: 0,
+              padding: '6px 12px',
+              borderRadius: 3,
+              border: `1px solid ${selecting ? G.green : G.border}`,
+              background: selecting ? G.green : G.card,
+              color: selecting ? '#F2EDE0' : G.text,
+              fontFamily: '"Lora",serif',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            {selecting ? 'Cancel' : 'Select'}
+          </div>
+        )}
+      </div>
 
       {loading && <p style={{ fontFamily: '"Playfair Display",serif', fontStyle: 'italic', fontSize: 14, color: G.muted, textAlign: 'center', padding: '20px 0' }}>Loading…</p>}
       {!loading && threads.length === 0 && (
@@ -3113,8 +3193,25 @@ export function ClubhouseInboxAdmin() {
               const starterName = t.starter?.members?.name || 'Member';
               const starterNum = t.starter?.members?.membership_number;
               const preview = t.preview?.is_system ? `(${t.preview.body})` : (t.preview?.body || 'No messages yet');
+              const checked = selectedIds.has(t.id);
+              const onRowClick = () => {
+                if (selecting) { toggleSelect(t.id); return; }
+                setSelectedThreadId(t.id);
+                markClubhouseThreadViewed(club?.id, t.id);
+              };
               return (
-                <div key={t.id} onClick={() => { setSelectedThreadId(t.id); markClubhouseThreadViewed(club?.id, t.id); }} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
+                <div key={t.id} onClick={onRowClick} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer', background: checked ? 'rgba(64,107,73,0.10)' : 'transparent' }}>
+                  {/* v0.19.8 — checkbox shown only in select mode */}
+                  {selecting && (
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelect(t.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 18, height: 18, accentColor: G.green, flexShrink: 0, cursor: 'pointer' }}
+                      aria-label="Select conversation"
+                    />
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -3124,14 +3221,97 @@ export function ClubhouseInboxAdmin() {
                     </div>
                     <p style={{ fontFamily: '"Lora",serif', fontSize: 13, color: G.muted, margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</p>
                   </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  {/* v0.19.8 — per-row archive button. Hidden in select
+                      mode so the row's checkbox is the only action. */}
+                  {!selecting && (
+                    <div
+                      onClick={(e) => { e.stopPropagation(); archive([t.id]); }}
+                      data-tap
+                      title="Archive conversation"
+                      style={{ flexShrink: 0, padding: 6, cursor: 'pointer', borderRadius: 3 }}
+                    >
+                      <ArchiveIcon />
+                    </div>
+                  )}
+                  {!selecting && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       ))}
+
+      {/* v0.19.8 — sticky bulk-action bar. Only in select mode. Buttons
+          disabled when nothing's checked. */}
+      {selecting && (
+        <div style={{
+          position: 'sticky',
+          bottom: 0,
+          marginTop: 14,
+          display: 'flex',
+          gap: 8,
+          padding: '10px 12px max(10px, calc(env(safe-area-inset-bottom) + 6px))',
+          background: G.bg,
+          borderTop: `1px solid ${G.border}`,
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.06)',
+          zIndex: 5,
+        }}>
+          <div
+            onClick={() => markRead([...selectedIds])}
+            data-tap
+            aria-disabled={selectedCount === 0}
+            style={{
+              flex: 1,
+              padding: '10px 12px',
+              textAlign: 'center',
+              borderRadius: 4,
+              border: `1px solid ${G.border}`,
+              background: G.card,
+              color: selectedCount === 0 ? G.muted : G.text,
+              fontFamily: '"Lora",serif',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: selectedCount === 0 ? 'not-allowed' : 'pointer',
+              opacity: selectedCount === 0 ? 0.55 : 1,
+            }}
+          >
+            Mark read{selectedCount > 0 ? ` (${selectedCount})` : ''}
+          </div>
+          <div
+            onClick={() => archive([...selectedIds])}
+            data-tap
+            aria-disabled={selectedCount === 0}
+            style={{
+              flex: 1,
+              padding: '10px 12px',
+              textAlign: 'center',
+              borderRadius: 4,
+              background: selectedCount === 0 ? G.muted : G.green,
+              color: '#F2EDE0',
+              fontFamily: '"Lora",serif',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: selectedCount === 0 ? 'not-allowed' : 'pointer',
+              opacity: selectedCount === 0 ? 0.55 : 1,
+            }}
+          >
+            Archive{selectedCount > 0 ? ` (${selectedCount})` : ''}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ArchiveIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={G.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
+      <path d="M10 12h4" />
+    </svg>
   );
 }
 

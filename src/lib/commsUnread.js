@@ -176,11 +176,15 @@ export function useCommsUnread(clubId) {
         supabase
           .from('user_roles')
           .select('user_id, role, club_id'),
+        // v0.19.8 — exclude archived threads from the badge (admin
+        // Archive action sets archived_at; a new member message
+        // un-archives via DB trigger).
         supabase
           .from('threads')
           .select('id')
           .eq('club_id', clubId)
           .eq('kind', 'clubhouse')
+          .is('archived_at', null)
           .limit(500),
       ]);
       const staffIds = new Set(
