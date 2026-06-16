@@ -152,6 +152,20 @@ input, textarea, select {
 }
 input:focus, textarea:focus, select:focus { outline: none; }
 
+/* v0.19.1 — restore native rendering for checkboxes + radio buttons.
+   The blanket `appearance: none` above is needed for text inputs and
+   selects (we paint our own select carets), but stripping it from
+   checkboxes erases the actual box, leaving an invisible 20×20 hit
+   area where the box should be. Spotted on TermsGate v0.18.0 where
+   the four-checkbox consent flow looked like text-only labels.
+   Tested both classic + iOS Safari — native rendering returns,
+   and the `accent-color` inline style keeps brand green. */
+input[type="checkbox"],
+input[type="radio"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+
 /* v0.15.7 — Make <select> dropdowns visually distinct from text
    inputs across the whole app. The browser default appearance is
    stripped by `appearance: none` above, so we add a double-caret

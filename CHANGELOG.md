@@ -164,6 +164,34 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.1 — Hotfix: invisible checkboxes + radio buttons
+
+`src/index.css` had a blanket `appearance: none` on `input, textarea,
+select` (needed for text inputs and our custom select carets) that
+also stripped native rendering on `<input type="checkbox">` and
+`<input type="radio">`. Result: every native checkbox in the app was
+present in the DOM and clickable, but completely invisible — a 20×20
+empty hit area. The TermsGate v0.18.0 four-checkbox consent flow
+shipped with this bug; Marc spotted it on the live site the moment
+the v0.19.0 deploy went out.
+
+Fix is a one-line CSS exception:
+
+    input[type="checkbox"], input[type="radio"] {
+      -webkit-appearance: auto;
+      appearance: auto;
+    }
+
+Native rendering returns; the `accent-color` inline styles already on
+each checkbox keep brand green. Verified in browser before commit
+(`appearance: auto`, 24×24 visible, green accent).
+
+Fixes all native-checkbox and native-radio surfaces app-wide:
+TermsGate, ConsentCheckboxes (signup flows), and the EventEditor
+"Apply to this only / This and all future" radio.
+
+---
+
 ## v0.19.0 — Event recurrence redesign
 
 A from-scratch rewrite of the events recurrence engine + picker UI.
