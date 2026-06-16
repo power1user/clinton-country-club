@@ -164,6 +164,40 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.6 — Clubhouse badge: hybrid drops on view OR reply
+
+Marc tested v0.19.4 + .5 and reported: "opened every single message,
+counter still reads 18." Confirmed the v0.19.4 OPEN-WORK semantic was
+working as designed (badge = "threads where member spoke last and no
+staff reply yet" — survives staff viewing), but the mental model
+clashed with how staff actually use the inbox. Switched to the hybrid
+Marc picked in the follow-up: badge drops on **view OR reply.**
+
+`commsUnread.js`:
+- New `clubhouseViewedAt:{clubId}` localStorage map keyed by thread
+  ID, storing per-thread `last viewed by THIS staff member` timestamps.
+- New exported helper `markClubhouseThreadViewed(clubId, threadId)`
+  — writes the timestamp and dispatches a same-tab CustomEvent
+  (`clubhouse-viewed-changed`) so the badge recounts instantly.
+  (Storage events only fire in OTHER tabs per the DOM spec, so the
+  custom event covers same-tab; cross-tab gets `storage` for free.)
+- `cOpenClubhouse` now excludes threads where `viewedAt > last member
+  message timestamp` in addition to the staff-replied check. Net
+  effect: a thread counts toward the badge only when (a) member
+  spoke last AND (b) the current staff member hasn't viewed it
+  since then.
+
+`ClubhouseInboxAdmin` calls `markClubhouseThreadViewed(club.id,
+t.id)` alongside `setSelectedThreadId(t.id)` on row click — so
+opening a thread inline drops the badge by one instantly.
+
+Per-device read state (no schema change). If a manager works on two
+devices, both need to view independently. Acceptable for now; if it
+becomes a real friction we can move to a `clubhouse_thread_reads`
+table.
+
+---
+
 ## v0.19.5 — Clubhouse threads open inline inside admin (not the member view)
 
 Marc reported during the v0.19.4 verify pass: clicking a clubhouse

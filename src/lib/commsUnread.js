@@ -40,6 +40,44 @@ import { supabase } from './supabase.js';
 const STORAGE_KEY = (clubId) => `commsViewedAt:${clubId}`;
 const EPOCH = '1970-01-01T00:00:00Z';
 
+// v0.19.6 — per-thread "this staff member viewed" timestamps for the
+// clubhouse OPEN-WORK queue. Lets the badge clear when staff EITHER
+// replies OR opens a thread (hybrid semantic Marc picked in the
+// v0.19.5 verify-pass thread). Keyed per (club, threadId) so a manager
+// running multiple clubs in one browser doesn't cross-pollute.
+const CLUBHOUSE_VIEWED_KEY = (clubId) => `clubhouseViewedAt:${clubId}`;
+const CLUBHOUSE_VIEWED_EVENT = 'clubhouse-viewed-changed';
+
+function readClubhouseViewed(clubId) {
+  if (!clubId || typeof localStorage === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(CLUBHOUSE_VIEWED_KEY(clubId)) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+// Public: call from any surface that opens a clubhouse thread for
+// staff. Writes the current timestamp + dispatches a custom event so
+// useCommsUnread recomputes the badge in the same tab (storage events
+// only fire in OTHER tabs by spec).
+export function markClubhouseThreadViewed(clubId, threadId) {
+  if (!clubId || !threadId || typeof localStorage === 'undefined') return;
+  try {
+    const v = readClubhouseViewed(clubId);
+    v[threadId] = new Date().toISOString();
+    localStorage.setItem(CLUBHOUSE_VIEWED_KEY(clubId), JSON.stringify(v));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CLUBHOUSE_VIEWED_EVENT, {
+        detail: { clubId, threadId },
+      }));
+    }
+  } catch (_) {
+    // Quota / disabled storage — silent. Badge will keep counting the
+    // thread until a staff reply lands.
+  }
+}
+
 function readViewed(clubId) {
   if (!clubId || typeof localStorage === 'undefined') return {};
   try {
@@ -155,8 +193,8 @@ export function useCommsUnread(clubId) {
       const threadIds = threads.map(t => t.id);
 
       // One round-trip for every non-system message across all threads,
-      // ordered newest-first. We walk the result and keep only the FIRST
-      // (= most recent) sender per thread.
+      // ordered newest-first. We walk the result and keep the FIRST
+      // (= most recent) message per thread for sender + timestamp.
       const { data: messages } = await supabase
         .from('messages')
         .select('thread_id, sender_user_id, created_at')
@@ -164,20 +202,37 @@ export function useCommsUnread(clubId) {
         .eq('is_system', false)
         .order('created_at', { ascending: false });
 
-      const lastSender = new Map();
+      const lastMsg = new Map();
       for (const m of (messages || [])) {
-        if (!lastSender.has(m.thread_id)) lastSender.set(m.thread_id, m.sender_user_id);
+        if (!lastMsg.has(m.thread_id)) {
+          lastMsg.set(m.thread_id, { sender: m.sender_user_id, at: m.created_at });
+        }
       }
+
+      // v0.19.6 — hybrid semantic: badge drops on view OR reply.
+      const viewedMap = readClubhouseViewed(clubId);
 
       let open = 0;
       for (const id of threadIds) {
-        // A thread is OPEN when:
-        //   · It has no non-system messages yet (brand-new system marker
-        //     only) — staff should look.
-        //   · OR its last non-system sender is not a staff member.
-        if (!lastSender.has(id)) { open++; continue; }
-        const sender = lastSender.get(id);
-        if (!sender || !staffIds.has(sender)) open++;
+        const last = lastMsg.get(id);
+
+        // Brand-new thread (only system marker) — count as open so
+        // staff sees it the first time. Once viewed (or replied to),
+        // the viewedAt check below will exclude it.
+        if (!last) {
+          if (!viewedMap[id]) open++;
+          continue;
+        }
+
+        // Staff spoke last — thread is answered, doesn't count.
+        if (last.sender && staffIds.has(last.sender)) continue;
+
+        // Member spoke last → open IF staff hasn't viewed this thread
+        // since that message (the "viewed" half of view-or-reply).
+        const viewedAt = viewedMap[id];
+        if (viewedAt && viewedAt > last.at) continue;
+
+        open++;
       }
       return open;
     };
@@ -231,7 +286,23 @@ export function useCommsUnread(clubId) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'threads',             filter: `club_id=eq.${clubId}` }, bump)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, bump)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    // v0.19.6 — same-tab "thread viewed" custom event triggers an
+    // immediate recount so the badge drops the instant staff taps
+    // into a clubhouse thread (storage events only fire in OTHER tabs
+    // per the spec; cross-tab is also covered for free).
+    const onViewed = () => bump();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('clubhouse-viewed-changed', onViewed);
+      window.addEventListener('storage', onViewed);
+    }
+    return () => {
+      supabase.removeChannel(channel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('clubhouse-viewed-changed', onViewed);
+        window.removeEventListener('storage', onViewed);
+      }
+    };
   }, [clubId]);
 
   const markViewed = useCallback((sectionId) => {

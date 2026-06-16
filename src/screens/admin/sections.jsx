@@ -22,6 +22,7 @@ import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSup
 import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 import RecurrencePicker from '../../components/RecurrencePicker.jsx';   // v0.19.0
 import Thread from '../Thread.jsx';                                     // v0.19.5 — inline thread inside admin
+import { markClubhouseThreadViewed } from '../../lib/commsUnread.js';    // v0.19.6 — hybrid view-or-reply badge
 import {
   generateOccurrences,
   recurrenceSummaryFromRows,
@@ -3113,7 +3114,7 @@ export function ClubhouseInboxAdmin() {
               const starterNum = t.starter?.members?.membership_number;
               const preview = t.preview?.is_system ? `(${t.preview.body})` : (t.preview?.body || 'No messages yet');
               return (
-                <div key={t.id} onClick={() => setSelectedThreadId(t.id)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
+                <div key={t.id} onClick={() => { setSelectedThreadId(t.id); markClubhouseThreadViewed(club?.id, t.id); }} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
