@@ -35,6 +35,7 @@ import { supabase } from '../lib/supabase.js';
 import Replies from '../components/Replies.jsx';
 import Avatar from '../components/Avatar.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
+import DateInput from '../components/DateInput.jsx';
 
 const GAME_TYPES = ['Foursome', 'Threesome', 'Single', 'Practice', 'Cart Share'];
 
@@ -323,7 +324,7 @@ function NewPartnerSheet({ onClose, onSubmitted, club, member }) {
         {/* Date */}
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>When</label>
-          <input type="date" value={dateWanted} onChange={e => setDateWanted(e.target.value)} style={inputStyle} />
+          <DateInput value={dateWanted} onChange={setDateWanted} style={inputStyle} />
         </div>
 
         {/* Spots needed — +/- stepper for one-tap adjustments */}

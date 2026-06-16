@@ -200,6 +200,21 @@ html[data-theme='dark'] select {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E5440' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='8 9 12 5 16 9'/%3E%3Cpolyline points='8 15 12 19 16 15'/%3E%3C/svg%3E") !important;
 }
 
+/* v0.19.10 — DateInput component places the Chrome/Edge calendar
+   picker icon on the LEFT of the digits for better discoverability
+   (default UA layout floats it to the right). The pseudo-element
+   only exists in WebKit/Blink, so this is a no-op on Firefox and
+   mobile Safari (which use full-tap-area native pickers). The
+   padding-left on the component matches what we reserve here. */
+input.date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  left: 10px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+input.date-input { position: relative; }
+
 /* ── Hide scrollbars ── */
 ::-webkit-scrollbar { width: 0; height: 0; }
 * { scrollbar-width: none; }

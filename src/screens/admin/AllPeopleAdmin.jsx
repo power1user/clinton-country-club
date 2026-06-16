@@ -20,6 +20,7 @@ import { resizeToBlob } from '../../lib/imageResize.js';   // v0.15.26
 import BottomSheetModal from '../../components/BottomSheetModal.jsx';   // v0.15.26 — shared shell
 import ToggleChip from '../../components/ToggleChip.jsx';   // v0.15.26
 import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
+import DateInput from '../../components/DateInput.jsx';   // v0.19.10
 import {
   StatusPill, RolePill, StatusChangeModal, RoleChangeModal,
   STATUS_COLOR, ROLE_COLOR,
@@ -1238,8 +1239,8 @@ function PersonEditModal({ mode, person, club, isManager, isSuperAdmin, onClose,
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Visit date"><input type="date" value={form.visit_date} onChange={e => set('visit_date', e.target.value)} style={inputStyle} /></Field>
-              <Field label="Expires at (optional)"><input type="date" value={form.expires_at || ''} onChange={e => set('expires_at', e.target.value)} style={inputStyle} /></Field>
+              <Field label="Visit date"><DateInput value={form.visit_date} onChange={v => set('visit_date', v)} style={inputStyle} /></Field>
+              <Field label="Expires at (optional)"><DateInput value={form.expires_at || ''} onChange={v => set('expires_at', v)} style={inputStyle} /></Field>
             </FormRow>
             <FormRow>
               <Field label="Status">

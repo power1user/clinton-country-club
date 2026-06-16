@@ -18,6 +18,7 @@ import {
   presetToCustom, generateOccurrences, describeRecurrence,
   dowOfIso,
 } from '../lib/recurrence.js';
+import DateInput from './DateInput.jsx';
 
 export default function RecurrencePicker({ value, onChange, startDate }) {
   const recurrence = value || EMPTY_RECURRENCE;
@@ -257,11 +258,10 @@ export default function RecurrencePicker({ value, onChange, startDate }) {
             )}
             {recurrence.end.kind === 'date' && (
               <div style={{ marginTop: 8 }}>
-                <input
-                  type="date"
+                <DateInput
                   value={recurrence.end.date || ''}
                   min={startDate || ''}
-                  onChange={(e) => setEnd({ date: e.target.value })}
+                  onChange={(v) => setEnd({ date: v })}
                   style={inputStyle}
                 />
               </div>

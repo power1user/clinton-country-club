@@ -5,6 +5,7 @@ import { G } from '../../theme.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { supabase } from '../../lib/supabase.js';
 import { useConfirm } from '../../components/ConfirmModal.jsx';
+import DateInput from '../../components/DateInput.jsx';
 
 // ============================================================
 // NewsAdminFull — replaces the old composer with full list + edit + delete
@@ -264,15 +265,14 @@ function NewsEditor({ club, canEdit, row, onClose, onSaved }) {
         </div>
         <div style={{ marginBottom: 10 }}>
           <label style={label}>Event / display date · optional</label>
-          <input type="date" value={form.date_label || ''} onChange={e => setDateLabel(e.target.value)} style={input} />
+          <DateInput value={form.date_label || ''} onChange={setDateLabel} style={input} />
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={label}>Archive on · default 14 days after event date (or today, whichever is later)</label>
           <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              type="date"
+            <DateInput
               value={isoToDateInput(form.expires_at)}
-              onChange={e => setExpiresAt(e.target.value)}
+              onChange={setExpiresAt}
               style={{ ...input, flex: 1 }}
             />
             <div onClick={setNever} data-tap style={{ padding: '0 14px', display: 'flex', alignItems: 'center', background: form.expires_at == null ? G.green : G.card, border: `1px solid ${form.expires_at == null ? G.green : G.border}`, borderRadius: 3, cursor: 'pointer' }}>

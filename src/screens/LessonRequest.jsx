@@ -10,6 +10,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useFlag } from '../hooks/useFlag.js';
 import { supabase, isConfigured } from '../lib/supabase.js';
 import PendingGuard from '../components/PendingGuard.jsx';
+import DateInput from '../components/DateInput.jsx';
 import FeatureOff from '../components/FeatureOff.jsx';
 
 const FOCUSES = ['Full Swing', 'Short Game', 'Putting', 'Bunker Play', 'Course Management', 'Junior Lesson'];
@@ -157,7 +158,7 @@ export default function LessonRequest() {
         </div>
         <div style={{ marginBottom: 18 }}>
           <SectionHead label="Preferred Date" />
-          <input value={date} onChange={e => setDate(e.target.value)} type="date" style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }} />
+          <DateInput value={date} onChange={setDate} style={{ width: '100%', padding: '10px 12px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, color: G.text, background: G.card, outline: 'none', boxSizing: 'border-box' }} />
         </div>
         <div style={{ marginBottom: 20 }}>
           <SectionHead label="Focus Areas (select all that apply)" />

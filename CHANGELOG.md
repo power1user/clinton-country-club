@@ -164,6 +164,63 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.10 — Hotfix: date inputs wiped month + day when typing a year
+
+Marc reported that in the news archive editor, typing a year erased
+the month and day along with it. Confirmed and traced to a
+well-defined Chrome behavior with `<input type="date">`:
+
+While the user is mid-typing the year segment, the date isn't a
+complete YYYY-MM-DD yet, so the browser fires `change` (and React's
+`onChange`) with `e.target.value === ""`. If the parent component
+echoes that empty string back as the `value` prop on a controlled
+input, React resets the DOM attribute to "" — and **setting `value=""`
+on a date input wipes ALL THREE segments**, not just the one being
+typed. The user types "2" intending "2027", and watches the month
+and day disappear too.
+
+In NewsAdmin specifically the wipe was deterministic because every
+keystroke also ran through `new Date('${v}T23:59:59').toISOString()`,
+which compounded the round-trip. The other 10 native date inputs in
+the codebase (LessonRequest, AllPeopleAdmin x2, PartnerBoard,
+RecurrencePicker, sections.jsx event_date + from/to range) were less
+visible to the same bug because they stored YYYY-MM-DD directly, but
+every controlled `<input type="date">` was vulnerable to the same
+echo-empty-resets-segments flicker.
+
+**Fix:** new `<DateInput>` wrapper at `src/components/DateInput.jsx`.
+Uncontrolled internally — `defaultValue` at mount, no `value` prop
+on the underlying input. External value changes sync via a useEffect
+that skips when the input is the active element, so we never yank
+the value out from under a user who is mid-typing. `onChange` only
+forwards non-empty values, so partial-date blips during year typing
+don't propagate to parent state. Refactored all 11 callsites to use
+it.
+
+Trade-off: there's no direct way to clear the field through this
+component, because we can't distinguish "user wants to clear" from
+"Chrome briefly emitted empty because the year segment isn't
+finished." Anywhere a clear was needed (NewsAdmin's "Never" button)
+the existing affordance still works; range filters can re-type over
+the value.
+
+**Bonus polish:** matching CSS in `src/index.css` moves the Chrome /
+Edge calendar-picker icon to the LEFT of the digits (per Marc's
+request — more discoverable than the default right-edge position).
+The pseudo-element only exists in WebKit/Blink, so the rule is a
+no-op on Firefox and mobile Safari (which use full-tap-area native
+pickers).
+
+Touched files:
+  - new: `src/components/DateInput.jsx`
+  - `src/index.css` — `.date-input` icon-left CSS
+  - `src/screens/admin/NewsAdmin.jsx` — event + archive date
+  - `src/screens/admin/AllPeopleAdmin.jsx` — visit_date + expires_at
+  - `src/screens/admin/sections.jsx` — event_date + from/to filters
+  - `src/screens/PartnerBoard.jsx` — dateWanted
+  - `src/screens/LessonRequest.jsx` — preferred date
+  - `src/components/RecurrencePicker.jsx` — Custom end-date
+
 ## v0.19.9 — Hotfix: TermsGate checkboxes refused to toggle
 
 Marc reported the consent gate (Terms + Privacy + 18+ + marketing

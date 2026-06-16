@@ -21,6 +21,7 @@ import { GripVertical } from 'lucide-react';
 import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSupportModal.jsx';
 import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 import RecurrencePicker from '../../components/RecurrencePicker.jsx';   // v0.19.0
+import DateInput from '../../components/DateInput.jsx';                  // v0.19.10
 import Thread from '../Thread.jsx';                                     // v0.19.5 — inline thread inside admin
 import { markClubhouseThreadViewed } from '../../lib/commsUnread.js';    // v0.19.6 — hybrid view-or-reply badge
 import {
@@ -2469,7 +2470,7 @@ function EventEditor({ club, canEdit, row, onClose, onSaved }) {
         </div>
         <div style={{ marginBottom: 10 }}>
           <label style={label}>{isAdd && recurrence.preset !== 'none' ? 'First-occurrence date' : 'Date'} <span style={{ color: G.clsDot }}>*</span></label>
-          <input type="date" value={form.event_date} onChange={e => setEventDate(e.target.value)} style={input} />
+          <DateInput value={form.event_date} onChange={setEventDate} style={input} />
         </div>
 
         {/* Time picker: start + end. v0.9.12. Replaces the old free-text
@@ -3952,8 +3953,8 @@ function GuestList({ club }) {
               <option key={id} value={id}>Guest of {nm}</option>
             ))}
           </select>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
+          <DateInput value={from} onChange={setFrom} title="From" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
+          <DateInput value={to} onChange={setTo} title="To" style={{ padding: '7px 10px', border: `1px solid ${G.border}`, borderRadius: 3, fontFamily: '"Lora",serif', fontSize: 13, background: G.card }} />
           <div onClick={exportCsv} data-tap style={{ padding: '7px 14px', background: G.green, borderRadius: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: '"Lora",serif', fontSize: 13, color: '#F2EDE0', fontWeight: 500 }}>Export CSV</span>
           </div>
