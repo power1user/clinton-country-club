@@ -120,10 +120,14 @@ export default function ConsentCheckboxes({ values, onChange, hasPhone = false, 
   );
 }
 
+// v0.19.9 — see TermsGate.jsx Check for the explainer. tl;dr: keeping
+// BOTH the `htmlFor` AND the nested input caused a double click-
+// dispatch (bubble + label re-dispatch) on iOS Safari that toggled the
+// checkbox twice, so the box never visibly changed state. Nested
+// controls are auto-associated with the wrapping label.
 function Check({ id, checked, onChange, children, required, disabled, fs = 13 }) {
   return (
     <label
-      htmlFor={id}
       data-tap
       style={{
         display: 'flex',

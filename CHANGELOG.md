@@ -164,6 +164,40 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.9 — Hotfix: TermsGate checkboxes refused to toggle
+
+Marc reported the consent gate (Terms + Privacy + 18+ + marketing
+checkboxes) wouldn't accept clicks — tap a box, nothing happens,
+state never flips. Visually fine after v0.19.1's `appearance: auto`
+restoration; the click just had no effect.
+
+Root cause: the shared `<Check>` rows had the input nested *inside*
+the `<label>` AND the label had `htmlFor={id}` pointing at the same
+input. Two valid label-association mechanisms layered on top of each
+other. On iOS Safari that produces a double click-dispatch:
+
+  1. Tap fires on the input → toggles checkbox to NEW state, fires
+     React `onChange` → setState(new).
+  2. Click bubbles to label → label's htmlFor re-dispatches a
+     synthetic click on the input → toggles BACK to OLD state, fires
+     React `onChange` again → setState(old).
+
+React batches both setStates in the same tick, the final committed
+value matches the original, and the user sees the checkbox refuse
+to move. Per HTML5 a label with a nested form control is already
+auto-associated with that control, so the `htmlFor` was redundant
+and the source of the double-dispatch. Dropped it from both:
+
+  · `src/screens/TermsGate.jsx` — inline `Check` component
+  · `src/components/ConsentCheckboxes.jsx` — shared signup `Check`
+
+Accessibility stays intact (nested association reads the same to
+screen readers). Both files now carry a comment so this doesn't get
+reintroduced.
+
+Did NOT touch the public `/terms` and `/privacy` pages — their
+clickable links sit outside any label and were never affected.
+
 ## v0.19.8 — Clubhouse Messages: bulk-select, per-row archive, confirmation
 
 Two asks from Marc rolled into one minor patch:

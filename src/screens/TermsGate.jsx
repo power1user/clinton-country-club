@@ -253,10 +253,18 @@ export default function TermsGate({ onAccept, onDecline, previewBanner }) {
 }
 
 // Shared checkbox row. Big tap target, required-marker, disabled state.
+//
+// v0.19.9 — NO `htmlFor` on the <label> when the <input> is nested
+// inside it. Having BOTH nesting AND htmlFor causes a double click-
+// dispatch on iOS Safari: the click bubbles from input → label, and
+// the label's htmlFor re-dispatches a synthetic click back to the
+// input. Net effect = toggle twice = state never changes, so the
+// checkboxes silently refuse to flip. Nested form controls are auto-
+// associated with the wrapping label per HTML5, so removing htmlFor
+// keeps accessibility intact.
 function Check({ checked, onChange, children, id, required, disabled }) {
   return (
     <label
-      htmlFor={id}
       data-tap
       style={{
         display: 'flex',
