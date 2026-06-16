@@ -21,6 +21,7 @@ import { GripVertical } from 'lucide-react';
 import { SUPPORT_CATEGORIES, CATEGORY_COLORS } from '../../components/ContactSupportModal.jsx';
 import { useConfirm } from '../../components/ConfirmModal.jsx';   // v0.16.8b
 import RecurrencePicker from '../../components/RecurrencePicker.jsx';   // v0.19.0
+import Thread from '../Thread.jsx';                                     // v0.19.5 — inline thread inside admin
 import {
   generateOccurrences,
   recurrenceSummaryFromRows,
@@ -2985,16 +2986,22 @@ export function MemberPostsAdmin() {
 
 // ============================================================
 // ClubhouseInboxAdmin — staff sees member-initiated clubhouse threads,
-// grouped by topic. Tap a thread -> opens Thread view to reply.
+// grouped by topic. Tap a thread -> opens Thread INLINE inside the
+// admin shell (v0.19.5; previously called push('thread') which jumped
+// out to the member-facing top-level Thread screen and felt like a
+// context loss — Marc reported it during the v0.19.4 verify pass).
 // (Push for new clubhouse messages fires via the same trigger as
 // every other message.)
 // ============================================================
 export function ClubhouseInboxAdmin() {
   const { club, hasPerm } = useAuth();
-  const { push } = useNav();
   const canReply = hasPerm('can_view_clubhouse_inbox');
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
+  // v0.19.5 — when set, render <Thread/> inline (embedded mode) above
+  // the list view so staff stays inside the admin shell. Back arrow
+  // clears this back to the list.
+  const [selectedThreadId, setSelectedThreadId] = useState(null);
 
   useEffect(() => {
     if (!club) return;
@@ -3064,6 +3071,22 @@ export function ClubhouseInboxAdmin() {
     return acc;
   }, {});
 
+  // v0.19.5 — inline Thread view when a row is selected. Stays inside
+  // the admin shell; back arrow clears the selection and returns to
+  // the list. `embedded` suppresses Thread's own 44px status-bar
+  // strip so we don't double up on the admin chrome above.
+  if (selectedThreadId) {
+    return (
+      <div style={{ margin: '-16px -20px -28px', display: 'flex', flexDirection: 'column', minHeight: 'calc(100% + 44px)' }}>
+        <Thread
+          params={{ threadId: selectedThreadId }}
+          onBack={() => setSelectedThreadId(null)}
+          embedded
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* v0.12.8 — typography pass round 2. Clubhouse inbox: topic
@@ -3090,7 +3113,7 @@ export function ClubhouseInboxAdmin() {
               const starterNum = t.starter?.members?.membership_number;
               const preview = t.preview?.is_system ? `(${t.preview.body})` : (t.preview?.body || 'No messages yet');
               return (
-                <div key={t.id} onClick={() => push('thread', { threadId: t.id })} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
+                <div key={t.id} onClick={() => setSelectedThreadId(t.id)} data-tap style={{ display: 'flex', alignItems: 'center', padding: '13px 16px', borderTop: i === 0 ? 'none' : `1px solid ${G.border}`, gap: 10, cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                       <p style={{ fontFamily: '"Lora",serif', fontSize: 15, color: G.text, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

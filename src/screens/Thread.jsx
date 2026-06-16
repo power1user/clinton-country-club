@@ -25,7 +25,12 @@ const ORDER_STATUS_LABEL = {
   cancelled:        { label: 'Cancelled',     state: 'closed' },
 };
 
-export default function Thread({ params }) {
+// v0.19.5 — `embedded` flag lets parent surfaces (e.g. the admin
+// ClubhouseInboxAdmin) render Thread inside their own shell without
+// stacking duplicate status-bar strips, and `onBack` overrides the
+// default useNav.pop() so the back arrow returns to the embedding
+// list instead of unwinding the global nav stack.
+export default function Thread({ params, onBack, embedded }) {
   const threadId = params?.threadId;
   const { session, member, canMemberWrite, isGuest } = useAuth();
   const profilePhotosOn = useFlag('profile_photos');
@@ -348,8 +353,11 @@ export default function Thread({ params }) {
     // intrinsic width (otherwise a long unbroken word in a message
     // bubble could push the column out).
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, maxWidth: '100%' }}>
-      <div style={{ height: 44, background: G.green, flexShrink: 0 }} />
-      <BackHeader title={headerTitle} right={headerRight} />
+      {/* v0.19.5 — drop the duplicate status-bar strip when Thread is
+          embedded inside another shell (admin Clubhouse Inbox today;
+          future admin surfaces likely too). */}
+      {!embedded && <div style={{ height: 44, background: G.green, flexShrink: 0 }} />}
+      <BackHeader title={headerTitle} right={headerRight} onBack={onBack} />
 
       {/* Context strip */}
       {!loading && thread && (

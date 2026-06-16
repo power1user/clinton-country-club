@@ -164,6 +164,40 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.5 — Clubhouse threads open inline inside admin (not the member view)
+
+Marc reported during the v0.19.4 verify pass: clicking a clubhouse
+message inside admin Communications → Clubhouse Messages jumped him
+to the member-facing Thread screen, losing the admin shell entirely.
+Felt like a context loss.
+
+Root cause: `ClubhouseInboxAdmin` called `push('thread', { threadId })`
+on row click. `thread` is registered in the top-level SCREENS map
+(App.jsx) and renders the member-facing `Thread` component as a full
+screen — outside the AdminPanel shell.
+
+Fix: ClubhouseInboxAdmin now owns local `selectedThreadId` state.
+When set, it renders `<Thread />` inline (embedded mode) inside the
+admin section area. Back arrow clears the selection and returns to
+the list. The admin sidebar + topbar stay visible the whole time.
+
+`Thread.jsx` now accepts two optional props:
+- `onBack` — overrides the default `useNav.pop()` so embedded
+  surfaces can route Back through their own state instead of
+  unwinding the global nav stack
+- `embedded` — suppresses Thread's own 44px status-bar strip so the
+  embedding shell's chrome isn't doubled
+
+The pattern generalizes: any future admin queue that needs to drill
+into a thread (food orders, lesson requests, support tickets) can
+use the same `<Thread params={{threadId}} onBack={...} embedded />`
+pattern. Today only ClubhouseInboxAdmin uses it.
+
+No DB change. No breaking change for the existing member-side Thread
+flow (both new props default to undefined → previous behavior).
+
+---
+
 ## v0.19.4 — Clubhouse Messages badge now counts open/unanswered threads
 
 The v0.19.3 list fix surfaced a separate semantic mismatch: the
