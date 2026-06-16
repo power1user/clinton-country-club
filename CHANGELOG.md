@@ -164,6 +164,27 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.7 — Hotfix: delete in inline admin Thread bounces out of admin
+
+Same shape as the v0.19.5 back-arrow bug, different code path. When
+admin opened a clubhouse thread inline (v0.19.5 inline pattern) and
+hit Delete → Confirm in the kebab menu, the post-delete `pop()` call
+unwound the global nav stack and dropped them out of the admin shell
+into the member-facing landing.
+
+`Thread.jsx:handleHide` now routes through `onBack` when embedded
+(`if (onBack) onBack(); else pop();`), so the close-after-delete
+returns to the embedding list — same pattern as the back-arrow path.
+
+(Side note for the v0.19.8 bulk-tools work: the existing "Delete
+conversation" menu item calls `hideThread`, which is a per-participant
+soft-hide on `thread_participants.hidden_at`. For staff viewing a
+clubhouse thread they didn't reply to, there's no participant row, so
+the UPDATE matches 0 rows — the action is a no-op except for the
+navigation. v0.19.8 will need to decide on a real delete semantic.)
+
+---
+
 ## v0.19.6 — Clubhouse badge: hybrid drops on view OR reply
 
 Marc tested v0.19.4 + .5 and reported: "opened every single message,

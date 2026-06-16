@@ -270,7 +270,12 @@ export default function Thread({ params, onBack, embedded }) {
     await hideThread(threadId, session.user.id);
     setConfirmHide(false);
     setMenuOpen(false);
-    pop();                                   // back to inbox
+    // v0.19.7 — when Thread is embedded (admin Clubhouse Inbox today,
+    // future admin queues likely too), route the post-delete close
+    // through the parent's onBack so we land back on the list inside
+    // the admin shell — NOT pop() the global nav stack out of admin.
+    // Same shape as the v0.19.5 back-arrow fix.
+    if (onBack) onBack(); else pop();
   };
 
   // ── Header title (kind-specific)
