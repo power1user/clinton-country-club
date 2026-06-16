@@ -3000,10 +3000,18 @@ export function ClubhouseInboxAdmin() {
     if (!club) return;
     let cancelled = false;
     const load = async () => {
-      // RLS already restricts to staff of this club seeing all clubhouse threads
+      // RLS already restricts to staff of this club seeing all clubhouse threads.
+      //
+      // v0.19.3 — dropped the `members:created_by(name)` embed. Task #52
+      // (v0.16.16) dropped members.name (now lives on people via
+      // member.person_id), so PostgREST 400'd the whole SELECT and the
+      // page rendered "No member messages yet" while the sidebar badge
+      // (which uses a count-only query) still showed the real total.
+      // The embed was unused — the starter's name comes from the
+      // thread_participants enrichment below, which IS lifted to people.
       const { data: rows } = await supabase
         .from('threads')
-        .select('id, subject, last_message_at, created_at, created_by, members:created_by(name)')
+        .select('id, subject, last_message_at, created_at, created_by')
         .eq('club_id', club.id)
         .eq('kind', 'clubhouse')
         .order('last_message_at', { ascending: false })

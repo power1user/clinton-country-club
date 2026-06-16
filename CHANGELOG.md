@@ -164,6 +164,35 @@ Shipping plan (seven patches under one minor bump):
   v0.13.5 — Bell + OS app-badge + realtime live updates.
   v0.13.6 — Attachments via Supabase Storage + Phase 14 closeout.
 
+## v0.19.3 — Hotfix: Clubhouse Messages admin showed empty while badge said N
+
+Marc spotted: admin Communications → Clubhouse Messages sidebar badge
+showed `12`, but the panel said "No member messages yet." Mismatch
+between two queries against the same data.
+
+Root cause: `ClubhouseInboxAdmin` in `sections.jsx:3006` still selected
+`members:created_by(name)` in its embed — a column dropped by **Task
+#52 stage 2c (v0.16.16)** when people-table consolidation moved
+name/email/phone to the canonical `people` row. PostgREST returned a
+400 for the SELECT, the JS layer silently treated `data` as null,
+`(rows || [])` became `[]`, and the page rendered the empty state.
+
+Meanwhile the badge query (`commsUnread.js:139`) only counts thread
+rows by `club_id` + `kind`, doesn't touch `members.name`, and worked
+correctly. Hence: badge said 12, list said 0.
+
+Fix: dropped the unused embed from the SELECT. The starter's name was
+already coming from the `thread_participants` enrichment below, which
+IS lifted to `people` via the `members(membership_number,
+people(name))` embed updated in v0.16.14.
+
+No schema change. One-file diff, eight lines.
+
+(Repo-wide grep confirms this is the only remaining `members:.*(name)`
+or `guests:.*(name)` embed that wasn't updated for Task #52.)
+
+---
+
 ## v0.19.2 — /dev/terms-preview dry-run route for super_admin
 
 Adds `/dev/terms-preview` — a super_admin-only URL that renders the
